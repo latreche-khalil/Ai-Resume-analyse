@@ -1,0 +1,134 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+venv/
+ENV/
+env/
+.venv
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+ai_resume.db
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Uploads
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Node.js / Frontend
+node_modules/
+.next/
+out/
+.cache/
+*.tsbuildinfo
+next-env.d.ts
+.turbo
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+coverage/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Redis
+dump.rdb
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Documentation (temporary)
+*.draft.md
+*.temp.md
+
+# Alembic
+alembic/versions/__pycache__/
+
+# ChromaDB
+chroma_data/
+# Test files (temporary)
+test_*.py
+*_test.py
+test_*.json
+*_result*.json
+*_output*.json
+check_*.py
+create_*.py
+add_*.py
+
+# Documentation files (temporary)
+*_SUMMARY.md
+*_REPORT.md
+*_STATUS.md
+*_FIXES*.md
+*_VERIFICATION*.md
+*_SUCCESS*.md
+*_COMPLETE*.md
+*_IMPROVEMENTS*.md
+*_ENHANCEMENTS.md
+*_UPDATE*.md
+
+# Build artifacts
+*.tgz
+*.tar.gz
+build/
+dist/
+
+# Cache directories
+.cache/
+.parcel-cache/
+.eslintcache
+
+# Backup files
+*.backup
+*.old

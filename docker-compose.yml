@@ -1,0 +1,160 @@
+services:
+  # Frontend - Next.js 14
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ai-resume-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000/api/v1
+    depends_on:
+      - backend
+    networks:
+      - app-network
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+
+  # Backend - FastAPI
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ai-resume-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env          # ← secrets loaded from .env ONLY, not hardcoded here
+    environment:
+      # Service hostnames override .env defaults inside Docker network
+      - DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/ai_resume_db
+      - REDIS_URL=${REDIS_URL}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+      - CHROMADB_HOST=chromadb
+      - CHROMADB_PORT=8000
+      - CLAMAV_HOST=clamav
+      - CLAMAV_PORT=3310
+      - ENVIRONMENT=production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chromadb:
+        condition: service_started
+      clamav:
+        condition: service_started
+    networks:
+      - app-network
+    volumes:
+      - uploaded-files:/app/uploads
+      - ./backend/logs:/app/logs
+
+  # Celery Worker
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ai-resume-celery-worker
+    command: celery -A app.core.celery_app worker --loglevel=info --concurrency=4
+    env_file:
+      - ./backend/.env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/ai_resume_db
+      - REDIS_URL=${REDIS_URL}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+      - CHROMADB_HOST=chromadb
+      - CHROMADB_PORT=8000
+      - CLAMAV_HOST=clamav
+      - CLAMAV_PORT=3310
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app-network
+    volumes:
+      - uploaded-files:/app/uploads
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: ai-resume-postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=ai_resume_db
+    ports:
+      - "5432:5432"
+    networks:
+      - app-network
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis - Cache & Broker
+  redis:
+    image: redis:7-alpine
+    container_name: ai-resume-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ChromaDB - Vector Database
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: ai-resume-chromadb
+    ports:
+      - "8001:8000"
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    networks:
+      - app-network
+    volumes:
+      - chromadb-data:/chroma/chroma
+
+  # ClamAV - Antivirus Scanner
+  clamav:
+    image: clamav/clamav:latest
+    container_name: ai-resume-clamav
+    ports:
+      - "3310:3310"
+    networks:
+      - app-network
+    volumes:
+      - clamav-data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/clamdcheck.sh"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  chromadb-data:
+  clamav-data:
+  uploaded-files:

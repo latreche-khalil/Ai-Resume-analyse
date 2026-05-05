@@ -1,0 +1,22 @@
+Senior Full Stack Developer (React & Node.js)
+
+We are looking for a Senior Full Stack Developer to join our growing team. You will be responsible for building the frontend and backend of our cloud-based platform.
+
+REQUIREMENTS:
+- 5+ years of experience in web development.
+- Expert knowledge of React and TypeScript.
+- Strong experience with Node.js and Express.
+- Experience with PostgreSQL or other SQL databases.
+- Familiarity with Docker and Kubernetes for deployment.
+- Experience with AWS (S3, EC2, Lambda).
+- Excellent communication and leadership skills.
+
+NICE TO HAVE:
+- Experience with GraphQL.
+- Knowledge of Python or Go.
+- Experience with CI/CD pipelines (GitHub Actions).
+
+What We Offer:
+- Competitive salary.
+- Remote-first culture.
+- Opportunity to work with cutting-edge tech.
