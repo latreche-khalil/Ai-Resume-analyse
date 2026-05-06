@@ -25,54 +25,24 @@ class PIIEntity:
 
 class PIIDetector:
     """
-    PII detection using Microsoft Presidio (Enterprise-grade).
-    Handles overlapping spans, multi-language NER, and complex patterns.
+    Smart Local PII detection using Microsoft Presidio + Heuristic Filtering.
+    Ensures 100% Local Privacy (No Cloud Calls).
     """
 
     REVIEW_THRESHOLD = 0.7
     
-    # Whitelist of tech terms that should never be masked (Libraries, Frameworks, Tech)
-    TECH_WHITELIST = {
-        # Languages & Core
-        'python', 'java', 'javascript', 'typescript', 'node', 'node.js', 'html', 'css', 'sass', 'less',
-        'swift', 'kotlin', 'go', 'golang', 'rust', 'ruby', 'php', 'c++', 'c#', 'scala', 'dart',
-        
-        # Frontend
-        'react', 'next', 'next.js', 'vue', 'vue.js', 'angular', 'svelte', 'tailwind', 'bootstrap',
-        'redux', 'mobx', 'framer', 'motion', 'three.js', 'd3', 'd3.js', 'webpack', 'vite', 'babel',
-        
-        # Backend & APIs
-        'express', 'nest.js', 'nestjs', 'django', 'flask', 'fastapi', 'laravel', 'spring', 'hibernate',
-        'graphql', 'apollo', 'rest', 'grpc', 'soap', 'socket.io', 'websockets',
-        
-        # Data & AI
-        'pandas', 'numpy', 'scipy', 'scikit-learn', 'tensorflow', 'pytorch', 'keras', 'opencv',
-        'nlp', 'llm', 'bert', 'gpt', 'transformer', 'matplotlib', 'seaborn', 'plotly', 'tableau',
-        'hadoop', 'spark', 'kafka', 'airflow', 'snowflake', 'databricks',
-        
-        # DB & DevOps
-        'sql', 'nosql', 'postgresql', 'mysql', 'mongodb', 'redis', 'elasticsearch', 'cassandra',
-        'docker', 'kubernetes', 'k8s', 'terraform', 'ansible', 'jenkins', 'github', 'gitlab', 'bitbucket',
-        'aws', 'azure', 'gcp', 'firebase', 'vercel', 'netlify', 'nginx', 'linux', 'unix', 'ubuntu',
-        
-        # Tools & Concepts
-        'git', 'jira', 'confluence', 'trello', 'figma', 'postman', 'swagger', 'ci/cd', 'agile', 'scrum',
-        'api', 'json', 'xml', 'yaml', 'bash', 'shell', 'npm', 'yarn', 'pnpm', 'pip', 'poetry',
-        
-        # Common CV Headers (prevent accidental name masking)
-        'experience', 'education', 'skills', 'projects', 'summary', 'objective', 'languages',
-        'certifications', 'awards', 'publications', 'interests', 'contact', 'profile',
-        
-        # Educational & Professional terms
-        'university', 'college', 'school', 'institute', 'academy', 'faculty', 'department',
-        'bachelor', 'master', 'phd', 'doctorate', 'degree', 'diploma', 'certificate',
-        'engineering', 'science', 'arts', 'commerce', 'business', 'management', 'technology',
-        'software', 'developer', 'engineer', 'manager', 'lead', 'senior', 'junior', 'intern'
+    # Common industry-agnostic professional terms to ignore
+    # This is a small seed list; the heuristics handle most other cases.
+    PROFESSIONAL_KEYWORDS = {
+        'university', 'college', 'school', 'institute', 'bachelor', 'master', 'phd', 'degree',
+        'manager', 'director', 'lead', 'senior', 'junior', 'specialist', 'consultant', 'analyst',
+        'experience', 'education', 'skills', 'summary', 'projects', 'languages', 'certifications',
+        'medicine', 'surgery', 'engineering', 'science', 'accounting', 'legal', 'management'
     }
 
     def __init__(self):
         self._engine = None
-        logger.info("PII Detector initialized (Presidio Engine)")
+        logger.info("PII Detector initialized (Smart Local Analysis)")
 
     def _get_engine(self):
         """Lazy-load Presidio engine."""
@@ -92,16 +62,15 @@ class PIIDetector:
         entity_types: Optional[List[str]] = None
     ) -> List[PIIEntity]:
         """
-        Hybrid PII Detection: Regex for patterns + Presidio for context.
+        Main entry point for local PII detection.
         """
         entities: List[PIIEntity] = []
         
-        # 1. High-Precision Regex (Email & Phone)
-        # We always run these first as they are pattern-based and extremely accurate.
+        # 1. Pattern-based detection (Emails, Phones)
         regex_entities = self._fallback_detection(text)
         entities.extend(regex_entities)
         
-        # 2. Deep Analysis (Presidio / NER)
+        # 2. Contextual NER Analysis (Presidio)
         engine = self._get_engine()
         if not engine:
             return entities
@@ -110,56 +79,49 @@ class PIIDetector:
             results = engine.analyze(
                 text=text,
                 language=language,
-                entities=entity_types,
-                score_threshold=0.4
+                entities=['PERSON', 'LOCATION'],
+                score_threshold=0.45
             )
-
-            TYPE_MAP = {
-                'PERSON': 'NAME',
-                'EMAIL_ADDRESS': 'EMAIL',
-                'PHONE_NUMBER': 'PHONE',
-                'LOCATION': 'ADDRESS',
-                'DATE_TIME': 'DATE_OF_BIRTH',
-                'US_PASSPORT': 'ID_NUMBER',
-                'US_SSN': 'ID_NUMBER',
-                'US_DRIVER_LICENSE': 'ID_NUMBER'
-            }
 
             for res in results:
                 entity_text = text[res.start:res.end].strip()
                 
-                # Deduplicate: Skip if already detected by high-precision Regex
+                # ── SMART HEURISTICS (Industry Agnostic) ──
+                
+                # Rule 1: Skip if already detected by Regex
                 if any(e.start <= res.start and e.end >= res.end for e in entities):
                     continue
 
-                # ── Professional Context Preservation (White-list & Heuristics) ──
-                if entity_text.lower() in self.TECH_WHITELIST:
+                # Rule 2: Symbols/Special Chars (Libraries, Tools, Chemicals, Equations)
+                # Matches: C++, node.js, .NET, H2O, etc.
+                if any(char in entity_text for char in ['.', '+', '#', '/', '(', ')', '_', ':']):
                     continue
-                
-                if res.entity_type == 'PERSON':
-                    # Heuristic 1: Short words (acronyms)
-                    if len(entity_text) <= 3: continue
-                    
-                    # Heuristic 2: All-caps (usually project names or tech)
-                    if entity_text.isupper() and len(entity_text) < 10: continue
-                    
-                    # Heuristic 3: Technical patterns (lower start, numbers, dots, camelCase)
-                    if ' ' not in entity_text:
-                        is_tech = (
-                            entity_text[0].islower() or 
-                            any(c.isdigit() for c in entity_text) or
-                            '.' in entity_text or '-' in entity_text or
-                            (len(entity_text) > 3 and any(c.isupper() for c in entity_text[1:]))
-                        )
-                        if is_tech: continue
-                    
-                    # Heuristic 4: Confidence check for single-word names
-                    if ' ' not in entity_text and res.score < 0.85: continue
 
-                # Normalize and Add
-                mapped_type = TYPE_MAP.get(res.entity_type, 'NAME') 
+                # Rule 3: Versioning/Numbers (Python 3, ISO 9001, etc.)
+                if any(char.isdigit() for char in entity_text):
+                    continue
+
+                # Rule 4: Professional Case Check
+                # If ALL CAPS (REACT) or all lower (react), usually not a Name in a CV context
+                if entity_text.isupper() or entity_text.islower():
+                    continue
+
+                # Rule 5: CamelCase check (TensorFlow, GitHub, etc.)
+                if len(entity_text) > 3 and any(c.isupper() for c in entity_text[1:-1]):
+                    if ' ' not in entity_text:
+                        continue
+
+                # Rule 6: Common Professional Keywords
+                if entity_text.lower() in self.PROFESSIONAL_KEYWORDS:
+                    continue
+
+                # Rule 7: Minimum length (Names < 3 chars are rare in this context)
+                if len(entity_text) < 3:
+                    continue
+
+                # Add valid PII entity
                 entities.append(PIIEntity(
-                    entity_type=mapped_type,
+                    entity_type='NAME' if res.entity_type == 'PERSON' else 'ADDRESS',
                     text=entity_text,
                     start=res.start,
                     end=res.end,
@@ -167,22 +129,18 @@ class PIIDetector:
                     flagged_for_review=res.score < self.REVIEW_THRESHOLD
                 ))
 
-            # Sort by start position
             return sorted(entities, key=lambda x: x.start)
-
         except Exception as e:
-            logger.error(f"Presidio analysis failed: {e}")
+            logger.error(f"Local PII analysis error: {e}")
             return entities
 
     def _fallback_detection(self, text: str) -> List[PIIEntity]:
-        """High-precision Regex-based detection for fixed patterns."""
+        """Regex-based detection for fixed patterns."""
         entities = []
         patterns = {
             'EMAIL': r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b',
-            # Improved Phone Regex: International (E.164) + North Africa/Algeria specific
             'PHONE': r'\b(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3}[-.\s]?\d{4,8}\b',
         }
-        
         for p_type, pattern in patterns.items():
             for m in re.finditer(pattern, text):
                 entities.append(PIIEntity(
@@ -193,30 +151,11 @@ class PIIDetector:
                     confidence_score=0.95,
                     flagged_for_review=False
                 ))
-        
-        # Arabic PII Safety Net (Detect sequences of Arabic script as potential PII)
-        # This handles cases where NER might fail on Arabic names/locations
-        arabic_pattern = r'[\u0600-\u06FF\s]{5,50}'
-        for m in re.finditer(arabic_pattern, text):
-            # Only flag if it's a relatively short sequence (likely a name/address, not a paragraph)
-            val = m.group().strip()
-            if 2 <= len(val.split()) <= 4:
-                entities.append(PIIEntity(
-                    entity_type='NAME', # Fallback to NAME for Arabic script sequences
-                    text=val,
-                    start=m.start(),
-                    end=m.end(),
-                    confidence_score=0.6,
-                    flagged_for_review=True # Always flag Arabic fallbacks for review
-                ))
-
         return entities
 
     def get_flagged_entities(self, entities: List[PIIEntity]) -> List[PIIEntity]:
         return [e for e in entities if e.flagged_for_review]
 
 
-# Global PII detector instance
+# Global instance
 pii_detector = PIIDetector()
-
-

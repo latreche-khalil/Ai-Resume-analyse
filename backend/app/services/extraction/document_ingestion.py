@@ -244,6 +244,7 @@ class DocumentIngestionService:
             
             # Update status
             document.processing_status = 'processing'
+            document.status_message = "Starting deep analysis..."
             await db.commit()
             
             # Read file
@@ -251,20 +252,30 @@ class DocumentIngestionService:
                 file_content = await f.read()
             
             # Extract text
-            extracted_text, detected_language, word_count = await text_extraction_service.extract_text(
+            extracted_text, detected_language, word_count, method = await text_extraction_service.extract_text(
                 file_content,
                 document.file_format
             )
             
+            # Map method to human readable status
+            status_map = {
+                'pymupdf_fast': "Fast text extraction completed.",
+                'docling': "Deep structural analysis completed (Docling).",
+                'easyocr_enhanced': "OCR image analysis completed.",
+                'python-docx_enhanced': "Word document extraction completed.",
+                'pymupdf_fallback': "Basic text extraction completed."
+            }
+            document.status_message = status_map.get(method, "Text extraction completed.")
+            
             if not extracted_text:
                 # Accept document even if text extraction fails
-                # (image-based PDF or OCR not available)
                 logger.warning(f"Text extraction returned empty for {document_id}, marking as completed anyway")
                 document.extracted_text = ""
                 document.masked_text = ""
                 document.detected_language = 'en'
                 document.word_count = 0
                 document.processing_status = 'completed'
+                document.status_message = "No text found in document."
                 await db.commit()
                 return True, None
             
@@ -275,6 +286,9 @@ class DocumentIngestionService:
             await db.commit()
             
             # Process through Privacy Gateway to generate masked_text
+            document.status_message = "Securing data (PII Masking)..."
+            await db.commit()
+            
             from app.services.privacy.privacy_gateway import privacy_gateway
             
             logger.info(f"Running Privacy Gateway for document {document_id}")
@@ -288,9 +302,23 @@ class DocumentIngestionService:
             
             # Update document with masked text
             document.masked_text = masked_text
-            document.processing_status = 'completed'
-            
+            document.processing_status = 'processing' # Stay in processing
+            document.status_message = "Document secured. AI starting skill extraction..."
             await db.commit()
+
+            # Stage 2: RAG Pipeline - Semantic Vector Matching (Anonymization-First)
+            # We embed the MASKED text to ensure Vector DB integrity
+            try:
+                from app.services.nlp.rag_pipeline import rag_pipeline
+                logger.info(f"Generating embeddings for masked text of document {document_id}")
+                await rag_pipeline.chunk_and_embed(
+                    document_id=document.id,
+                    text=masked_text,
+                    language=document.detected_language
+                )
+            except Exception as rag_e:
+                logger.error(f"RAG embedding failed for {document_id}: {rag_e}")
+                # We continue as extraction might still work
             
             logger.info(
                 f"Document processed successfully: {document_id} "

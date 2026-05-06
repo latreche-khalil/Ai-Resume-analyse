@@ -109,6 +109,12 @@ class CVDocument(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         index=True,
         comment="Processing status: pending, processing, completed, or failed"
     )
+
+    status_message = Column(
+        String(255),
+        nullable=True,
+        comment="Human-readable processing update (e.g., 'Using deep analysis...')"
+    )
     
     # Virus scan
     virus_scan_status = Column(
@@ -178,10 +184,6 @@ class CVDocument(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         CheckConstraint(
             "file_size_bytes <= 10485760",
             name="check_file_size_limit"
-        ),
-        CheckConstraint(
-            "word_count IS NULL OR word_count >= 50",
-            name="check_word_count_minimum"
         ),
         Index("idx_cv_documents_user_id", "user_id"),
         Index("idx_cv_documents_status", "processing_status"),

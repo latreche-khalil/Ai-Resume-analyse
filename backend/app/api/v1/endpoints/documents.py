@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
@@ -39,23 +39,19 @@ router = APIRouter(prefix="/documents")
     description="Upload a CV file for processing"
 )
 async def upload_cv(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ) -> CVDocumentResponse:
     """
-    Upload CV document.
-    
-    Accepts: PDF, DOCX, JPG, PNG
-    Max size: 10MB
-    
-    Requirements: 3.1, 3.2, 3.11
+    Upload CV document and process in background.
     """
     try:
         # Read file content
         file_content = await file.read()
         
-        # Upload and process
+        # 1. Initial upload (Validation, Virus Scan, Storage) - FAST
         cv_document, error_msg = await document_ingestion_service.upload_cv(
             file_content=file_content,
             filename=file.filename,
@@ -69,60 +65,15 @@ async def upload_cv(
                 detail=error_msg or "Failed to upload document"
             )
         
-        logger.info(f"CV uploaded by user {current_user.email}: {cv_document.id}")
+        # 2. Add HEAVY processing to background tasks
+        background_tasks.add_task(
+            run_heavy_processing,
+            document_id=cv_document.id,
+            user_email=current_user.email
+        )
         
-        # Try to process document with timeout
-        try:
-            # Process with 300 second timeout for heavy local processing (OCR + Docling + Spacy)
-            success, error = await asyncio.wait_for(
-                document_ingestion_service.process_document(cv_document.id, db),
-                timeout=300.0
-            )
-            if success:
-                # Use a fresh query instead of refresh to avoid potential session issues after cancellation
-                res = await db.execute(select(CVDocument).where(CVDocument.id == cv_document.id))
-                cv_document = res.scalar_one()
-                logger.info(f"Document processed: {cv_document.id} - status: {cv_document.processing_status}")
-                
-                # Trigger extraction agent to extract skills
-                if cv_document.processing_status == 'completed' and cv_document.masked_text:
-                    logger.info(f"Triggering extraction agent for document: {cv_document.id}")
-                    from app.services.agents.extraction_agent import extraction_agent
-                    
-                    extracted_data = await extraction_agent.extract_structured_data(
-                        masked_text=cv_document.masked_text,
-                        language=cv_document.detected_language or 'en',
-                        db=db
-                    )
-                    
-                    skill_report = await extraction_agent.store_extraction_results(
-                        document_id=str(cv_document.id),
-                        extracted_data=extracted_data,
-                        db=db
-                    )
-                    
-                    logger.info(f"Skills extracted: {len(extracted_data.get('skills', []))} skills for document {cv_document.id}")
-            else:
-                logger.error(f"Document processing failed: {cv_document.id} - {error}")
-                await db.refresh(cv_document)  # Refresh even on failure
-        except asyncio.TimeoutError:
-            logger.warning(f"Document processing timeout after 300s: {cv_document.id} - will continue in background")
-            try:
-                await db.refresh(cv_document)
-            except:
-                pass
-        except Exception as proc_ex:
-            logger.error(f"Sync processing exception: {proc_ex}", exc_info=True)
-            try:
-                await db.refresh(cv_document)
-            except:
-                pass
+        logger.info(f"CV upload accepted: {cv_document.id}. Processing started in background.")
         
-        # Final safe refresh before returning
-        try:
-            await db.refresh(cv_document)
-        except:
-            pass
         return CVDocumentResponse.model_validate(cv_document)
         
     except HTTPException:
@@ -133,6 +84,77 @@ async def upload_cv(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to upload document"
         )
+
+async def run_heavy_processing(document_id: UUID, user_email: str):
+    """
+    Background task for OCR, PII masking, and Skill Extraction.
+    Ensures status is updated even on failure.
+    """
+    from app.core.database import AsyncSessionLocal
+    async with AsyncSessionLocal() as db:
+        cv_document = None
+        try:
+            logger.info(f"Background processing started for {document_id}")
+            
+            # 1. Fetch document
+            res = await db.execute(select(CVDocument).where(CVDocument.id == document_id))
+            cv_document = res.scalar_one_or_none()
+            if not cv_document:
+                logger.error(f"Document {document_id} not found in background task")
+                return
+
+            # 2. Document Processing (OCR + PII)
+            success, error = await document_ingestion_service.process_document(document_id, db)
+            if not success:
+                logger.error(f"Stage 1 (Ingestion) failed for {document_id}: {error}")
+                cv_document.processing_status = 'failed'
+                cv_document.status_message = f"Processing error: {error}"
+                await db.commit()
+                return
+
+            # Refresh after Stage 1
+            await db.refresh(cv_document)
+
+            # 3. Skill Extraction (LLM Agent)
+            if cv_document.masked_text:
+                from app.services.agents.extraction_agent import extraction_agent
+                
+                cv_document.processing_status = 'processing'
+                cv_document.status_message = "Extracting professional skills with AI..."
+                await db.commit()
+                
+                try:
+                    # Run extraction with a safety wrapper
+                    extracted_data = await extraction_agent.extract_structured_data(
+                        masked_text=cv_document.masked_text,
+                        language=cv_document.detected_language or 'en',
+                        db=db
+                    )
+                    
+                    await extraction_agent.store_extraction_results(
+                        document_id=str(cv_document.id),
+                        extracted_data=extracted_data,
+                        db=db
+                    )
+                except Exception as llm_e:
+                    logger.warning(f"Skill extraction failed for {document_id}, but text was extracted: {llm_e}")
+                    # We don't fail the whole process if only LLM enrichment fails
+                
+                # FINAL completion
+                cv_document.processing_status = 'completed'
+                cv_document.status_message = "Ingestion complete. Skills indexed."
+                await db.commit()
+                logger.info(f"Background processing completed for {document_id}")
+                
+        except Exception as e:
+            logger.error(f"Fatal error in background task for {document_id}: {e}", exc_info=True)
+            if cv_document:
+                try:
+                    cv_document.processing_status = 'failed'
+                    cv_document.status_message = "A system error occurred during processing."
+                    await db.commit()
+                except:
+                    pass
 
 
 @router.get(
@@ -156,18 +178,20 @@ async def get_document(
     # Use helper to eliminate repetitive ownership verification
     document = await get_user_cv_or_403(db, document_id, current_user.id)
     
-    # Fetch latest analysis
+    # Fetch latest analysis info
     from app.models.analysis_record import AnalysisRecord
     analysis_res = await db.execute(
-        select(AnalysisRecord.id)
+        select(AnalysisRecord.id, AnalysisRecord.match_score)
         .where(AnalysisRecord.cv_document_id == document_id)
         .order_by(AnalysisRecord.created_at.desc())
         .limit(1)
     )
-    latest_id = analysis_res.scalar_one_or_none()
+    latest = analysis_res.first()
     
     doc_resp = CVDocumentResponse.model_validate(document)
-    doc_resp.latest_analysis_id = latest_id
+    if latest:
+        doc_resp.latest_analysis_id = latest[0]
+        doc_resp.match_score = float(latest[1]) if latest[1] is not None else None
     
     return doc_resp
 
@@ -220,18 +244,21 @@ async def list_documents(
     from app.models.analysis_record import AnalysisRecord
     docs_with_analysis = []
     for doc in documents:
-        # Simple subquery for latest analysis
+        # Simple subquery for latest analysis info
         analysis_res = await db.execute(
-            select(AnalysisRecord.id)
+            select(AnalysisRecord.id, AnalysisRecord.match_score)
             .where(AnalysisRecord.cv_document_id == doc.id)
             .order_by(AnalysisRecord.created_at.desc())
             .limit(1)
         )
-        latest_id = analysis_res.scalar_one_or_none()
+        latest = analysis_res.first()
         
         # Create response object
         doc_resp = CVDocumentResponse.model_validate(doc)
-        doc_resp.latest_analysis_id = latest_id
+        if latest:
+            doc_resp.latest_analysis_id = latest[0]
+            doc_resp.match_score = float(latest[1]) if latest[1] is not None else None
+            
         docs_with_analysis.append(doc_resp)
     
     return CVDocumentListResponse(

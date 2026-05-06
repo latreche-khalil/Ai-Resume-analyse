@@ -1,6 +1,8 @@
 'use client'
 
 import { motion } from 'framer-motion'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Section, Empty } from '@/components/shared/UIHelpers'
 
 interface InterviewTabProps {
@@ -8,8 +10,15 @@ interface InterviewTabProps {
 }
 
 export function InterviewTab({ guide }: InterviewTabProps) {
+  const router = useRouter()
+
   if (!guide || (!guide.technical_questions && !guide.behavioral_questions)) {
     return <Empty>لا يوجد دليل مقابلة متاح حالياً لهذا التحليل</Empty>
+  }
+
+  const startSimulation = () => {
+    toast.loading('Preparing your AI Interview Simulation...')
+    router.push('/coaching/interview')
   }
 
   return (
@@ -86,7 +95,10 @@ export function InterviewTab({ guide }: InterviewTabProps) {
 
       <div className="bg-sky-600/10 border border-sky-600/20 rounded-xl p-4 flex items-center justify-between">
         <div className="text-sm theme-text-secondary">هل تريد التدرب على هذه الأسئلة الآن؟</div>
-        <button className="px-6 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg transition-all">
+        <button 
+          onClick={startSimulation}
+          className="px-6 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg transition-all"
+        >
           ابدأ محاكاة المقابلة 🤖
         </button>
       </div>

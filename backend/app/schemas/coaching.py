@@ -71,11 +71,17 @@ class InterviewSimulationStart(BaseModel):
     """Schema for starting interview simulation."""
     
     job_description_id: UUID = Field(..., description="Job description for role-specific questions")
+    difficulty: Optional[str] = Field("mid", description="junior, mid, senior")
+    interview_type: Optional[str] = Field("mixed", description="technical, behavioral, mixed")
+    mode: Optional[str] = Field("training", description="training, test")
     
     class Config:
         json_schema_extra = {
             "example": {
-                "job_description_id": "123e4567-e89b-12d3-a456-426614174000"
+                "job_description_id": "123e4567-e89b-12d3-a456-426614174000",
+                "difficulty": "mid",
+                "interview_type": "technical",
+                "mode": "training"
             }
         }
 
@@ -84,7 +90,7 @@ class InterviewAnswerSubmit(BaseModel):
     """Schema for submitting interview answer."""
     
     question_id: UUID = Field(..., description="Question ID")
-    answer_text: str = Field(..., min_length=10, description="Answer text (min 10 chars)")
+    answer_text: str = Field(..., min_length=1, description="Answer text")
     
     class Config:
         json_schema_extra = {

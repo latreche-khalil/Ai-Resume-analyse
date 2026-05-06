@@ -6,6 +6,7 @@ import { motion } from 'framer-motion'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { apiClient } from '@/lib/api-client'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { toast } from 'sonner'
 
 export default function UploadCVPage() {
   const router = useRouter()
@@ -40,13 +41,14 @@ export default function UploadCVPage() {
   const handleFileSelect = (selectedFile: File) => {
     const validationError = validateFile(selectedFile)
     if (validationError) {
-      setError(validationError)
+      toast.error(validationError)
       setFile(null)
       return
     }
 
     setError('')
     setFile(selectedFile)
+    toast.success('File selected: ' + selectedFile.name)
   }
 
   const handleDrag = (e: React.DragEvent) => {
@@ -75,36 +77,68 @@ export default function UploadCVPage() {
     }
   }
 
+  const [statusMessage, setStatusMessage] = useState('')
+  const [processingId, setProcessingId] = useState<string | null>(null)
+
   const handleUpload = async () => {
     if (!file) return
 
     setUploading(true)
     setError('')
     setProgress(0)
+    setStatusMessage('Preparing upload...')
+    
+    const uploadToast = toast.loading('Uploading and analyzing your CV...')
 
     try {
-      // Simulate progress
-      const progressInterval = setInterval(() => {
-        setProgress((prev) => Math.min(prev + 10, 90))
-      }, 200)
-
+      // 1. Perform actual upload
       const response = await apiClient.uploadCV(file)
+      setProcessingId(response.id)
+      setStatusMessage('File received! Starting technical ingestion...')
+      setProgress(30)
 
-      clearInterval(progressInterval)
-      setProgress(100)
+      // 2. Poll for background processing status
+      const maxAttempts = 100 
+      let attempts = 0
+      
+      while (attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 1200)) // Faster polling: 1.2s
+        try {
+          const doc = await apiClient.getDocument(response.id)
+          
+          if (doc.status_message) {
+            setStatusMessage(doc.status_message)
+          }
 
-      // Wait a moment to show 100% progress
-      setTimeout(() => {
-        router.push(`/documents`)
-      }, 800)
-    } catch (err: any) {
-      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
-        setError('Server is warming up (OCR/AI services). This is common for the first upload. Please wait a moment and try again.')
-      } else {
-        setError(err.response?.data?.detail || err.response?.data?.message || 'Upload failed. Please try again.')
+          if (doc.processing_status === 'completed') {
+            setProgress(100)
+            setStatusMessage('Ingestion complete! Document is secured and ready.')
+            toast.success('CV processed successfully!', { id: uploadToast })
+            await new Promise(resolve => setTimeout(resolve, 1500))
+            router.push(`/documents`)
+            return
+          } else if (doc.processing_status === 'failed') {
+            throw new Error('Processing failed. Please check the file format and try again.')
+          }
+          
+          // Gradually increase progress based on status
+          setProgress(prev => Math.min(prev + 5, 95))
+          attempts++
+        } catch (pollErr) {
+          console.error('Polling error:', pollErr)
+          attempts++
+        }
       }
+      
+      // If we timeout, still go to documents
+      toast.info('Processing is taking longer than expected. It will appear in your list soon.', { id: uploadToast })
+      router.push(`/documents`)
+    } catch (err: any) {
+      console.error('Upload/Process error:', err)
+      const errorMsg = err.response?.data?.detail || err.response?.data?.message || 'Upload failed. Please try again.'
+      setError(errorMsg)
+      toast.error(errorMsg, { id: uploadToast })
       setProgress(0)
-    } finally {
       setUploading(false)
     }
   }
@@ -223,29 +257,48 @@ export default function UploadCVPage() {
               </motion.div>
             )}
 
-            {/* Progress Bar */}
+            {/* Progress Bar & Status Messages */}
             {uploading && (
-              <div className="mt-6">
-                <div className="flex justify-between text-sm theme-text-secondary mb-2">
-                  <span>Uploading...</span>
-                  <span>{progress}%</span>
+              <div className="mt-8 p-6 rounded-2xl bg-sky-500/5 border border-sky-500/20 backdrop-blur-sm">
+                <div className="flex justify-between items-end mb-4">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm font-semibold theme-text">System Status</span>
+                    <motion.p 
+                      key={statusMessage}
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-lg font-bold text-sky-400 flex items-center gap-2"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
+                      {statusMessage}
+                    </motion.p>
+                  </div>
+                  <span className="text-2xl font-bold text-sky-500">{progress}%</span>
                 </div>
-                <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+                
+                <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden mb-4">
                   <motion.div
-                    className="h-2 bg-gradient-to-r from-sky-500 to-blue-500"
+                    className="h-full bg-gradient-to-r from-sky-500 via-blue-500 to-indigo-500 shadow-[0_0_15px_rgba(14,165,233,0.5)]"
                     initial={{ width: 0 }}
                     animate={{ width: `${progress}%` }}
-                    transition={{ duration: 0.3 }}
+                    transition={{ duration: 0.5 }}
                   />
                 </div>
-                <p className="mt-2 text-xs theme-text-quaternary text-center">
-                  {progress < 20 && 'Uploading file...'}
-                  {progress >= 20 && progress < 40 && 'Validating CV format...'}
-                  {progress >= 40 && progress < 60 && 'Scanning for viruses...'}
-                  {progress >= 60 && progress < 80 && 'Extracting text with OCR...'}
-                  {progress >= 80 && progress < 95 && 'Analyzing skills (AI-powered)...'}
-                  {progress >= 95 && 'Processing complete!'}
-                </p>
+
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: 'Uploading', min: 0 },
+                    { label: 'Processing', min: 30 },
+                    { label: 'Securing', min: 80 }
+                  ].map((stage) => (
+                    <div key={stage.label} className="flex flex-col gap-1">
+                      <div className={`h-1 rounded-full transition-colors duration-500 ${progress >= stage.min ? 'bg-sky-500' : 'bg-white/10'}`} />
+                      <span className={`text-[10px] uppercase tracking-wider font-bold ${progress >= stage.min ? 'text-sky-400' : 'text-white/20'}`}>
+                        {stage.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

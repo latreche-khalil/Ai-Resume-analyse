@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
 import { useAuth } from '@/contexts/auth-context'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { toast } from 'sonner'
 
 const NAV_ITEMS = [
   { icon: '🏠', label: 'Home',            href: '/?preview=1',    active: false },
@@ -77,13 +78,6 @@ function SaveButton({ onClick, state, label = 'Save Changes' }: { onClick: () =>
   )
 }
 
-function Alert({ type, message }: { type: 'success' | 'error'; message: string }) {
-  return (
-    <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className={`px-4 py-3 rounded-xl text-sm border ${type === 'success' ? 'bg-green-500/20 border-green-500/40 text-green-400' : 'bg-red-500/20 border-red-500/40 text-red-400'}`}>
-      {type === 'success' ? '✅' : '❌'} {message}
-    </motion.div>
-  )
-}
 
 export function SettingsView() {
   const { user, refreshUser, logout } = useAuth() as any
@@ -94,12 +88,10 @@ export function SettingsView() {
   const [lastName, setLastName]     = useState('')
   const [language, setLanguage]     = useState('en')
   const [profileState, setProfileState] = useState<SaveState>('idle')
-  const [profileMsg, setProfileMsg] = useState('')
   const [currentPwd, setCurrentPwd] = useState('')
   const [newPwd, setNewPwd]         = useState('')
   const [confirmPwd, setConfirmPwd] = useState('')
   const [pwdState, setPwdState]     = useState<SaveState>('idle')
-  const [pwdMsg, setPwdMsg]         = useState('')
   const [profilePublic, setProfilePublic]   = useState(false)
   const [shareAnalytics, setShareAnalytics] = useState(true)
   const [emailNotifs, setEmailNotifs]       = useState(true)
@@ -108,7 +100,6 @@ export function SettingsView() {
   const [exportState, setExportState]   = useState<SaveState>('idle')
   const [deleteConfirm, setDeleteConfirm] = useState('')
   const [deleteState, setDeleteState]   = useState<SaveState>('idle')
-  const [deleteMsg, setDeleteMsg]       = useState('')
 
   useEffect(() => {
     if (user) {
@@ -121,28 +112,36 @@ export function SettingsView() {
   const handleLogout = useCallback(async () => { await logout() }, [logout])
 
   const saveProfile = async () => {
-    setProfileState('saving'); setProfileMsg('')
+    setProfileState('saving')
     try {
       await apiClient.updateProfile({ first_name: firstName, last_name: lastName, preferred_language: language })
       if (refreshUser) await refreshUser()
-      setProfileState('saved'); setProfileMsg('Profile updated successfully.')
+      setProfileState('saved')
+      toast.success('Profile updated successfully.')
       setTimeout(() => setProfileState('idle'), 3000)
     } catch (e: any) {
-      setProfileState('error'); setProfileMsg(e?.response?.data?.detail || 'Failed to update profile.')
+      setProfileState('error')
+      toast.error(e?.response?.data?.detail || 'Failed to update profile.')
       setTimeout(() => setProfileState('idle'), 4000)
     }
   }
 
   const changePassword = async () => {
-    if (newPwd !== confirmPwd) { setPwdMsg('Passwords do not match.'); setPwdState('error'); return }
-    setPwdState('saving'); setPwdMsg('')
+    if (newPwd !== confirmPwd) {
+      toast.error('Passwords do not match.')
+      setPwdState('error')
+      return
+    }
+    setPwdState('saving')
     try {
       await apiClient.changePassword(currentPwd, newPwd)
-      setPwdState('saved'); setPwdMsg('Password changed successfully.')
+      setPwdState('saved')
+      toast.success('Password changed successfully.')
       setCurrentPwd(''); setNewPwd(''); setConfirmPwd('')
       setTimeout(() => setPwdState('idle'), 3000)
     } catch (e: any) {
-      setPwdState('error'); setPwdMsg(e?.response?.data?.detail || 'Failed to change password.')
+      setPwdState('error')
+      toast.error(e?.response?.data?.detail || 'Failed to change password.')
       setTimeout(() => setPwdState('idle'), 4000)
     }
   }
@@ -155,22 +154,30 @@ export function SettingsView() {
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a'); a.href = url; a.download = `resumeai-data-${Date.now()}.json`; a.click()
       URL.revokeObjectURL(url)
-      setExportState('saved'); setTimeout(() => setExportState('idle'), 3000)
-    } catch { setExportState('error'); setTimeout(() => setExportState('idle'), 3000) }
+      setExportState('saved')
+      toast.success('Data exported successfully.')
+      setTimeout(() => setExportState('idle'), 3000)
+    } catch { 
+      setExportState('error')
+      toast.error('Failed to export data.')
+      setTimeout(() => setExportState('idle'), 3000) 
+    }
   }
 
   const deleteAccount = async () => {
     if (deleteConfirm !== 'DELETE') return
-    setDeleteState('saving'); setDeleteMsg('')
+    setDeleteState('saving')
     try {
       await apiClient.deleteMyAccount()
+      toast.success('Account deleted. Redirecting...')
       document.cookie.split(";").forEach((c) => {
         document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
       });
       localStorage.clear(); sessionStorage.clear()
       window.location.href = '/?t=' + Date.now()
     } catch (e: any) {
-      setDeleteState('error'); setDeleteMsg(e?.response?.data?.detail || 'Failed to delete account.')
+      setDeleteState('error')
+      toast.error(e?.response?.data?.detail || 'Failed to delete account.')
       setTimeout(() => setDeleteState('idle'), 4000)
     }
   }
@@ -232,7 +239,6 @@ export function SettingsView() {
                   <div className="grid grid-cols-2 gap-4"><Field label="First Name" value={firstName} onChange={setFirstName} /><Field label="Last Name" value={lastName} onChange={setLastName} /></div>
                   <Field label="Email Address" value={user?.email || ''} disabled hint="Email cannot be changed." />
                   <div><label className="block text-sm font-medium theme-text mb-1.5">Preferred Language</label><select value={language} onChange={e => setLanguage(e.target.value)} className="theme-input w-full"><option value="en">🇬🇧 English</option><option value="ar">🇸🇦 Arabic</option><option value="fr">🇫🇷 French</option></select></div>
-                  {profileMsg && <Alert type={profileState === 'error' ? 'error' : 'success'} message={profileMsg} />}
                   <div className="flex justify-end pt-2"><SaveButton onClick={saveProfile} state={profileState} /></div>
                 </Card>
               </motion.div>
@@ -244,7 +250,6 @@ export function SettingsView() {
                   <Field label="Current Password" value={currentPwd} onChange={setCurrentPwd} type="password" /><Field label="New Password" value={newPwd} onChange={setNewPwd} type="password" />
                   {newPwd && (<div><div className="flex gap-1 mb-1">{[1,2,3,4,5].map(i => (<div key={i} className={`h-1 flex-1 rounded-full transition-colors ${i <= pwdStrength ? (pwdStrength <= 2 ? 'bg-red-400' : pwdStrength <= 3 ? 'bg-yellow-400' : 'bg-green-400') : 'bg-white/10'}`} />))}</div><p className="text-xs theme-text-tertiary">{pwdStrength <= 2 ? '⚠️ Weak' : pwdStrength <= 3 ? '🟡 Medium' : '✅ Strong'}</p></div>)}
                   <Field label="Confirm New Password" value={confirmPwd} onChange={setConfirmPwd} type="password" />
-                  {pwdMsg && <Alert type={pwdState === 'error' ? 'error' : 'success'} message={pwdMsg} />}
                   <div className="flex justify-end pt-2"><SaveButton onClick={changePassword} state={pwdState} label="Change Password" /></div>
                 </Card>
               </motion.div>

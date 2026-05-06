@@ -156,12 +156,13 @@ class CVValidatorService:
             return None
     
     async def _extract_from_pdf(self, file_content: bytes) -> Optional[str]:
-        """Extract text from PDF using PyMuPDF, fallback to EasyOCR for scanned PDFs."""
+        """Extract text from PDF using PyMuPDF (FAST). Skip OCR for validation speed."""
         try:
             doc = fitz.open(stream=file_content, filetype="pdf")
             text_parts = []
             
-            max_pages = min(3, len(doc))
+            # Only check first 2 pages for validation speed
+            max_pages = min(2, len(doc))
             for page_num in range(max_pages):
                 page = doc[page_num]
                 text = page.get_text()
@@ -171,55 +172,30 @@ class CVValidatorService:
             doc.close()
             full_text = "\n".join(text_parts)
             
-            if full_text.strip():
-                return full_text
-            
-            # Scanned PDF - use EasyOCR
-            logger.info("PDF has no selectable text, attempting EasyOCR...")
-            try:
-                doc2 = fitz.open(stream=file_content, filetype="pdf")
-                page = doc2[0]
-                pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))
-                img_data = pix.tobytes("png")
-                doc2.close()
-                reader = easyocr.Reader(['en'], gpu=False, verbose=False)
-                results = reader.readtext(img_data)
-                ocr_text = ' '.join(text for (_, text, conf) in results if conf > 0.4)
-                return ocr_text if ocr_text.strip() else None
-            except Exception as ocr_err:
-                logger.warning(f"EasyOCR failed in validator: {ocr_err}")
-                return None
+            return full_text if full_text.strip() else None
                 
         except Exception as e:
-            logger.error(f"PDF extraction error: {str(e)}")
+            logger.error(f"PDF extraction error in validator: {str(e)}")
             return None
     
     async def _extract_from_docx(self, file_content: bytes) -> Optional[str]:
-        """Extract text from DOCX (first 50 paragraphs for speed)."""
+        """Extract text from DOCX (first 20 paragraphs for speed)."""
         try:
             doc = Document(io.BytesIO(file_content))
             text_parts = []
             
-            # Only check first 50 paragraphs for speed
-            for paragraph in doc.paragraphs[:50]:
+            for paragraph in doc.paragraphs[:20]:
                 text_parts.append(paragraph.text)
             
             return "\n".join(text_parts)
             
         except Exception as e:
-            logger.error(f"DOCX extraction error: {str(e)}")
+            logger.error(f"DOCX extraction error in validator: {str(e)}")
             return None
     
     async def _extract_from_image(self, file_content: bytes) -> Optional[str]:
-        """Extract text from image using EasyOCR."""
-        try:
-            reader = easyocr.Reader(['en'], gpu=False, verbose=False)
-            results = reader.readtext(file_content)
-            text = ' '.join(t for (_, t, conf) in results if conf > 0.4)
-            return text if text.strip() else "resume cv document"
-        except Exception as e:
-            logger.warning(f"Image EasyOCR failed: {str(e)}")
-            return "resume cv document"
+        """Skip OCR for images during validation for speed. Return dummy text to allow processing."""
+        return "image cv document placeholder"
     
     async def _analyze_document(
         self,

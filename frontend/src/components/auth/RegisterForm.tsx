@@ -7,6 +7,7 @@ import { motion } from 'framer-motion'
 import { useAuth } from '@/contexts/auth-context'
 import { ProgressBar } from '@/components/ui/progress-bar'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { toast } from 'sonner'
 
 export function RegisterForm() {
   const [formData, setFormData] = useState({
@@ -17,7 +18,6 @@ export function RegisterForm() {
     first_name: '',
     last_name: '',
   })
-  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [passwordStrength, setPasswordStrength] = useState(0)
   const [showPassword, setShowPassword] = useState(false)
@@ -43,33 +43,33 @@ export function RegisterForm() {
   const validateForm = (): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(formData.email)) {
-      setError('Please enter a valid email address')
+      toast.error('Please enter a valid email address')
       return false
     }
 
     if (formData.password.length < 8) {
-      setError('Password must be at least 8 characters long')
+      toast.error('Password must be at least 8 characters long')
       return false
     }
     if (!/[a-z]/.test(formData.password)) {
-      setError('Password must contain at least one lowercase letter')
+      toast.error('Password must contain at least one lowercase letter')
       return false
     }
     if (!/[A-Z]/.test(formData.password)) {
-      setError('Password must contain at least one uppercase letter')
+      toast.error('Password must contain at least one uppercase letter')
       return false
     }
     if (!/\d/.test(formData.password)) {
-      setError('Password must contain at least one number')
+      toast.error('Password must contain at least one number')
       return false
     }
     if (!/[^a-zA-Z0-9]/.test(formData.password)) {
-      setError('Password must contain at least one special character')
+      toast.error('Password must contain at least one special character')
       return false
     }
 
     if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match')
+      toast.error('Passwords do not match')
       return false
     }
 
@@ -78,7 +78,6 @@ export function RegisterForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
 
     if (!validateForm()) {
       return
@@ -89,8 +88,9 @@ export function RegisterForm() {
     try {
       const { confirmPassword, ...registerData } = formData
       await register(registerData)
+      toast.success('Account created! Welcome to ResumeAI.')
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Registration failed. Please try again.')
+      toast.error(err.response?.data?.message || 'Registration failed. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -142,16 +142,6 @@ export function RegisterForm() {
           </motion.div>
 
           <form className="space-y-6" onSubmit={handleSubmit}>
-            {/* Error Message */}
-            {error && (
-              <motion.div
-                className="bg-red-500/20 border border-red-500/50 px-4 py-3 rounded-lg text-sm backdrop-blur-sm"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-              >
-                <span className="theme-text">{error}</span>
-              </motion.div>
-            )}
 
             {/* Role Selection */}
             <motion.div

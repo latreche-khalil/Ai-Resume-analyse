@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
+import { toast } from 'sonner'
 import { CardHoverEffect } from '@/components/ui/card-hover-effect'
 import { formatDateTime } from '@/lib/utils'
 
@@ -33,23 +34,24 @@ export function AnalysisListView() {
     e.preventDefault()
     e.stopPropagation()
     
-    if (!confirm('Are you sure you want to delete this analysis?')) return
-    
+    const deleteToast = toast.loading('Deleting analysis...')
     setDeleting(id)
     try {
       await apiClient.deleteAnalysis(id)
       setAnalyses(prev => prev.filter(a => a.id !== id))
+      toast.success('Analysis deleted successfully.', { id: deleteToast })
     } catch (error: any) {
-      alert(error.response?.data?.detail || 'Failed to delete analysis')
+      toast.error(error.response?.data?.detail || 'Failed to delete analysis', { id: deleteToast })
     } finally {
       setDeleting(null)
     }
   }
 
   const getScoreColor = (score: number) => {
-    if (score >= 0.8) return 'from-green-500 to-emerald-600'
-    if (score >= 0.6) return 'from-yellow-500 to-orange-600'
-    return 'from-red-500 to-pink-600'
+    if (score >= 0.8) return 'from-emerald-400 to-teal-600 shadow-emerald-500/20'
+    if (score >= 0.6) return 'from-blue-400 to-indigo-600 shadow-blue-500/20'
+    if (score >= 0.4) return 'from-amber-400 to-orange-600 shadow-amber-500/20'
+    return 'from-rose-400 to-red-600 shadow-rose-500/20'
   }
 
   return (
@@ -111,10 +113,15 @@ export function AnalysisListView() {
                   <div className="relative">
                     <Link href={`/analysis/${analysis.id}`}>
                       <div className="bg-white rounded-xl shadow-lg p-6 cursor-pointer h-full">
-                        <div className={`bg-gradient-to-r ${getScoreColor(analysis.match_score)} rounded-lg p-4 mb-4`}>
-                          <div className="text-center text-white">
-                            <div className="text-4xl font-bold">{Math.round(analysis.match_score * 100)}%</div>
-                            <div className="text-sm opacity-90">Match Score</div>
+                        <div className="relative group/score overflow-hidden rounded-2xl p-6 mb-4 bg-white/[0.03] border border-white/10 backdrop-blur-sm transition-all duration-500 hover:border-white/20">
+                          <div className="relative text-center">
+                            <div className="text-5xl font-extralight tracking-tighter theme-text opacity-90">
+                              {Math.round(analysis.match_score * 100)}<span className="text-lg opacity-40 ml-1">/100</span>
+                            </div>
+                            <div className="flex items-center justify-center gap-2 mt-2">
+                              <div className={`w-1.5 h-1.5 rounded-full ${analysis.match_score >= 0.7 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                              <div className="text-[9px] font-medium uppercase tracking-[0.3em] theme-text-tertiary">Match Index</div>
+                            </div>
                           </div>
                         </div>
                         <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">

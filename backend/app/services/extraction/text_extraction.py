@@ -46,7 +46,7 @@ class EnhancedTextExtractionService:
         self,
         file_content: bytes,
         file_format: str
-    ) -> Tuple[Optional[str], Optional[str], Optional[int]]:
+    ) -> Tuple[Optional[str], Optional[str], Optional[int], str]:
         """
         Extract text from file using LocalCVExtractor.
         
@@ -55,7 +55,7 @@ class EnhancedTextExtractionService:
             file_format: File format (pdf, docx, jpg, png)
             
         Returns:
-            Tuple of (extracted_text, detected_language, word_count)
+            Tuple of (extracted_text, detected_language, word_count, method)
         """
         try:
             logger.info(f"Starting enhanced text extraction for {file_format}")
@@ -83,7 +83,7 @@ class EnhancedTextExtractionService:
             
             if not text or not text.strip():
                 logger.warning("No text extracted from document")
-                return None, None, 0
+                return None, None, 0, method
             
             # Validate minimum word count
             if word_count < self.MIN_WORD_COUNT:
@@ -91,7 +91,7 @@ class EnhancedTextExtractionService:
                     f"Insufficient text: {word_count} words "
                     f"(minimum: {self.MIN_WORD_COUNT})"
                 )
-                return None, None, word_count
+                return None, None, word_count, method
             
             # Detect language
             detected_language = self._detect_language(text)
@@ -105,14 +105,14 @@ class EnhancedTextExtractionService:
             if sections:
                 logger.info(f"Detected CV sections: {list(sections.keys())}")
             
-            return text, detected_language, word_count
+            return text, detected_language, word_count, method
             
         except asyncio.TimeoutError:
             logger.error(f"Text extraction timeout for {file_format}")
-            return None, None, None
+            return None, None, None, "timeout"
         except Exception as e:
             logger.error(f"Enhanced text extraction error: {str(e)}")
-            return None, None, None
+            return None, None, None, "error"
 
     async def _pdf_to_ocr_fallback(self, file_content: bytes) -> Optional[str]:
         """PDF fallback - not needed since LocalCVExtractor handles this."""

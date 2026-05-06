@@ -29,8 +29,10 @@ class CVDocumentResponse(BaseModel):
     detected_language: Optional[str]
     word_count: Optional[int]
     processing_status: str
+    status_message: Optional[str] = None
     virus_scan_status: str
     latest_analysis_id: Optional[UUID] = None
+    match_score: Optional[float] = None
     created_at: datetime
     
     class Config:

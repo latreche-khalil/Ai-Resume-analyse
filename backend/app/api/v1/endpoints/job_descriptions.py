@@ -158,9 +158,10 @@ async def list_job_descriptions(
             JobDescription.recruiter_id == current_user.id
         )
     else:
-        # Candidates see JDs they created (recruiter_id is None)
+        # Candidates see any active JD (for practice)
         base_query = select(JobDescription).where(
-            JobDescription.recruiter_id.is_(None)
+            JobDescription.is_active == True,
+            JobDescription.deleted_at.is_(None)
         )
     
     # Apply filters

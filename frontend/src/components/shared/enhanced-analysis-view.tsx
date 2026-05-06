@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { useAnalysisData, Tab } from '@/hooks/useAnalysisData'
 import { apiClient } from '@/lib/api-client'
+import { toast } from 'sonner'
 
 // Components
 import { AnalysisHeader } from './AnalysisHeader'
@@ -60,8 +61,9 @@ export function EnhancedAnalysisView() {
       a.download = `analysis_${(id as string).slice(0,8)}.${fmt}`
       a.click()
       window.URL.revokeObjectURL(url)
+      toast.success(`Report exported as ${fmt.toUpperCase()}`)
     } catch { 
-      alert('Export failed') 
+      toast.error('Export failed. Please try again.') 
     } finally { 
       setExporting(false) 
     }
@@ -71,7 +73,11 @@ export function EnhancedAnalysisView() {
     if (!id) return
     setReviewing(true)
     const success = await actions.submitReview(id as string, decision)
-    if (!success) alert('Review failed')
+    if (!success) {
+      toast.error('Review submission failed')
+    } else {
+      toast.success(`Analysis ${decision === 'approved' ? 'approved' : 'rejected'}`)
+    }
     setReviewing(false)
   }
 
@@ -199,8 +205,14 @@ export function EnhancedAnalysisView() {
                       <QuickActionsBar 
                         onExportPDF={() => exportReport('pdf')} 
                         onExportCSV={() => exportReport('csv')} 
-                        onCoaching={() => router.push('/coaching/career-chat')}
-                        onInterview={() => router.push('/coaching/interview')}
+                        onCoaching={() => {
+                          toast.loading('Opening Career Coach...')
+                          router.push('/coaching/career-chat')
+                        }}
+                        onInterview={() => {
+                          toast.loading('Preparing Interview Simulation...')
+                          router.push(`/coaching/interview?jd_id=${data.job_description_id}`)
+                        }}
                         isExporting={exporting}
                       />
                     </div>

@@ -6,13 +6,12 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { useAuth } from '@/contexts/auth-context'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { toast } from 'sonner'
 
 export function LoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState('')
-  const [errorType, setErrorType] = useState<'credentials' | 'not_found' | 'inactive' | 'network' | 'generic'>('generic')
   const [loading, setLoading] = useState(false)
   const [attempts, setAttempts] = useState(0)
   const { login } = useAuth()
@@ -20,32 +19,28 @@ export function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
     setLoading(true)
 
     try {
       await login(email, password)
+      toast.success('Welcome back! Logging you in...')
       router.push('/dashboard')
     } catch (err: any) {
       setAttempts(prev => prev + 1)
       const msg = err.response?.data?.message || err.message || ''
       
+      let errorMsg = 'Something went wrong. Please try again later.'
       if (msg.includes('credentials') || msg.includes('Password')) {
-        setError('Incorrect email or password. Please try again.')
-        setErrorType('credentials')
+        errorMsg = 'Incorrect email or password. Please try again.'
       } else if (msg.includes('not found') || msg.includes('404')) {
-        setError('No account found with this email.')
-        setErrorType('not_found')
+        errorMsg = 'No account found with this email.'
       } else if (msg.includes('inactive')) {
-        setError('Your account is inactive. Please contact support.')
-        setErrorType('inactive')
+        errorMsg = 'Your account is inactive. Please contact support.'
       } else if (msg.includes('network')) {
-        setError('Connection error. Please check your internet.')
-        setErrorType('network')
-      } else {
-        setError('Something went wrong. Please try again later.')
-        setErrorType('generic')
+        errorMsg = 'Connection error. Please check your internet.'
       }
+      
+      toast.error(errorMsg)
     } finally {
       setLoading(false)
     }
@@ -84,26 +79,9 @@ export function LoginForm() {
           </motion.div>
 
           <form className="space-y-6" onSubmit={handleSubmit}>
-            {/* Error Message */}
-            {error && (
-              <motion.div
-                className="bg-red-500/10 border border-red-500/30 px-4 py-3 rounded-xl text-sm"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">
-                    {errorType === 'credentials' ? '🔑' : 
-                     errorType === 'not_found' ? '👤' : 
-                     errorType === 'network' ? '🌐' : '⚠️'}
-                  </span>
-                  <p className="theme-text text-xs leading-relaxed">{error}</p>
-                </div>
-              </motion.div>
-            )}
 
             {/* First-time hint */}
-            {!error && attempts === 0 && (
+            {attempts === 0 && (
               <motion.div
                 className="bg-blue-500/10 border border-blue-500/20 px-4 py-3 rounded-xl text-sm"
                 initial={{ opacity: 0 }}

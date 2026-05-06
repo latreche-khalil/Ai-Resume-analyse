@@ -141,34 +141,55 @@ class LocalCVExtractor:
             self.ocr_reader = None
     
     def _extract_pdf_enhanced(self, file_content: bytes) -> Dict[str, Any]:
-        """Enhanced PDF extraction with multiple strategies."""
+        """Enhanced PDF extraction with multiple strategies (Speed Optimized)."""
         
         file_size_kb = len(file_content) / 1024
         
-        # Strategy 1: Try Docling first (best for structured PDFs) - LAZY LOAD
-        # Increased limit to 2000KB (2MB) as CVs with images easily exceed 300KB
-        if DOCLING_AVAILABLE and not self._docling_initialized and file_size_kb <= 2000:
+        # Strategy 1: FAST - Enhanced PyMuPDF for text-based PDFs
+        # This handles 90% of modern CVs in milliseconds
+        logger.info("Trying FAST PyMuPDF extraction...")
+        try:
+            doc = fitz.open(stream=file_content, filetype="pdf")
+            full_text = self._extract_pdf_text_enhanced(doc)
+            doc.close()
+            
+            # Quality Check: Is the extracted text meaningful or just garbage?
+            is_garbage = self._is_garbage_text(full_text)
+            
+            if len(full_text.strip()) > 300 and not is_garbage:
+                logger.info(f"FAST PyMuPDF extraction successful: {len(full_text)} chars")
+                cleaned_text = self._clean_text_enhanced(full_text)
+                return {
+                    'text': cleaned_text,
+                    'method': 'pymupdf_fast',
+                    'word_count': len(cleaned_text.split()),
+                    'sections': self._detect_sections(cleaned_text)
+                }
+            else:
+                reason = "garbage text detected" if is_garbage else "insufficient text length"
+                logger.info(f"PyMuPDF quality check failed ({reason}), falling back to Docling/OCR.")
+        except Exception as e:
+            logger.warning(f"FAST PyMuPDF extraction failed: {e}")
+
+        # Strategy 2: ACCURATE - Try Docling (best for structured/complex PDFs)
+        if DOCLING_AVAILABLE and not self._docling_initialized and file_size_kb <= 5000:
             self._initialize_docling()
         
-        if self.docling_converter and file_size_kb <= 2000:
+        if self.docling_converter and file_size_kb <= 5000:
             tmp_file_path = None
             try:
                 logger.info("Trying Docling (IBM) extraction...")
-                
-                # Save to temporary file (Docling needs file path)
                 with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp_file:
                     tmp_file.write(file_content)
                     tmp_file.flush()
                     tmp_file_path = tmp_file.name
                 
-                # Convert using Docling
                 result = self.docling_converter.convert(tmp_file_path)
                 text = result.document.export_to_markdown()
                 
-                if len(text.strip()) > 50:  # Good extraction
+                if len(text.strip()) > 50:
                     logger.info(f"Docling extraction successful: {len(text)} chars")
                     cleaned_text = self._clean_text_enhanced(text)
-                    
                     return {
                         'text': cleaned_text,
                         'method': 'docling',
@@ -176,65 +197,30 @@ class LocalCVExtractor:
                         'word_count': len(cleaned_text.split()),
                         'sections': self._detect_sections(cleaned_text)
                     }
-                        
             except Exception as e:
                 logger.warning(f"Docling extraction failed: {e}")
             finally:
-                # Clean up temp file
                 if tmp_file_path and os.path.exists(tmp_file_path):
-                    try:
-                        os.unlink(tmp_file_path)
-                    except Exception as cleanup_err:
-                        logger.warning(f"Failed to cleanup temp file: {cleanup_err}")
+                    try: os.unlink(tmp_file_path)
+                    except: pass
         
-        # Strategy 2: Enhanced PyMuPDF for text-based PDFs
-        logger.info("Trying enhanced PyMuPDF extraction...")
-        try:
-            doc = fitz.open(stream=file_content, filetype="pdf")
-            
-            # Try different text extraction methods
-            full_text = self._extract_pdf_text_enhanced(doc)
-            doc.close()
-            
-            # Check if we got meaningful text
-            if len(full_text.strip()) > 10:  # Lowered threshold
-                logger.info(f"Enhanced PyMuPDF extraction successful: {len(full_text)} chars")
-                cleaned_text = self._clean_text_enhanced(full_text)
-                return {
-                    'text': cleaned_text,
-                    'method': 'pymupdf_enhanced',
-                    'word_count': len(cleaned_text.split()),
-                    'sections': self._detect_sections(cleaned_text)
-                }
-            else:
-                logger.info("PyMuPDF found minimal text, trying OCR...")
-                
-        except Exception as e:
-            logger.warning(f"Enhanced PyMuPDF extraction failed: {e}")
-        
-        # Strategy 3: OCR for scanned PDFs (if available) - LAZY LOAD
-        # Skip OCR for very large files (>600KB) to avoid memory issues
-        file_size_kb = len(file_content) / 1024
-        if file_size_kb > 600:
-            logger.warning(f"Skipping OCR for very large file ({file_size_kb:.0f}KB)")
-        elif EASYOCR_AVAILABLE and not self._easyocr_initialized:
+        # Strategy 3: OCR - For scanned PDFs
+        if EASYOCR_AVAILABLE and not self._easyocr_initialized and file_size_kb <= 1000:
             self._initialize_easyocr()
         
-        if self.ocr_reader and file_size_kb <= 600:
+        if self.ocr_reader and file_size_kb <= 1000:
             try:
                 logger.info("Trying EasyOCR for scanned PDF...")
                 return self._extract_scanned_pdf_enhanced(file_content)
             except Exception as e:
                 logger.warning(f"EasyOCR extraction failed: {e}")
         
-        # Fallback: Basic PyMuPDF
+        # Fallback: return what we have from PyMuPDF even if it's small
         try:
             doc = fitz.open(stream=file_content, filetype="pdf")
             text = ''
-            for page in doc:
-                text += page.get_text('text')
+            for page in doc: text += page.get_text('text')
             doc.close()
-            
             cleaned_text = self._clean_text_enhanced(text)
             return {
                 'text': cleaned_text,
@@ -242,17 +228,10 @@ class LocalCVExtractor:
                 'word_count': len(cleaned_text.split()),
                 'sections': self._detect_sections(cleaned_text)
             }
-        except Exception as e:
-            logger.error(f"All PDF extraction methods failed: {e}")
-        
-        # Final fallback: return empty
-        return {
-            'text': '',
-            'method': 'failed',
-            'word_count': 0,
-            'error': 'All PDF extraction methods failed',
-            'sections': {}
-        }
+        except:
+            return {
+                'text': '', 'method': 'failed', 'word_count': 0, 'sections': {}
+            }
     
     def _extract_pdf_text_enhanced(self, doc) -> str:
         """Enhanced PDF text extraction using multiple PyMuPDF methods."""
@@ -554,6 +533,24 @@ class LocalCVExtractor:
             'pymupdf_available': True,  # Always available
             'python_docx_available': True  # Always available
         }
+    
+    def _is_garbage_text(self, text: str) -> bool:
+        """
+        Detect if the extracted text is likely decoding garbage.
+        Checks for high ratio of special characters and non-printable chars.
+        """
+        if not text or len(text.strip()) < 50:
+            return True
+            
+        # Count non-alphanumeric and non-space characters
+        special_chars = sum(1 for c in text if not c.isalnum() and not c.isspace())
+        ratio = special_chars / len(text)
+        
+        # If more than 30% are special characters, it's likely garbage/decoding error
+        if ratio > 0.3:
+            return True
+            
+        return False
 
 
 # Global instance

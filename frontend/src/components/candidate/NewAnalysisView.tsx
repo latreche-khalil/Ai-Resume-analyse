@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
+import { toast } from 'sonner'
 import { LanguageSelector, AnalysisLanguage } from '@/components/shared/LanguageSelector'
 import { CVDocument } from '@/types/candidate'
 
@@ -27,9 +28,9 @@ export function NewAnalysisView() {
   const [newJDTitle, setNewJDTitle] = useState('')
   const [newJDCompany, setNewJDCompany] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [uploadMode, setUploadMode] = useState<'existing' | 'new'>('existing')
   const [responseLanguage, setResponseLanguage] = useState<AnalysisLanguage>('en')
+  const [statusMessage, setStatusMessage] = useState<string>('Initializing analysis...')
 
   useEffect(() => {
     loadCVDocuments()
@@ -56,17 +57,15 @@ export function NewAnalysisView() {
 
   const handleCVSelect = (cvId: string) => {
     setSelectedCV(cvId)
-    setError(null)
   }
 
   const handleJDSelect = (jdId: string) => {
     setSelectedJD(jdId)
-    setError(null)
   }
 
   const handleNextFromCV = () => {
     if (!selectedCV) {
-      setError('Please select a CV first')
+      toast.error('Please select a CV first')
       return
     }
     setStep('select-jd')
@@ -74,7 +73,7 @@ export function NewAnalysisView() {
 
   const handleCreateJD = async () => {
     if (!newJDTitle || !newJDText) {
-      setError('Please fill in all required fields')
+      toast.error('Please fill in all required fields')
       return
     }
 
@@ -94,7 +93,6 @@ export function NewAnalysisView() {
       })
       
       setSelectedJD(jd.id)
-      setError(null)
       
       if (selectedCV && jd.id) {
         setStep('analyzing')
@@ -104,13 +102,13 @@ export function NewAnalysisView() {
           router.push(`/analysis/${analysis.id}`)
         } catch (error: any) {
           console.error('Failed to create analysis:', error)
-          setError(error.response?.data?.detail || 'Failed to create analysis')
+          toast.error(error.response?.data?.detail || 'Failed to create analysis')
           setStep('select-jd')
         }
       }
     } catch (error: any) {
       console.error('Failed to create job description:', error)
-      setError(error.response?.data?.detail || 'Failed to create job description')
+      toast.error(error.response?.data?.detail || 'Failed to create job description')
     } finally {
       setLoading(false)
     }
@@ -118,25 +116,39 @@ export function NewAnalysisView() {
 
   const handleAnalyze = async () => {
     if (!selectedCV || !selectedJD) {
-      setError('Please select both CV and Job Description')
+      toast.error('Please select both CV and Job Description')
       return
     }
 
     setStep('analyzing')
     setLoading(true)
-    setError(null)
+    setStatusMessage('Connecting to AI agents...')
 
     try {
       const analysis = await apiClient.createAnalysis(selectedCV, selectedJD, responseLanguage)
       
-      const maxAttempts = 15
+      const maxAttempts = 30
       let attempts = 0
       
       while (attempts < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, 2000))
         try {
           const result = await apiClient.getAnalysis(analysis.id)
+          
+          try {
+            const cvDoc = await apiClient.getDocument(selectedCV)
+            if (cvDoc.status_message) {
+              setStatusMessage(cvDoc.status_message)
+            }
+          } catch (docErr) {
+            if (result.analysis_status === 'processing') {
+              setStatusMessage('Extracting deep insights...')
+            }
+          }
+
           if (result.analysis_status === 'completed' || result.processing_status === 'completed') {
+            setStatusMessage('Analysis complete! Preparing results...')
+            await new Promise(resolve => setTimeout(resolve, 1000))
             router.push(`/analysis/${analysis.id}`)
             return
           } else if (result.analysis_status === 'failed' || result.processing_status === 'failed') {
@@ -151,7 +163,7 @@ export function NewAnalysisView() {
       router.push(`/analysis/${analysis.id}`)
     } catch (error: any) {
       console.error('Failed to create analysis:', error)
-      setError(error.response?.data?.detail || error.message || 'Failed to create analysis')
+      toast.error(error.response?.data?.detail || error.message || 'Failed to create analysis')
       setStep('select-jd')
     } finally {
       setLoading(false)
@@ -175,14 +187,12 @@ export function NewAnalysisView() {
 
   return (
     <div className="min-h-screen theme-bg theme-text relative overflow-hidden">
-      {/* Animated Background */}
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 theme-glow-bg" />
         <div className="absolute top-0 left-1/4 w-96 h-96 theme-glow-1 rounded-full blur-3xl animate-pulse" />
         <div className="absolute bottom-0 right-1/4 w-96 h-96 theme-glow-2 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
       </div>
 
-      {/* Header */}
       <header className="relative z-10 theme-card backdrop-blur-xl border-b theme-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
@@ -202,7 +212,6 @@ export function NewAnalysisView() {
         </div>
       </header>
 
-      {/* Progress Steps */}
       <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex items-center justify-center mb-8">
           <div className="flex items-center space-x-4">
@@ -252,18 +261,6 @@ export function NewAnalysisView() {
           </div>
         </div>
 
-        <AnimatePresence>
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="mb-6 p-4 bg-red-500/20 border border-red-500/50 rounded-xl text-red-100 backdrop-blur-sm"
-            >
-              {error}
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         <AnimatePresence mode="wait">
           {step === 'select-cv' && (
@@ -460,27 +457,34 @@ export function NewAnalysisView() {
               <h2 className="text-3xl font-bold mb-4 bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
                 Analyzing Your CV...
               </h2>
+              
+              <motion.div 
+                key={statusMessage}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-8 p-4 rounded-2xl bg-sky-500/10 border border-sky-500/20"
+              >
+                <p className="text-xl font-medium text-sky-400 flex items-center justify-center">
+                  <span className="mr-2 animate-pulse">●</span>
+                  {statusMessage}
+                </p>
+              </motion.div>
+
               <div className="space-y-4 mb-8 max-w-md mx-auto">
                 <div className="flex items-center space-x-3 text-left">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
-                    <span className="text-white text-sm">✓</span>
+                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${statusMessage.includes('completed') || statusMessage.includes('ready') ? 'bg-green-500' : 'bg-sky-500 animate-pulse'}`}>
+                    <span className="text-white text-sm">{statusMessage.includes('completed') || statusMessage.includes('ready') ? '✓' : '⚡'}</span>
                   </div>
-                  <span className="theme-text">Extracting skills from CV</span>
-                </div>
-                <div className="flex items-center space-x-3 text-left">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-sky-500 flex items-center justify-center animate-pulse">
-                    <span className="text-white text-sm">⚡</span>
-                  </div>
-                  <span className="theme-text">Comparing with job requirements</span>
+                  <span className="theme-text">Intelligence Engine: Processing</span>
                 </div>
                 <div className="flex items-center space-x-3 text-left">
                   <div className="flex-shrink-0 w-8 h-8 rounded-full theme-card flex items-center justify-center">
                     <span className="theme-text-tertiary text-sm">○</span>
                   </div>
-                  <span className="theme-text-tertiary">Generating insights & recommendations</span>
+                  <span className="theme-text-tertiary">Generating RAG Insights</span>
                 </div>
               </div>
-              <p className="theme-text-tertiary text-sm">This usually takes 10-15 seconds</p>
+              <p className="theme-text-tertiary text-sm italic">Privacy Shield: PII Masking is active</p>
             </motion.div>
           )}
         </AnimatePresence>

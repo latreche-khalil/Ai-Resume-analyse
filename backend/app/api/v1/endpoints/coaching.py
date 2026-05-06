@@ -19,6 +19,7 @@ from app.models.analysis_record import AnalysisRecord
 from app.models.gap_report import GapReport
 from app.models.xai_report import XAIReport
 from app.schemas.coaching import InterviewSimulationStart, InterviewAnswerSubmit
+from app.models.chat import ChatSession, ChatMessage
 from app.utils.logger import logger
 
 
@@ -215,44 +216,102 @@ async def get_chat_history(
     return {"messages": [{"role": m.role, "content": m.content} for m in messages]}
 
 
-# Interview simulation endpoints
 @router.post("/interview/start")
 async def start_interview(
     data: InterviewSimulationStart,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Start interview simulation. Requirements: 13.1"""
+    """Start interview simulation using context from CV and Gaps. Requirements: 13.1"""
+    from app.models.cv_document import CVDocument
+    from app.models.job_description import JobDescription
+    
+    # Get latest CV for user
+    cv_res = await db.execute(
+        select(CVDocument).where(CVDocument.user_id == current_user.id).order_by(CVDocument.created_at.desc()).limit(1)
+    )
+    cv = cv_res.scalar_one_or_none()
+    
+    # Get JD
+    jd_res = await db.execute(select(JobDescription).where(JobDescription.id == data.job_description_id))
+    jd = jd_res.scalar_one_or_none()
+    
+    if not jd:
+        raise HTTPException(status_code=404, detail="Job Description not found")
+
+    # Fetch context: Analysis & Gaps
+    analysis_context = ""
+    if cv:
+        analysis_stmt = select(AnalysisRecord).where(
+            AnalysisRecord.cv_document_id == cv.id,
+            AnalysisRecord.job_description_id == jd.id
+        ).order_by(AnalysisRecord.created_at.desc()).limit(1)
+        analysis_res = await db.execute(analysis_stmt)
+        analysis = analysis_res.scalar_one_or_none()
+        
+        if analysis:
+            gap_res = await db.execute(select(GapReport).where(GapReport.analysis_record_id == analysis.id))
+            gap = gap_res.scalar_one_or_none()
+            if gap:
+                gaps_text = ", ".join([g.get('skill', '') for g in (gap.critical_gaps or [])])
+                analysis_context = f"Identified Skill Gaps for this candidate: {gaps_text}"
+
+    # Capture user_id before any logic
+    current_user_id = current_user.id
+
+    # TEMP HACK: Ensure context_data column exists using a separate connection
+    # to avoid polluting the current session.
+    from sqlalchemy.ext.asyncio import create_async_engine
+    from app.core.config import settings
+    
+    temp_engine = create_async_engine(settings.DATABASE_URL.replace("sqlite:///", "sqlite+aiosqlite:///", 1) if "aiosqlite" not in settings.DATABASE_URL else settings.DATABASE_URL)
+    try:
+        async with temp_engine.begin() as conn:
+            from sqlalchemy import text
+            await conn.execute(text("ALTER TABLE interview_sessions ADD COLUMN context_data TEXT"))
+    except Exception:
+        pass
+    finally:
+        await temp_engine.dispose()
+
     session = InterviewSession(
-        user_id=current_user.id,
+        user_id=current_user_id,
         job_description_id=data.job_description_id,
-        status="in_progress"
+        status="in_progress",
+        context_data={
+            "difficulty": data.difficulty,
+            "interview_type": data.interview_type,
+            "mode": data.mode,
+            "analysis_context": analysis_context
+        }
     )
     db.add(session)
     await db.commit()
     await db.refresh(session)
 
-    # Generate first question using LLM
-    first_q_text = "Tell me about yourself and your most relevant experience for this role."
+    # Generate specialized first question using LLM
+    first_q_text = f"Welcome. Can you explain your experience as a {jd.title} and how you've handled tasks related to {jd.title}?"
     try:
         from app.services.nlp.llm_client import llm_client
-        from app.models.job_description import JobDescription
-        jd_result = await db.execute(
-            select(JobDescription).where(JobDescription.id == data.job_description_id)
-        )
-        jd = jd_result.scalar_one_or_none()
-        if jd:
-            prompt = f"Generate one opening interview question for a '{jd.title}' position. Return only the question text."
-            q = await llm_client.generate(prompt=prompt, task_type="fast", temperature=0.7, max_tokens=100)
-            if q:
-                first_q_text = q.strip()
-    except Exception:
-        pass
+        prompt = f"""You are a professional interviewer for the position: {jd.title}.
+CONTEXT: {analysis_context}
+DIFFICULTY: {data.difficulty}
+TYPE: {data.interview_type}
+
+TASK: Generate the FIRST interview question. 
+If there are skill gaps, try to probe them gently.
+Return ONLY the question text. Keep it professional and concise."""
+        
+        q = await llm_client.generate(prompt=prompt, task_type="fast", temperature=0.7)
+        if q:
+            first_q_text = q.strip()
+    except Exception as e:
+        logger.warning(f"Failed to generate first question: {e}")
 
     question = InterviewQuestion(
         session_id=session.id,
         question_text=first_q_text,
-        question_type="behavioral",
+        question_type=data.interview_type or "behavioral",
         difficulty_level=1,
         sequence_number=1,
     )
@@ -265,7 +324,6 @@ async def start_interview(
         "question": question.question_text
     }
 
-
 @router.post("/interview/sessions/{session_id}/answer")
 async def submit_answer(
     session_id: UUID,
@@ -273,7 +331,9 @@ async def submit_answer(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Submit interview answer. Requirements: 13.3"""
+    """Submit interview answer and evaluate it. Requirements: 13.3"""
+    from app.models.interview import InterviewAnswer, InterviewQuestion
+    
     # Save answer
     answer = InterviewAnswer(
         question_id=data.question_id,
@@ -285,7 +345,6 @@ async def submit_answer(
     try:
         from app.services.nlp.llm_client import llm_client
         eval_prompt = f"""Evaluate this interview answer briefly.
-Question ID: {data.question_id}
 Answer: {data.answer_text}
 
 Return JSON: {{"relevance": 0.0-1.0, "completeness": 0.0-1.0, "clarity": 0.0-1.0, "feedback": "brief feedback"}}"""
@@ -294,14 +353,13 @@ Return JSON: {{"relevance": 0.0-1.0, "completeness": 0.0-1.0, "clarity": 0.0-1.0
             prompt=eval_prompt, task_type="fast", temperature=0.3, max_tokens=200
         )
         
-        # Use unified json_parser instead of manual parsing
-        from app.utils.json_parser import parse_llm_json
+        from app.utils.json_parser import json_parser
         
         scores = {"relevance": 0.75, "completeness": 0.70, "clarity": 0.80}
         feedback_text = "Good answer. Keep practicing."
         if eval_response:
             try:
-                parsed = parse_llm_json(eval_response)
+                parsed = json_parser.extract_json_object(eval_response)
                 scores = {
                     "relevance": float(parsed.get("relevance", 0.75)),
                     "completeness": float(parsed.get("completeness", 0.70)),
@@ -315,52 +373,114 @@ Return JSON: {{"relevance": 0.0-1.0, "completeness": 0.0-1.0, "clarity": 0.0-1.0
         answer.completeness_score = scores["completeness"]
         answer.clarity_score = scores["clarity"]
         answer.feedback = feedback_text
-        await db.commit()
-
+        
+        # Check completion
         questions_count_res = await db.execute(
             select(func.count(InterviewQuestion.id)).where(InterviewQuestion.session_id == session_id)
         )
         count = questions_count_res.scalar_one()
-
-        next_question_data = None
-        if count < 5:
-            next_prompt = f"Generate one adaptive interview question based on this answer: '{data.answer_text[:200]}'. Return only the question text."
-            next_q_text = await llm_client.generate(
-                prompt=next_prompt, task_type="fast", temperature=0.7, max_tokens=150
-            )
-            if not next_q_text:
-                next_q_text = "Can you describe a challenging project you worked on and how you overcame obstacles?"
-
-            next_q = InterviewQuestion(
-                session_id=session_id,
-                question_text=next_q_text.strip(),
-                question_type="adaptive",
-                difficulty_level=min(5, count + 1),
-                sequence_number=count + 1,
-            )
-            db.add(next_q)
-            await db.commit()
-            next_question_data = {"id": str(next_q.id), "text": next_q.question_text}
-        else:
+        
+        if count >= 5:
             session_res = await db.execute(select(InterviewSession).where(InterviewSession.id == session_id))
             interview_session = session_res.scalar_one()
             interview_session.status = "completed"
             interview_session.completed_at = datetime.now(timezone.utc)
-            await db.commit()
+
+        await db.commit()
 
         return {
             "evaluation": {"scores": scores, "feedback": feedback_text},
-            "next_question": next_question_data,
-            "status": "completed" if not next_question_data else "in_progress"
+            "status": "completed" if count >= 5 else "in_progress"
         }
     except Exception as e:
         logger.error(f"Evaluation error: {e}")
         await db.commit()
         return {
             "evaluation": {"scores": {"relevance": 0.7, "completeness": 0.7, "clarity": 0.7}, "feedback": "Answer recorded."},
-            "next_question": None,
-            "status": "completed"
+            "status": "in_progress"
         }
+
+
+
+@router.get("/interview/sessions/{session_id}/next-question")
+async def get_interview_next_question(
+    session_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get the next adaptive question for the session."""
+    # Ownership check
+    session_res = await db.execute(select(InterviewSession).where(InterviewSession.id == session_id))
+    session = session_res.scalar_one_or_none()
+    if not session or session.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Get latest question to check count
+    questions_count_res = await db.execute(
+        select(func.count(InterviewQuestion.id)).where(InterviewQuestion.session_id == session_id)
+    )
+    count = questions_count_res.scalar_one()
+
+    if count >= 5:
+        return {"question": None, "status": "completed"}
+
+    # Fetch last answer for adaptive logic
+    from app.models.interview import InterviewAnswer
+    last_q_stmt = select(InterviewQuestion).where(InterviewQuestion.session_id == session_id).order_by(InterviewQuestion.sequence_number.desc()).limit(1)
+    last_q_res = await db.execute(last_q_stmt)
+    last_q = last_q_res.scalar_one_or_none()
+    
+    last_ans_text = ""
+    if last_q:
+        ans_res = await db.execute(select(InterviewAnswer).where(InterviewAnswer.question_id == last_q.id))
+        ans = ans_res.scalar_one_or_none()
+        if ans:
+            last_ans_text = ans.answer_text
+
+    # Generate next question
+    next_q_text = "Tell me more about your experience."
+    try:
+        from app.services.nlp.llm_client import llm_client
+        from app.models.job_description import JobDescription
+        jd_res = await db.execute(select(JobDescription).where(JobDescription.id == session.job_description_id))
+        jd = jd_res.scalar_one()
+        
+        ctx = (session.context_data or {}).get("analysis_context", "")
+        diff = (session.context_data or {}).get("difficulty", "mid")
+        itype = (session.context_data or {}).get("interview_type", "mixed")
+
+        prompt = f"""You are a professional interviewer for: {jd.title}.
+CONTEXT: {ctx}
+PREVIOUS ANSWER: {last_ans_text}
+DIFFICULTY: {diff}
+INTERVIEW TYPE: {itype}
+
+TASK: Generate the NEXT adaptive interview question (Question {count + 1} of 5). 
+Focus on probing deeper or moving to a related skill gap.
+Return ONLY the question text."""
+        
+        q = await llm_client.generate(prompt=prompt, task_type="fast", temperature=0.7)
+        if q:
+            next_q_text = q.strip()
+    except Exception as e:
+        logger.warning(f"Next question generation failed: {e}")
+
+    next_q = InterviewQuestion(
+        session_id=session_id,
+        question_text=next_q_text,
+        question_type="adaptive",
+        difficulty_level=count + 1,
+        sequence_number=count + 1,
+    )
+    db.add(next_q)
+    await db.commit()
+    
+    return {
+        "id": str(next_q.id),
+        "text": next_q.question_text,
+        "type": "adaptive",
+        "question": next_q.question_text # For compatibility
+    }
 
 
 @router.get("/interview/sessions/{session_id}/report")

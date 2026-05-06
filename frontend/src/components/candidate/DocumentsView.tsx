@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/api-client'
 import { useAuth } from '@/contexts/auth-context'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface CVDocument {
@@ -20,6 +21,8 @@ interface CVDocument {
   word_count?: number
   file_size?: number
   latest_analysis_id?: string
+  match_score?: number
+  status_message?: string
   created_at: string
 }
 
@@ -53,6 +56,67 @@ function formatSize(bytes?: number) {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
 }
 
+function DocumentPreview({ docId, status }: { docId: string; status: string }) {
+  const [preview, setPreview] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (status === 'completed') {
+      setLoading(true)
+      apiClient.getCVPreview(docId)
+        .then((res: { images: { image: string }[] }) => {
+          if (res.images && res.images.length > 0) {
+            setPreview(res.images[0].image)
+          }
+        })
+        .catch(() => setPreview(null))
+        .finally(() => setLoading(false))
+    }
+  }, [docId, status])
+
+  return (
+    <div className="relative w-full aspect-[3/4.2] bg-slate-900/60 rounded-xl border theme-border overflow-hidden group-hover:border-sky-500/30 transition-all flex items-center justify-center shadow-inner">
+      {preview ? (
+        <motion.img 
+          initial={{ opacity: 0 }} 
+          animate={{ opacity: 1 }}
+          src={preview} 
+          alt="CV Preview" 
+          className="w-full h-full object-cover object-top"
+        />
+      ) : (
+        <div className="flex flex-col items-center gap-3 p-4 text-center">
+          {loading ? (
+            <div className="w-8 h-8 rounded-full border-2 border-sky-500 border-t-transparent animate-spin" />
+          ) : (
+            <>
+              <div className="text-4xl opacity-20">📄</div>
+              <div className="space-y-1.5 w-full max-w-[80px]">
+                <div className="w-full h-1 bg-white/5 rounded-full" />
+                <div className="w-2/3 h-1 bg-white/5 rounded-full" />
+                <div className="w-full h-1 bg-white/5 rounded-full" />
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Dynamic Overlay based on status */}
+      <div className={`absolute inset-0 flex items-center justify-center backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-all duration-500 ${status === 'completed' ? 'bg-sky-500/5' : 'bg-slate-900/60'}`}>
+         {status !== 'completed' && (
+           <div className="flex flex-col items-center gap-2">
+             <div className="w-8 h-8 rounded-full border-2 border-sky-500 border-t-transparent animate-spin" />
+             <span className="text-[8px] uppercase tracking-widest font-bold text-sky-400">Processing...</span>
+           </div>
+         )}
+         {status === 'completed' && !preview && !loading && (
+           <span className="text-[8px] uppercase tracking-widest font-bold text-white/40">Real Preview</span>
+         )}
+      </div>
+    </div>
+  )
+}
+
 function CVCard({ doc, index, onDelete }: { doc: CVDocument; index: number; onDelete: (id: string) => void }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const status = doc.processing_status || doc.status || 'pending'
@@ -60,7 +124,7 @@ function CVCard({ doc, index, onDelete }: { doc: CVDocument; index: number; onDe
   const s = STATUS_CONFIG[status] || STATUS_CONFIG.pending
   const statusLabel = hasAnalysis ? { ...s, label: 'Analyzed', color: 'text-purple-400 bg-purple-500/10 border-purple-500/30', icon: '🧠' } : s
   const name = doc.original_filename || doc.filename
-  const lang = (doc.detected_language || doc.language || '').toUpperCase() || 'N/A'
+  const score = doc.match_score !== undefined ? Math.round(doc.match_score * 100) : null
 
   return (
     <motion.div
@@ -69,50 +133,64 @@ function CVCard({ doc, index, onDelete }: { doc: CVDocument; index: number; onDe
       transition={{ delay: index * 0.06 }}
       className="relative group"
     >
-      <div className="relative p-5 rounded-2xl theme-card border theme-border hover:border-sky-500/40 transition-all duration-300 h-full flex flex-col">
-        <div className="flex items-start justify-between mb-4">
-          <div className="w-12 h-14 rounded-xl bg-gradient-to-br from-sky-500/20 to-blue-500/20 border border-sky-500/30 flex items-center justify-center text-2xl flex-shrink-0">
-            📄
-          </div>
-          <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${statusLabel.color}`}>
-            {statusLabel.icon} {statusLabel.label}
-          </span>
-        </div>
-        <p className="font-semibold theme-text text-sm mb-3 line-clamp-2 leading-snug flex-1">{name}</p>
-        <div className="grid grid-cols-2 gap-2 mb-4">
-          {[
-            { icon: '🌐', label: lang },
-            { icon: '📝', label: doc.word_count ? `${doc.word_count} words` : 'N/A' },
-            { icon: '📦', label: formatSize(doc.file_size) },
-            { icon: '📅', label: new Date(doc.created_at).toLocaleDateString() },
-          ].map((m, i) => (
-            <div key={i} className="flex items-center gap-1.5 text-xs theme-text-tertiary">
-              <span>{m.icon}</span><span className="truncate">{m.label}</span>
+      <div className="relative p-4 rounded-[28px] theme-card border theme-border hover:border-sky-500/40 hover:shadow-2xl hover:shadow-sky-500/10 transition-all duration-500 flex flex-col bg-slate-900/20 backdrop-blur-sm overflow-hidden">
+        
+        {/* Score Badge - Top Left */}
+        {score !== null && (
+          <div className="absolute top-4 left-4 z-20">
+            <div className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 shadow-xl flex items-center gap-2">
+              <span className="text-[10px] font-black text-sky-400">{score}%</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
             </div>
-          ))}
+          </div>
+        )}
+
+        {/* Status Badge - Top Right */}
+        <div className="absolute top-4 right-4 z-20">
+           <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border backdrop-blur-md ${statusLabel.color}`}>
+              {statusLabel.icon} {statusLabel.label}
+            </span>
         </div>
-        <div className="flex gap-2 pt-3 border-t theme-border">
-          {!hasAnalysis && status === 'completed' && (
-            <Link href={`/analysis/new?cv=${doc.id}`} className="flex-1">
-              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                className="w-full py-2 rounded-xl bg-gradient-to-r from-sky-500/20 to-blue-500/20 border border-sky-500/30 text-sky-400 text-xs font-semibold hover:from-sky-500/30 hover:to-blue-500/30 transition-all">
-                🎯 Analyze
-              </motion.button>
-            </Link>
-          )}
-          <Link href={hasAnalysis ? `/analysis/${doc.latest_analysis_id}` : `/documents/${doc.id}`} className={hasAnalysis ? "flex-1" : ""}>
-            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-              className={`py-2 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-semibold hover:bg-blue-500/20 transition-all ${hasAnalysis ? "w-full" : "px-3"}`}>
-              {hasAnalysis ? '📊 View Results' : '👁️'}
-            </motion.button>
-          </Link>
-          {!confirmDelete ? (
-            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setConfirmDelete(true)}
-              className="py-2 px-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-semibold hover:bg-red-500/20 transition-all">🗑️</motion.button>
-          ) : (
-            <motion.button initial={{ scale: 0.9 }} animate={{ scale: 1 }} onClick={() => onDelete(doc.id)}
-              className="py-2 px-3 rounded-xl bg-red-500/30 border border-red-500/50 text-red-300 text-xs font-semibold">Confirm?</motion.button>
-          )}
+
+        {/* Center: Document Preview */}
+        <div className="mt-8 mb-4 px-2">
+          <DocumentPreview docId={doc.id} status={status} />
+        </div>
+
+        {/* Bottom: Info & Actions */}
+        <div className="space-y-3 relative z-10">
+          <h3 className="font-bold theme-text text-sm line-clamp-1 group-hover:text-sky-400 transition-colors">{name}</h3>
+          
+          <div className="flex items-center justify-between text-[10px] theme-text-tertiary">
+            <div className="flex items-center gap-2">
+              <span>📅 {new Date(doc.created_at).toLocaleDateString()}</span>
+              <span>📦 {formatSize(doc.file_size)}</span>
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-3">
+            {!hasAnalysis && status === 'completed' && (
+              <Link href={`/analysis/new?cv=${doc.id}`} className="flex-1">
+                <button className="w-full py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 btn-text-white text-[10px] font-black transition-all shadow-lg shadow-sky-600/20">
+                  🎯 ANALYZE
+                </button>
+              </Link>
+            )}
+            {hasAnalysis && (
+              <Link href={`/analysis/${doc.latest_analysis_id}`} className="flex-1">
+                <button className="w-full py-2.5 rounded-xl bg-white theme-text-inverse text-[10px] font-black hover:opacity-90 transition-all">
+                  📊 VIEW REPORT
+                </button>
+              </Link>
+            )}
+            {!confirmDelete ? (
+              <button onClick={() => setConfirmDelete(true)}
+                className="py-2.5 px-3 rounded-xl theme-card border theme-border text-xs hover:bg-red-500/10 hover:border-red-500/20 transition-all">🗑️</button>
+            ) : (
+              <button onClick={() => onDelete(doc.id)}
+                className="py-2.5 px-3 rounded-xl bg-red-600 text-white text-[10px] font-black animate-pulse">DELETE?</button>
+            )}
+          </div>
         </div>
       </div>
     </motion.div>
@@ -128,7 +206,6 @@ export function DocumentsView() {
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [deleteMsg, setDeleteMsg] = useState('')
   const PER_PAGE = 12
 
   const loadDocuments = useCallback(async () => {
@@ -141,17 +218,33 @@ export function DocumentsView() {
     finally { setLoading(false) }
   }, [page])
 
-  useEffect(() => { loadDocuments() }, [loadDocuments])
+  useEffect(() => {
+    // Initial load
+    if (documents.length === 0 && loading) {
+      loadDocuments();
+    }
+
+    // Check if any document needs polling
+    const needsPolling = documents.some(d => 
+      ['pending', 'processing'].includes(d.processing_status || d.status || '')
+    );
+
+    if (needsPolling) {
+      const timer = setTimeout(() => {
+        loadDocuments();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [documents, loadDocuments, loading]);
 
   const handleDelete = async (id: string) => {
+    const deleteToast = toast.loading('Deleting CV...')
     try {
       await apiClient.deleteDocument(id)
-      setDeleteMsg('CV deleted successfully.')
-      setTimeout(() => setDeleteMsg(''), 3000)
+      toast.success('CV deleted successfully.', { id: deleteToast })
       loadDocuments()
     } catch {
-      setDeleteMsg('Failed to delete CV.')
-      setTimeout(() => setDeleteMsg(''), 3000)
+      toast.error('Failed to delete CV.', { id: deleteToast })
     }
   }
 
@@ -250,7 +343,6 @@ export function DocumentsView() {
             </div>
           </div>
 
-          <AnimatePresence>{deleteMsg && (<motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className={`px-4 py-3 rounded-xl text-sm border ${deleteMsg.includes('success') ? 'bg-green-500/20 border-green-500/40 text-green-400' : 'bg-red-500/20 border-red-500/40 text-red-400'}`}>{deleteMsg}</motion.div>)}</AnimatePresence>
 
           {loading ? (
             <div className="flex items-center justify-center py-24"><motion.div className="w-14 h-14 rounded-full border-4 border-sky-500 border-t-transparent" animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} /></div>

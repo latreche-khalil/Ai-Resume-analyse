@@ -16,129 +16,121 @@ export function MatchScoreGauge({
   isBinding = false,
   requiresReview = false
 }: MatchScoreGaugeProps) {
-  const [displayScore, setDisplayScore] = useState(0)
+  const [displayPercentage, setDisplayPercentage] = useState(0)
   
   useEffect(() => {
-    const timer = setTimeout(() => setDisplayScore(score), 100)
-    return () => clearTimeout(timer)
+    let start = 0
+    const end = Math.round(score * 100)
+    if (start === end) {
+      setDisplayPercentage(end)
+      return
+    }
+
+    let totalDuration = 1500
+    let iterationTime = totalDuration / Math.max(end, 1)
+
+    let timer = setInterval(() => {
+      start += 1
+      if (start <= end) {
+        setDisplayPercentage(start)
+      } else {
+        clearInterval(timer)
+      }
+    }, iterationTime)
+
+    return () => clearInterval(timer)
   }, [score])
   
-  const percentage = Math.round(displayScore * 100)
-  const circumference = 2 * Math.PI * 120
-  const strokeDashoffset = circumference - (displayScore * circumference)
+  const percentage = Math.round(score * 100)
+  const size = 180
+  const strokeWidth = 8
+  const radius = (size - strokeWidth) / 2
+  const circumference = 2 * Math.PI * radius
+  const strokeDashoffset = circumference - (score * circumference)
   
-  // Color based on score
-  const getColor = () => {
-    if (percentage >= 80) return { from: '#10B981', to: '#059669', text: 'text-green-400' }
-    if (percentage >= 60) return { from: '#3B82F6', to: '#2563EB', text: 'text-blue-400' }
-    if (percentage >= 40) return { from: '#F59E0B', to: '#D97706', text: 'text-yellow-400' }
-    return { from: '#EF4444', to: '#DC2626', text: 'text-red-400' }
+  // Rotation for the needle (starts from top)
+  const rotation = score * 360
+  
+  // Optimized color thresholds: Green starts at 60% for a better user experience
+  const theme = {
+    color: percentage >= 60 ? '#10B981' : percentage >= 40 ? '#3B82F6' : percentage >= 25 ? '#F59E0B' : '#EF4444',
+    label: percentage >= 85 ? 'Exceptional' : percentage >= 60 ? 'Strong' : percentage >= 40 ? 'Good' : percentage >= 25 ? 'Fair' : 'Low'
   }
-  
-  const color = getColor()
-  
-  // Confidence level
-  const getConfidenceLabel = () => {
-    if (confidence >= 0.8) return { label: 'High Confidence', color: 'text-green-400', icon: '✓' }
-    if (confidence >= 0.6) return { label: 'Medium Confidence', color: 'text-yellow-400', icon: '⚠' }
-    return { label: 'Low Confidence', color: 'text-red-400', icon: '!' }
-  }
-  
-  const confidenceInfo = getConfidenceLabel()
   
   return (
-    <div className="relative">
-      {/* Circular Progress */}
-      <div className="relative w-64 h-64 mx-auto">
-        <svg className="transform -rotate-90 w-64 h-64">
-          <defs>
-            <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={color.from} />
-              <stop offset="100%" stopColor={color.to} />
-            </linearGradient>
-          </defs>
-          
-          {/* Background circle */}
+    <div className="flex flex-col items-center">
+      {/* Corporate Gauge with Dynamic Color Needle */}
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="absolute transform -rotate-90">
+          {/* Background Track */}
           <circle
-            cx="128"
-            cy="128"
-            r="120"
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
             stroke="currentColor"
-            strokeWidth="16"
+            strokeWidth={strokeWidth}
             fill="none"
-            className="theme-text-quaternary opacity-20"
+            className="theme-text-quaternary opacity-5"
           />
           
-          {/* Progress circle */}
+          {/* Progress Arc */}
           <motion.circle
-            cx="128"
-            cy="128"
-            r="120"
-            stroke="url(#scoreGradient)"
-            strokeWidth="16"
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={theme.color}
+            strokeWidth={strokeWidth}
             fill="none"
             strokeLinecap="round"
             initial={{ strokeDashoffset: circumference }}
             animate={{ strokeDashoffset }}
             transition={{ duration: 1.5, ease: "easeOut" }}
-            style={{
-              strokeDasharray: circumference,
-            }}
+            style={{ strokeDasharray: circumference }}
           />
         </svg>
-        
-        {/* Center content */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.5, type: "spring" }}
-            className={`text-6xl font-bold ${color.text}`}
+
+        {/* Needle / Pointer - Color synced to theme.color */}
+        <div 
+          className="absolute inset-0 z-20 pointer-events-none transition-transform duration-[1500ms] ease-out"
+          style={{ transform: `rotate(${rotation}deg)` }}
+        >
+          <div 
+            className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1 w-2.5 h-4.5"
+            style={{ 
+              clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)',
+              backgroundColor: theme.color,
+              boxShadow: `0 0 10px ${theme.color}80`
+            }}
+          />
+        </div>
+
+        {/* Centered Content */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <motion.span 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-5xl font-black theme-text leading-none tracking-tighter"
           >
-            {percentage}%
-          </motion.div>
-          <div className="text-sm theme-text-tertiary mt-2">Match Score</div>
-          
-          {/* Non-binding badge */}
-          {!isBinding && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.8 }}
-              className="mt-3 px-3 py-1 bg-blue-500/20 border border-blue-500/30 rounded-full text-xs text-blue-300"
-            >
-              🤝 Advisory Only
-            </motion.div>
-          )}
+            {displayPercentage}
+          </motion.span>
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] theme-text-tertiary mt-1">
+            Match Index
+          </span>
         </div>
       </div>
-      
-      {/* Confidence indicator */}
+
+      {/* Status Badge */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 1 }}
-        className="mt-6 flex items-center justify-center gap-2"
+        transition={{ delay: 0.8 }}
+        className="mt-6 px-4 py-1.5 rounded-full border theme-border bg-white/5 backdrop-blur-sm flex items-center gap-2"
       >
-        <div className={`flex items-center gap-2 px-4 py-2 rounded-full theme-card border theme-border`}>
-          <span className={confidenceInfo.color}>{confidenceInfo.icon}</span>
-          <span className="text-sm theme-text">{confidenceInfo.label}</span>
-          <span className="text-xs theme-text-tertiary">({Math.round(confidence * 100)}%)</span>
-        </div>
+        <div className="w-2 h-2 rounded-full shadow-[0_0_8px_currentColor]" style={{ backgroundColor: theme.color, color: theme.color }} />
+        <span className="text-xs font-bold theme-text-secondary uppercase tracking-widest">
+          {theme.label} Alignment
+        </span>
       </motion.div>
-      
-      {/* Review flag */}
-      {requiresReview && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 1.2 }}
-          className="mt-4 flex items-center justify-center gap-2 px-4 py-2 bg-orange-500/20 border border-orange-500/30 rounded-xl text-sm text-orange-300"
-        >
-          <span>👤</span>
-          <span>Requires Human Review</span>
-        </motion.div>
-      )}
     </div>
   )
 }

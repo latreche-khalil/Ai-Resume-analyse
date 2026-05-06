@@ -48,7 +48,7 @@ export function TrustTab({ redFlags, bias, hallucination }: TrustTabProps) {
 
       {/* Bias Check */}
       {bias && (
-        <Section title="⚖️ فحص التحيز (Bias Detection)" color="sky">
+        <Section title="⚖️ فحص التحيز (Bias Detection)" color="blue">
           <div className="bg-white/5 border theme-border rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="text-sm theme-text">حالة التحيز</div>
@@ -73,7 +73,7 @@ export function TrustTab({ redFlags, bias, hallucination }: TrustTabProps) {
 
       {/* Hallucination Guard */}
       {hallucination && (
-        <Section title="🕵️ حارس الدقة (Accuracy Guard)" color="emerald">
+        <Section title="🕵️ حارس الدقة (Accuracy Guard)" color="green">
           <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-5">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-xl">✅</div>

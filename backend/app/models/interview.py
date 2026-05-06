@@ -72,6 +72,13 @@ class InterviewSession(Base, UUIDMixin, TimestampMixin):
         nullable=True,
         comment="When session completed"
     )
+
+    # Context storage (for AI adaptive logic)
+    context_data = Column(
+        JSON,
+        nullable=True,
+        comment="Session settings: difficulty, type, mode, and analysis context"
+    )
     
     # Relationships
     user = relationship(
@@ -173,7 +180,7 @@ class InterviewQuestion(Base, UUIDMixin, TimestampMixin):
     # Constraints
     __table_args__ = (
         CheckConstraint(
-            "question_type IN ('behavioral', 'technical', 'situational') OR question_type IS NULL",
+            "question_type IN ('behavioral', 'technical', 'situational', 'adaptive') OR question_type IS NULL",
             name="check_question_type"
         ),
         CheckConstraint(
