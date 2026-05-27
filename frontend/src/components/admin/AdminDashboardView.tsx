@@ -8,7 +8,8 @@ import { useAuth } from '@/contexts/auth-context'
 import {
   ShieldCheck, Users, Cpu, CheckCircle,
   BarChart3, Database, Activity, ArrowRight,
-  ExternalLink, AlertCircle, FileText, Target
+  ExternalLink, AlertCircle, FileText, Target,
+  MessageSquare
 } from 'lucide-react'
 
 function StatCard({ label, value, icon: Icon, loading = false, accent = 'gray' }: {

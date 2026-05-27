@@ -153,12 +153,12 @@ export function NewAnalysisView() {
         <div className="relative flex items-center justify-center py-3">
           <div className="absolute top-1/2 left-0 right-0 h-px bg-gray-200 dark:bg-slate-700 -translate-y-1/2 z-0" />
           <div className="relative z-10 flex items-center gap-20 sm:gap-32">
-            {[
-              { id: 'select-cv', label: 'Resume',     icon: FileText },
-              { id: 'select-jd', label: 'Job Target', icon: Target   },
-              { id: 'analyzing', label: 'Analysis',   icon: Cpu      },
-            ].map((s) => {
-              const isPast = (step === 'select-jd' && s.id === 'select-cv') || (step === 'analyzing' && s.id !== 'analyzing')
+            {([
+              { id: 'select-cv' as Step, label: 'Resume',     icon: FileText },
+              { id: 'select-jd' as Step, label: 'Job Target', icon: Target   },
+              { id: 'analyzing' as Step, label: 'Analysis',   icon: Cpu      },
+            ]).map((s) => {
+              const isPast = step === 'select-jd' && s.id === 'select-cv'
               const isCurrent = step === s.id
               return (
                 <div key={s.id} className="flex flex-col items-center gap-2">
@@ -290,28 +290,44 @@ export function NewAnalysisView() {
 
               {/* Right: Settings */}
               <div className="lg:w-1/2">
-                <div className="p-6 rounded-2xl bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] shadow-sm space-y-6">
+                <div className="p-6 rounded-2xl bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] shadow-sm space-y-6" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                  
+                  {/* Analysis Mode */}
                   <div className="space-y-3">
-                    <h4 className="text-xs font-semibold text-gray-500 dark:text-neutral-400 tracking-wide">Analysis Mode</h4>
-                    <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-500/5 border border-blue-200 dark:border-blue-500/20 flex items-start gap-3">
-                      <Sparkles className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900 dark:text-white">Advanced RAG Mode</p>
-                        <p className="text-xs text-gray-500 dark:text-neutral-400 mt-0.5 leading-relaxed">
+                    <h4 className="text-xs font-semibold text-gray-500 dark:text-neutral-400 tracking-wider uppercase">Analysis Mode</h4>
+                    <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-500/5 dark:to-indigo-500/5 border border-blue-200 dark:border-blue-500/20 flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
+                        <Sparkles className="w-4 h-4 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-gray-900 dark:text-white mb-1">Advanced RAG Mode</p>
+                        <p className="text-xs text-gray-600 dark:text-neutral-400 leading-relaxed">
                           Deep semantic cross-referencing between your expertise and job requirements.
                         </p>
                       </div>
                     </div>
                   </div>
 
+                  {/* Response Language */}
                   <div className="space-y-3">
-                    <h4 className="text-xs font-semibold text-gray-500 dark:text-neutral-400 tracking-wide">Response Language</h4>
+                    <h4 className="text-xs font-semibold text-gray-500 dark:text-neutral-400 tracking-wider uppercase">Response Language</h4>
                     <LanguageSelector value={responseLanguage} onChange={setResponseLanguage} />
                   </div>
 
+                  {/* Start Button */}
                   <button onClick={handleAnalyze} disabled={loading || (!selectedJD && !newJDTitle)}
-                    className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-sm shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
-                    <Zap className="w-4 h-4" /> Start Analysis
+                    className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-500/30 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none">
+                    {loading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>Analyzing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-4 h-4" />
+                        <span>Start Analysis</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
