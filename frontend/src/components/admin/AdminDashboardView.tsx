@@ -1,21 +1,53 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
 import { useAuth } from '@/contexts/auth-context'
+import {
+  ShieldCheck, Users, Cpu, CheckCircle,
+  BarChart3, Database, Activity, ArrowRight,
+  ExternalLink, AlertCircle, FileText, Target
+} from 'lucide-react'
+
+function StatCard({ label, value, icon: Icon, loading = false, accent = 'gray' }: {
+  label: string; value: string | number; icon: React.ElementType; loading?: boolean; accent?: string
+}) {
+  const accentMap: Record<string, string> = {
+    blue: 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400',
+    emerald: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    violet: 'bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400',
+    amber: 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400',
+    gray: 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400',
+  }
+
+  return (
+    <div className="bg-white dark:bg-[#0f0f0f] border border-gray-200 dark:border-[#1f1f1f] rounded-xl p-4 hover:border-gray-300 dark:hover:border-[#2a2a2a] transition-all">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">{label}</p>
+          {loading ? (
+            <div className="h-7 w-16 bg-gray-100 dark:bg-white/5 rounded animate-pulse" />
+          ) : (
+            <span className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">{value}</span>
+          )}
+        </div>
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${accentMap[accent] || accentMap.gray}`}>
+          <Icon size={15} />
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export function AdminDashboardView() {
-  const router = useRouter()
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   const [stats, setStats] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [healthScore] = useState(99)
 
-  useEffect(() => {
-    loadStats()
-  }, [])
+  useEffect(() => { loadStats() }, [])
 
   const loadStats = async () => {
     try {
@@ -23,276 +55,136 @@ export function AdminDashboardView() {
         apiClient.getUserStats().catch(() => null),
         apiClient.getAnalysisStats().catch(() => null)
       ])
-
-      setStats({
-        users: userStats,
-        analysis: analysisStats
-      })
-    } catch (error) {
-      console.error('Failed to load admin stats:', error)
+      setStats({ users: userStats, analysis: analysisStats })
+    } catch (e) {
+      console.error(e)
     } finally {
       setLoading(false)
     }
   }
 
-  const ADMIN_CARDS = [
-    {
-      title: 'Audit Logs',
-      description: 'View system activity and security logs',
-      icon: '🔍',
-      href: '/admin/audit-logs',
-      color: 'from-purple-500/20 to-pink-500/20',
-      border: 'border-sky-500/30'
-    },
-    {
-      title: 'User Management',
-      description: 'Manage users and permissions',
-      icon: '👥',
-      href: '/admin/users',
-      color: 'from-blue-500/20 to-cyan-500/20',
-      border: 'border-blue-500/30',
-      comingSoon: true
-    },
-    {
-      title: 'System Health',
-      description: 'Monitor system performance',
-      icon: '💚',
-      href: '/admin/health',
-      color: 'from-green-500/20 to-emerald-500/20',
-      border: 'border-green-500/30',
-      comingSoon: true
-    },
-    {
-      title: 'Analytics',
-      description: 'View usage statistics and reports',
-      icon: '📊',
-      href: '/admin/analytics',
-      color: 'from-orange-500/20 to-yellow-500/20',
-      border: 'border-orange-500/30',
-      comingSoon: true
-    }
+  const ADMIN_TOOLS = [
+    { title: 'Audit Logs',   desc: 'System activity and security events', icon: ShieldCheck, href: '/admin/audit-logs', available: true },
+    { title: 'Feedback',     desc: 'User feedback and ratings',           icon: MessageSquare, href: '/admin/feedback', available: true },
+    { title: 'Testimonials', desc: 'Manage user testimonials',            icon: Users,       href: '/admin/testimonials', available: true },
+    { title: 'Analytics',    desc: 'Usage statistics and reports',        icon: BarChart3,   href: '/admin/analytics', available: false },
   ]
 
   return (
-    <div className="min-h-screen theme-bg theme-text">
-      {/* Animated Background */}
-      <div className="fixed inset-0 z-0 pointer-events-none">
-        <div className="absolute inset-0 theme-glow-bg" />
-        <div className="absolute top-0 left-1/4 w-96 h-96 theme-glow-1 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 theme-glow-2 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-      </div>
+    <div className="max-w-[1200px] mx-auto space-y-6 pb-10">
 
       {/* Header */}
-      <header className="relative z-10 theme-card border-b theme-border px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-              🛡️ Admin Dashboard
-            </h1>
-            <p className="text-sm theme-text-tertiary mt-1">System administration and monitoring</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right mr-4">
-              <p className="text-sm font-medium theme-text">{user?.email}</p>
-              <p className="text-xs theme-text-tertiary">Administrator</p>
-            </div>
-            <button
-              onClick={logout}
-              className="px-4 py-2 text-sm theme-text-secondary hover:theme-text transition-colors"
-            >
-              Logout
-            </button>
-          </div>
+      <div>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Administration</h1>
+        <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">
+          System control panel · Logged in as {user?.email}
+        </p>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard label="Total CVs" value={stats?.users?.total_cvs || 0} icon={FileText} loading={loading} accent="blue" />
+        <StatCard label="AI Analyses" value={stats?.analysis?.total_analyses || 0} icon={Cpu} loading={loading} accent="violet" />
+        <StatCard label="Completed" value={stats?.users?.completed_cvs || 0} icon={CheckCircle} loading={loading} accent="emerald" />
+        <StatCard
+          label="Avg Match Score"
+          value={stats?.analysis?.avg_match_score ? `${Math.round(stats.analysis.avg_match_score * 100)}%` : '—'}
+          icon={Target}
+          loading={loading}
+          accent="amber"
+        />
+      </div>
+
+      {/* System Health Banner */}
+      <div className="bg-white dark:bg-[#0f0f0f] border border-gray-200 dark:border-[#1f1f1f] rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-[#1a1a1a]">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">System Status</h3>
+          <span className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            All systems operational
+          </span>
         </div>
-      </header>
-
-      <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <motion.div
-              className="w-16 h-16 border-4 border-sky-500 border-t-transparent rounded-full"
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-            />
-          </div>
-        ) : (
-          <>
-            {/* Stats Overview */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8"
-            >
-              <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-sky-500/30 rounded-2xl p-6 theme-card">
-                <div className="text-4xl mb-2">👥</div>
-                <div className="text-3xl font-bold text-sky-400">
-                  {stats?.users?.total_cvs || 0}
-                </div>
-                <div className="text-sm theme-text-tertiary mt-1">Total CVs</div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-gray-100 dark:divide-[#1a1a1a]">
+          {[
+            { label: 'API Backend', value: 'Online', ok: true },
+            { label: 'Database', value: 'SQLite (Dev)', ok: true },
+            { label: 'Node Health', value: `${healthScore}%`, ok: true },
+            { label: 'Environment', value: 'Development', ok: null },
+          ].map((item) => (
+            <div key={item.label} className="px-5 py-4">
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">{item.label}</p>
+              <div className="flex items-center gap-1.5">
+                {item.ok === true && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />}
+                {item.ok === false && <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />}
+                <span className="text-sm font-medium text-gray-900 dark:text-white">{item.value}</span>
               </div>
+            </div>
+          ))}
+        </div>
+      </div>
 
-              <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 rounded-2xl p-6 theme-card">
-                <div className="text-4xl mb-2">📊</div>
-                <div className="text-3xl font-bold text-blue-400">
-                  {stats?.analysis?.total_analyses || 0}
-                </div>
-                <div className="text-sm theme-text-tertiary mt-1">Total Analyses</div>
-              </div>
-
-              <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30 rounded-2xl p-6 theme-card">
-                <div className="text-4xl mb-2">✅</div>
-                <div className="text-3xl font-bold text-green-400">
-                  {stats?.users?.completed_cvs || 0}
-                </div>
-                <div className="text-sm theme-text-tertiary mt-1">Completed</div>
-              </div>
-
-              <div className="bg-gradient-to-br from-orange-500/20 to-yellow-500/20 border border-orange-500/30 rounded-2xl p-6 theme-card">
-                <div className="text-4xl mb-2">📈</div>
-                <div className="text-3xl font-bold text-orange-400">
-                  {stats?.analysis?.avg_match_score 
-                    ? `${Math.round(stats.analysis.avg_match_score * 100)}%`
-                    : 'N/A'}
-                </div>
-                <div className="text-sm theme-text-tertiary mt-1">Avg Match Score</div>
-              </div>
-            </motion.div>
-
-            {/* Admin Tools */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-            >
-              <h2 className="text-xl font-bold mb-6 theme-text">Admin Tools</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {ADMIN_CARDS.map((card, index) => (
-                  <motion.div
-                    key={card.title}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 + index * 0.1 }}
-                  >
-                    {card.comingSoon ? (
-                      <div className="relative theme-card border theme-border rounded-2xl p-6 h-full opacity-60 cursor-not-allowed">
-                        <div className="absolute top-4 right-4 px-2 py-1 bg-yellow-500/20 border border-yellow-500/40 rounded-full text-xs text-yellow-400">
-                          Coming Soon
-                        </div>
-                        <div className="text-4xl mb-4">{card.icon}</div>
-                        <h3 className="text-lg font-bold theme-text mb-2">{card.title}</h3>
-                        <p className="text-sm theme-text-tertiary">{card.description}</p>
-                      </div>
-                    ) : (
-                      <Link href={card.href}>
-                        <motion.div
-                          whileHover={{ scale: 1.02, y: -4 }}
-                          whileTap={{ scale: 0.98 }}
-                          className={`bg-gradient-to-br ${card.color} border ${card.border} rounded-2xl p-6 h-full cursor-pointer transition-all hover:shadow-xl hover:shadow-purple-500/20 theme-card`}
-                        >
-                          <div className="text-4xl mb-4">{card.icon}</div>
-                          <h3 className="text-lg font-bold theme-text mb-2">{card.title}</h3>
-                          <p className="text-sm theme-text-tertiary">{card.description}</p>
-                          <div className="mt-4 flex items-center text-sm text-sky-400 font-medium">
-                            Open
-                            <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                          </div>
-                        </motion.div>
-                      </Link>
-                    )}
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-
-            {/* Quick Actions */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="mt-8"
-            >
-              <h2 className="text-xl font-bold mb-6 theme-text">Quick Actions</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Link href="/admin/audit-logs">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="w-full px-6 py-4 theme-card border theme-border rounded-xl text-left hover:border-sky-500/40 transition-all"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">🔍</span>
-                      <div>
-                        <div className="font-semibold theme-text">View Audit Logs</div>
-                        <div className="text-xs theme-text-tertiary">Monitor system activity</div>
-                      </div>
+      {/* Admin Tools Grid */}
+      <div>
+        <p className="text-xs text-gray-400 mb-3 font-medium uppercase tracking-wider">Admin Tools</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {ADMIN_TOOLS.map((tool) => (
+            <div key={tool.title}>
+              {tool.available ? (
+                <Link href={tool.href}>
+                  <div className="h-full p-4 bg-white dark:bg-[#0f0f0f] border border-gray-200 dark:border-[#1f1f1f] rounded-xl hover:border-gray-300 dark:hover:border-[#2a2a2a] hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-all cursor-pointer group">
+                    <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-white/5 flex items-center justify-center mb-3">
+                      <tool.icon size={15} className="text-gray-600 dark:text-gray-400" />
                     </div>
-                  </motion.button>
-                </Link>
-
-                <Link href="/dashboard">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="w-full px-6 py-4 theme-card border theme-border rounded-xl text-left hover:border-sky-500/40 transition-all"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">🏠</span>
-                      <div>
-                        <div className="font-semibold theme-text">User Dashboard</div>
-                        <div className="text-xs theme-text-tertiary">Switch to user view</div>
-                      </div>
-                    </div>
-                  </motion.button>
-                </Link>
-
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => window.open('http://localhost:8000/api/docs', '_blank')}
-                  className="w-full px-6 py-4 theme-card border theme-border rounded-xl text-left hover:border-sky-500/40 transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">📚</span>
-                    <div>
-                      <div className="font-semibold theme-text">API Documentation</div>
-                      <div className="text-xs theme-text-tertiary">View API endpoints</div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">{tool.title}</p>
+                    <p className="text-xs text-gray-400">{tool.desc}</p>
+                    <div className="flex items-center gap-1 mt-3 text-xs text-blue-600 dark:text-blue-400 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                      Open <ArrowRight size={12} />
                     </div>
                   </div>
-                </motion.button>
-              </div>
-            </motion.div>
-
-            {/* System Info */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="mt-8 theme-card border theme-border rounded-2xl p-6"
-            >
-              <h2 className="text-xl font-bold mb-4 theme-text">System Information</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                  <div className="text-sm theme-text-tertiary mb-1">Backend Status</div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                    <span className="theme-text font-medium">Online</span>
+                </Link>
+              ) : (
+                <div className="h-full p-4 bg-gray-50 dark:bg-[#0a0a0a] border border-gray-200 dark:border-[#1a1a1a] rounded-xl opacity-60 cursor-not-allowed">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-white/5 flex items-center justify-center">
+                      <tool.icon size={15} className="text-gray-400 dark:text-gray-600" />
+                    </div>
+                    <span className="text-[10px] font-medium text-gray-400 bg-gray-100 dark:bg-white/5 px-1.5 py-0.5 rounded">
+                      Soon
+                    </span>
                   </div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-500 mb-1">{tool.title}</p>
+                  <p className="text-xs text-gray-400">{tool.desc}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Quick shortcuts */}
+      <div>
+        <p className="text-xs text-gray-400 mb-3 font-medium uppercase tracking-wider">Quick Actions</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {[
+            { label: 'View Audit Logs', sub: 'Monitor system activity', href: '/admin/audit-logs', icon: ShieldCheck },
+            { label: 'User Dashboard', sub: 'Switch to user view', href: '/dashboard', icon: Database },
+            { label: 'API Documentation', sub: 'Swagger UI', href: 'http://localhost:8000/api/docs', icon: ExternalLink, external: true },
+          ].map((action) => (
+            <Link key={action.label} href={action.href} target={action.external ? '_blank' : undefined}>
+              <div className="flex items-center gap-3 p-4 bg-white dark:bg-[#0f0f0f] border border-gray-200 dark:border-[#1f1f1f] rounded-xl hover:border-gray-300 dark:hover:border-[#2a2a2a] hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-all cursor-pointer">
+                <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-white/5 flex items-center justify-center shrink-0">
+                  <action.icon size={15} className="text-gray-500 dark:text-gray-400" />
                 </div>
                 <div>
-                  <div className="text-sm theme-text-tertiary mb-1">Database</div>
-                  <div className="theme-text font-medium">SQLite (Development)</div>
-                </div>
-                <div>
-                  <div className="text-sm theme-text-tertiary mb-1">Environment</div>
-                  <div className="theme-text font-medium">Development</div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{action.label}</p>
+                  <p className="text-xs text-gray-400">{action.sub}</p>
                 </div>
               </div>
-            </motion.div>
-          </>
-        )}
-      </main>
+            </Link>
+          ))}
+        </div>
+      </div>
+
     </div>
   )
 }

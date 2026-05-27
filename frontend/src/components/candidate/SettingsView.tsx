@@ -2,282 +2,444 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
 import { useAuth } from '@/contexts/auth-context'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { toast } from 'sonner'
-
-const NAV_ITEMS = [
-  { icon: '🏠', label: 'Home',            href: '/?preview=1',    active: false },
-  { icon: '⚡', label: 'Dashboard',       href: '/dashboard',     active: false },
-  { icon: '📄', label: 'My Resumes',      href: '/documents',     active: false },
-  { icon: '🧪', label: 'Skill Lab',       href: '/analysis/new',  active: false },
-  { icon: '🎤', label: 'Mock Interviews', href: '/coaching/chat', active: false },
-  { icon: '⚙️', label: 'Settings',        href: '/settings',      active: true  },
-]
+import { 
+  User, 
+  Lock, 
+  Shield, 
+  Palette, 
+  AlertTriangle, 
+  Check, 
+  ChevronRight, 
+  Mail, 
+  Globe, 
+  Eye, 
+  EyeOff,
+  Download,
+  Trash2,
+  Bell,
+  Save,
+  Loader2,
+  Upload
+} from 'lucide-react'
 
 const TABS = [
-  { id: 'profile',    icon: '👤', label: 'Profile'    },
-  { id: 'security',   icon: '🔒', label: 'Security'   },
-  { id: 'privacy',    icon: '🛡️', label: 'Privacy'    },
-  { id: 'appearance', icon: '🎨', label: 'Appearance' },
-  { id: 'danger',     icon: '⚠️', label: 'Danger Zone'},
+  { id: 'profile', icon: User, label: 'Profile' },
+  { id: 'security', icon: Lock, label: 'Security' },
+  { id: 'privacy', icon: Shield, label: 'Privacy' },
+  { id: 'appearance', icon: Palette, label: 'Appearance' },
+  { id: 'danger', icon: AlertTriangle, label: 'Danger Zone' },
 ]
 
-function Field({ label, value, onChange, type = 'text', placeholder = '', disabled = false, hint = '' }: {
+function Field({ label, value, onChange, type = 'text', placeholder = '', disabled = false, hint = '', icon: Icon }: {
   label: string; value: string; onChange?: (v: string) => void
-  type?: string; placeholder?: string; disabled?: boolean; hint?: string
+  type?: string; placeholder?: string; disabled?: boolean; hint?: string; icon?: any
 }) {
   const [showPassword, setShowPassword] = useState(false)
   const isPassword = type === 'password'
   return (
-    <div className="space-y-1.5">
-      <label className="block text-sm font-medium theme-text">{label}</label>
-      <div className="relative">
-        <input type={isPassword && showPassword ? 'text' : type} value={value} onChange={e => onChange?.(e.target.value)} placeholder={placeholder} disabled={disabled} className={`theme-input w-full disabled:opacity-50 disabled:cursor-not-allowed ${isPassword ? 'pr-12' : ''}`} />
-        {isPassword && (<button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-xl theme-text-tertiary hover:theme-text transition-colors">{showPassword ? '🙈' : '👁️'}</button>)}
+    <div className="space-y-2">
+      <label className="block text-xs font-semibold tracking-wide text-slate-500 dark:text-neutral-400 ml-1" style={{ fontFamily: 'Roboto, sans-serif' }}>{label}</label>
+      <div className="relative group">
+        {Icon && <Icon className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-500 dark:text-neutral-400 group-focus-within:text-sky-500 transition-colors" />}
+        <input 
+          type={isPassword && showPassword ? 'text' : type} 
+          value={value} 
+          onChange={e => onChange?.(e.target.value)} 
+          placeholder={placeholder} 
+          disabled={disabled} 
+          className={`
+            w-full bg-white dark:bg-slate-800/50 border border-gray-300 dark:border-slate-700 rounded-xl py-3.5 pr-4 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed
+            ${Icon ? 'pl-12' : 'pl-4'}
+            ${isPassword ? 'pr-12' : 'pr-4'}
+          `}
+          style={{ fontFamily: 'Roboto, sans-serif' }}
+        />
+        {isPassword && (
+          <button 
+            type="button" 
+            onClick={() => setShowPassword(!showPassword)} 
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 dark:text-neutral-400 hover:text-slate-700 dark:hover:text-white transition-colors"
+          >
+            {showPassword ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
+          </button>
+        )}
       </div>
-      {hint && <p className="text-xs theme-text-tertiary">{hint}</p>}
+      {hint && <p className="text-xs text-slate-500 dark:text-neutral-400 font-normal ml-1" style={{ fontFamily: 'Roboto, sans-serif' }}>{hint}</p>}
     </div>
   )
 }
 
-function Toggle({ checked, onChange, label, description }: { checked: boolean; onChange: (v: boolean) => void; label: string; description?: string }) {
+function Card({ title, subtitle, icon: Icon, children }: { title: string; subtitle?: string; icon?: any; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between py-3">
-      <div className="flex-1 min-w-0 pr-4">
-        <p className="text-sm font-medium theme-text">{label}</p>
-        {description && <p className="text-xs theme-text-tertiary mt-0.5">{description}</p>}
+    <div className="p-8 rounded-2xl bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] space-y-6 shadow-sm">
+      <div className="flex items-center gap-4">
+        {Icon && (
+          <div className="w-11 h-11 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center border border-gray-200 dark:border-slate-700">
+            <Icon className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+          </div>
+        )}
+        <div>
+          <h3 className="font-bold text-slate-900 dark:text-white text-lg" style={{ fontFamily: 'Roboto, sans-serif' }}>{title}</h3>
+          {subtitle && <p className="text-sm text-slate-500 dark:text-neutral-400 font-normal mt-0.5" style={{ fontFamily: 'Roboto, sans-serif' }}>{subtitle}</p>}
+        </div>
       </div>
-      <button onClick={() => onChange(!checked)} className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${checked ? 'bg-gradient-to-r from-sky-500 to-blue-500' : 'bg-white/20'}`}>
-        <motion.div animate={{ x: checked ? 20 : 2 }} className="absolute top-1 w-4 h-4 rounded-full bg-white shadow" />
-      </button>
+      <div className="space-y-6">
+        {children}
+      </div>
     </div>
   )
 }
-
-function Card({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
-  return (
-    <div className="theme-card border theme-border rounded-2xl p-6 space-y-4">
-      <div><h3 className="font-semibold theme-text">{title}</h3>{description && <p className="text-sm theme-text-tertiary mt-0.5">{description}</p>}</div>
-      <div className="border-t theme-border" />
-      {children}
-    </div>
-  )
-}
-
-type SaveState = 'idle' | 'saving' | 'saved' | 'error'
-
-function SaveButton({ onClick, state, label = 'Save Changes' }: { onClick: () => void; state: SaveState; label?: string }) {
-  return (
-    <motion.button onClick={onClick} disabled={state === 'saving'} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="px-6 py-2.5 rounded-full bg-gradient-to-r from-sky-500 to-blue-500 btn-text-white font-semibold text-sm disabled:opacity-60">
-      {state === 'saving' ? '⏳ Saving…' : state === 'saved' ? '✅ Saved!' : state === 'error' ? '❌ Failed' : label}
-    </motion.button>
-  )
-}
-
 
 export function SettingsView() {
-  const { user, refreshUser, logout } = useAuth() as any
-  const router = useRouter()
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const { user, refreshUser } = useAuth() as any
   const [activeTab, setActiveTab] = useState('profile')
   const [firstName, setFirstName]   = useState('')
   const [lastName, setLastName]     = useState('')
   const [language, setLanguage]     = useState('en')
-  const [profileState, setProfileState] = useState<SaveState>('idle')
+  const [saving, setSaving] = useState(false)
+  const [profileImage, setProfileImage] = useState<string | null>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
+  
   const [currentPwd, setCurrentPwd] = useState('')
   const [newPwd, setNewPwd]         = useState('')
   const [confirmPwd, setConfirmPwd] = useState('')
-  const [pwdState, setPwdState]     = useState<SaveState>('idle')
-  const [profilePublic, setProfilePublic]   = useState(false)
-  const [shareAnalytics, setShareAnalytics] = useState(true)
-  const [emailNotifs, setEmailNotifs]       = useState(true)
-  const [weeklyReport, setWeeklyReport]     = useState(true)
-  const [jobAlerts, setJobAlerts]           = useState(false)
-  const [exportState, setExportState]   = useState<SaveState>('idle')
+  
   const [deleteConfirm, setDeleteConfirm] = useState('')
-  const [deleteState, setDeleteState]   = useState<SaveState>('idle')
 
   useEffect(() => {
     if (user) {
       setFirstName(user.first_name || '')
       setLastName(user.last_name   || '')
       setLanguage(user.preferred_language || 'en')
+      // Load profile image from localStorage
+      const savedImage = localStorage.getItem(`profile_image_${user.id}`)
+      if (savedImage) setProfileImage(savedImage)
     }
   }, [user])
 
-  const handleLogout = useCallback(async () => { await logout() }, [logout])
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image size must be less than 5MB')
+      return
+    }
+
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file')
+      return
+    }
+
+    setUploadingImage(true)
+    const reader = new FileReader()
+    
+    reader.onload = (event) => {
+      const img = new Image()
+      img.onload = () => {
+        // Create canvas to resize and crop image to circle
+        const canvas = document.createElement('canvas')
+        const size = 400 // Output size
+        canvas.width = size
+        canvas.height = size
+        const ctx = canvas.getContext('2d')
+        
+        if (ctx) {
+          // Calculate crop dimensions to make it square
+          const minDim = Math.min(img.width, img.height)
+          const sx = (img.width - minDim) / 2
+          const sy = (img.height - minDim) / 2
+          
+          // Draw circular clipped image
+          ctx.beginPath()
+          ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2)
+          ctx.closePath()
+          ctx.clip()
+          
+          ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size)
+          
+          // Convert to base64
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.9)
+          setProfileImage(dataUrl)
+          
+          // Save to localStorage
+          if (user?.id) {
+            localStorage.setItem(`profile_image_${user.id}`, dataUrl)
+          }
+          
+          toast.success('Profile image updated!')
+        }
+        setUploadingImage(false)
+      }
+      
+      img.onerror = () => {
+        toast.error('Failed to load image')
+        setUploadingImage(false)
+      }
+      
+      img.src = event.target?.result as string
+    }
+    
+    reader.onerror = () => {
+      toast.error('Failed to read file')
+      setUploadingImage(false)
+    }
+    
+    reader.readAsDataURL(file)
+  }
+
+  const removeProfileImage = () => {
+    setProfileImage(null)
+    if (user?.id) {
+      localStorage.removeItem(`profile_image_${user.id}`)
+    }
+    toast.success('Profile image removed')
+  }
 
   const saveProfile = async () => {
-    setProfileState('saving')
+    setSaving(true)
     try {
       await apiClient.updateProfile({ first_name: firstName, last_name: lastName, preferred_language: language })
       if (refreshUser) await refreshUser()
-      setProfileState('saved')
-      toast.success('Profile updated successfully.')
-      setTimeout(() => setProfileState('idle'), 3000)
+      toast.success('Settings updated successfully')
     } catch (e: any) {
-      setProfileState('error')
-      toast.error(e?.response?.data?.detail || 'Failed to update profile.')
-      setTimeout(() => setProfileState('idle'), 4000)
+      toast.error('Failed to update settings')
+    } finally {
+      setSaving(false)
     }
   }
 
   const changePassword = async () => {
-    if (newPwd !== confirmPwd) {
-      toast.error('Passwords do not match.')
-      setPwdState('error')
-      return
-    }
-    setPwdState('saving')
+    if (newPwd !== confirmPwd) return toast.error('Passwords do not match')
+    setSaving(true)
     try {
       await apiClient.changePassword(currentPwd, newPwd)
-      setPwdState('saved')
-      toast.success('Password changed successfully.')
+      toast.success('Password updated successfully')
       setCurrentPwd(''); setNewPwd(''); setConfirmPwd('')
-      setTimeout(() => setPwdState('idle'), 3000)
     } catch (e: any) {
-      setPwdState('error')
-      toast.error(e?.response?.data?.detail || 'Failed to change password.')
-      setTimeout(() => setPwdState('idle'), 4000)
+      toast.error(e.message || 'Failed to update password')
+    } finally {
+      setSaving(false)
     }
   }
-
-  const exportData = async () => {
-    setExportState('saving')
-    try {
-      const result = await apiClient.exportMyData()
-      const blob = new Blob([JSON.stringify(result.export_data, null, 2)], { type: 'application/json' })
-      const url  = URL.createObjectURL(blob)
-      const a    = document.createElement('a'); a.href = url; a.download = `resumeai-data-${Date.now()}.json`; a.click()
-      URL.revokeObjectURL(url)
-      setExportState('saved')
-      toast.success('Data exported successfully.')
-      setTimeout(() => setExportState('idle'), 3000)
-    } catch { 
-      setExportState('error')
-      toast.error('Failed to export data.')
-      setTimeout(() => setExportState('idle'), 3000) 
-    }
-  }
-
-  const deleteAccount = async () => {
-    if (deleteConfirm !== 'DELETE') return
-    setDeleteState('saving')
-    try {
-      await apiClient.deleteMyAccount()
-      toast.success('Account deleted. Redirecting...')
-      document.cookie.split(";").forEach((c) => {
-        document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-      });
-      localStorage.clear(); sessionStorage.clear()
-      window.location.href = '/?t=' + Date.now()
-    } catch (e: any) {
-      setDeleteState('error')
-      toast.error(e?.response?.data?.detail || 'Failed to delete account.')
-      setTimeout(() => setDeleteState('idle'), 4000)
-    }
-  }
-
-  const pwdStrength = (() => {
-    let s = 0
-    if (newPwd.length >= 8) s++
-    if (/[A-Z]/.test(newPwd)) s++
-    if (/[a-z]/.test(newPwd)) s++
-    if (/\d/.test(newPwd)) s++
-    if (/[@$!%*?&]/.test(newPwd)) s++
-    return s
-  })()
 
   return (
-    <div className="min-h-screen theme-bg theme-text flex overflow-hidden">
-      <div className="fixed inset-0 z-0 pointer-events-none">
-        <div className="absolute inset-0 theme-glow-bg" />
-        <div className="absolute top-0 left-1/4 w-96 h-96 theme-glow-1 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 theme-glow-2 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-      </div>
-
-      <motion.aside initial={false} animate={{ width: sidebarOpen ? 220 : 64 }} className="relative z-20 flex-shrink-0 flex flex-col theme-card border-r theme-border h-screen sticky top-0 overflow-hidden">
-        <div className="flex items-center gap-3 px-4 py-5 border-b theme-border">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-500 to-blue-500 flex items-center justify-center flex-shrink-0"><span className="btn-text-white font-bold text-sm">R</span></div>
-          <AnimatePresence>{sidebarOpen && (<motion.span initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="font-bold text-lg bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent whitespace-nowrap">ResumeAI</motion.span>)}</AnimatePresence>
+    <div className="max-w-5xl mx-auto space-y-8 px-4 py-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-2">
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white" style={{ fontFamily: 'Roboto, sans-serif' }}>Settings</h1>
+          <p className="text-slate-600 dark:text-neutral-400 text-sm font-normal" style={{ fontFamily: 'Roboto, sans-serif' }}>Manage your profile and platform preferences</p>
         </div>
-        <nav className="flex-1 py-4 space-y-1 px-2">
-          {NAV_ITEMS.map(item => (
-            <Link key={item.label} href={item.href}>
-              <motion.div whileHover={{ x: 4 }} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer ${item.active ? 'bg-gradient-to-r from-sky-500/20 to-blue-500/20 border border-sky-500/30 text-sky-400' : 'theme-text-secondary hover:bg-white/5 hover:theme-text'}`}>
-                <span className="text-xl flex-shrink-0">{item.icon}</span>
-                <AnimatePresence>{sidebarOpen && (<motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-sm font-medium whitespace-nowrap">{item.label}</motion.span>)}</AnimatePresence>
-              </motion.div>
-            </Link>
-          ))}
-        </nav>
-        <button onClick={() => setSidebarOpen(o => !o)} className="m-3 p-2 rounded-xl theme-card border theme-border hover:border-sky-500/40 transition-all flex items-center justify-center theme-text-secondary"><motion.span animate={{ rotate: sidebarOpen ? 0 : 180 }}>◀</motion.span></button>
-      </motion.aside>
-
-      <div className="flex-1 flex flex-col min-w-0 relative z-10">
-        <header className="theme-card border-b theme-border px-6 py-4 flex items-center justify-between flex-shrink-0">
-          <div><h1 className="text-xl font-bold theme-text">Settings</h1><p className="text-xs theme-text-tertiary mt-0.5">Manage your account preferences</p></div>
-          <div className="flex items-center gap-3"><ThemeToggle /><button onClick={handleLogout} className="px-4 py-2 text-sm theme-text-secondary hover:theme-text transition-colors rounded-lg hover:bg-white/5">Logout</button></div>
-        </header>
-
-        <div className="flex-1 overflow-y-auto p-6"><div className="max-w-3xl mx-auto">
-          <div className="flex gap-1 p-1 rounded-2xl theme-card border theme-border mb-6 overflow-x-auto">
-            {TABS.map(tab => (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap flex-shrink-0 ${activeTab === tab.id ? 'bg-gradient-to-r from-sky-500/20 to-blue-500/20 border border-sky-500/30 text-sky-400' : 'theme-text-secondary hover:bg-white/5 hover:theme-text'}`}><span>{tab.icon}</span><span>{tab.label}</span></button>
-            ))}
-          </div>
-
-          <AnimatePresence mode="wait">
-            {activeTab === 'profile' && (
-              <motion.div key="profile" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-                <Card title="Personal Information" description="Your name and language preference">
-                  <div className="flex items-center gap-4 pb-2"><div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-500 flex items-center justify-center text-xl font-bold btn-text-white flex-shrink-0">{(firstName[0] || '?').toUpperCase()}</div><div><p className="font-semibold theme-text">{firstName} {lastName}</p><p className="text-xs theme-text-tertiary">{user?.email}</p></div></div>
-                  <div className="grid grid-cols-2 gap-4"><Field label="First Name" value={firstName} onChange={setFirstName} /><Field label="Last Name" value={lastName} onChange={setLastName} /></div>
-                  <Field label="Email Address" value={user?.email || ''} disabled hint="Email cannot be changed." />
-                  <div><label className="block text-sm font-medium theme-text mb-1.5">Preferred Language</label><select value={language} onChange={e => setLanguage(e.target.value)} className="theme-input w-full"><option value="en">🇬🇧 English</option><option value="ar">🇸🇦 Arabic</option><option value="fr">🇫🇷 French</option></select></div>
-                  <div className="flex justify-end pt-2"><SaveButton onClick={saveProfile} state={profileState} /></div>
-                </Card>
-              </motion.div>
-            )}
-
-            {activeTab === 'security' && (
-              <motion.div key="security" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-                <Card title="Change Password" description="Use a strong password">
-                  <Field label="Current Password" value={currentPwd} onChange={setCurrentPwd} type="password" /><Field label="New Password" value={newPwd} onChange={setNewPwd} type="password" />
-                  {newPwd && (<div><div className="flex gap-1 mb-1">{[1,2,3,4,5].map(i => (<div key={i} className={`h-1 flex-1 rounded-full transition-colors ${i <= pwdStrength ? (pwdStrength <= 2 ? 'bg-red-400' : pwdStrength <= 3 ? 'bg-yellow-400' : 'bg-green-400') : 'bg-white/10'}`} />))}</div><p className="text-xs theme-text-tertiary">{pwdStrength <= 2 ? '⚠️ Weak' : pwdStrength <= 3 ? '🟡 Medium' : '✅ Strong'}</p></div>)}
-                  <Field label="Confirm New Password" value={confirmPwd} onChange={setConfirmPwd} type="password" />
-                  <div className="flex justify-end pt-2"><SaveButton onClick={changePassword} state={pwdState} label="Change Password" /></div>
-                </Card>
-              </motion.div>
-            )}
-
-            {activeTab === 'privacy' && (
-              <motion.div key="privacy" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-                <Card title="Profile Visibility"><Toggle checked={profilePublic} onChange={setProfilePublic} label="Public Profile" /><Toggle checked={shareAnalytics} onChange={setShareAnalytics} label="Share Analytics" /></Card>
-                <Card title="Notifications"><Toggle checked={emailNotifs} onChange={setEmailNotifs} label="Email Notifications" /><Toggle checked={weeklyReport} onChange={setWeeklyReport} label="Weekly Report" /></Card>
-                <Card title="Your Data"><button onClick={exportData} disabled={exportState === 'saving'} className="w-full flex items-center justify-between p-4 rounded-xl theme-card border theme-border group"><div><p className="text-sm font-medium theme-text text-left">Export My Data</p><p className="text-xs theme-text-tertiary">Download JSON</p></div><span className="text-blue-400">{exportState === 'saving' ? '⏳' : '→'}</span></button></Card>
-              </motion.div>
-            )}
-
-            {activeTab === 'appearance' && (
-              <motion.div key="appearance" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-                <Card title="Theme"><div className="flex items-center justify-between"><div><p className="text-sm font-medium theme-text">Dark / Light Mode</p></div><ThemeToggle /></div></Card>
-              </motion.div>
-            )}
-
-            {activeTab === 'danger' && (
-              <motion.div key="danger" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-                <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-start gap-3"><span className="text-2xl">⚠️</span><div><p className="font-semibold text-red-400">Danger Zone</p><p className="text-sm theme-text-secondary mt-1">Actions are irreversible.</p></div></div>
-                <Card title="Delete Account"><Field label='Type "DELETE" to confirm' value={deleteConfirm} onChange={setDeleteConfirm} /><motion.button onClick={deleteAccount} disabled={deleteConfirm !== 'DELETE' || deleteState === 'saving'} className="w-full py-3 rounded-xl bg-red-500/20 border border-red-500/40 text-red-400 font-semibold text-sm disabled:opacity-40">{deleteState === 'saving' ? '⏳ Deleting…' : '🗑️ Delete My Account'}</motion.button></Card>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div></div>
+        <button 
+          onClick={activeTab === 'security' ? changePassword : saveProfile} 
+          disabled={saving}
+          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-sm shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed" style={{ fontFamily: 'Roboto, sans-serif' }}
+        >
+          {saving ? <Loader2 className="w-4.5 h-4.5 animate-spin" /> : <Save className="w-4.5 h-4.5" />}
+          Save Changes
+        </button>
       </div>
+
+      {/* Tabs */}
+      <div className="flex p-1.5 bg-slate-50 dark:bg-[#0c0c0e] border border-gray-200 dark:border-neutral-900 rounded-xl overflow-x-auto hide-scrollbar shadow-sm">
+        {TABS.map(tab => (
+          <button 
+            key={tab.id} 
+            onClick={() => setActiveTab(tab.id)}
+            className={`
+              flex items-center gap-2.5 px-5 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap
+              ${activeTab === tab.id ? 'bg-white dark:bg-[#18181b] text-blue-600 dark:text-white shadow-md border border-gray-200 dark:border-neutral-800' : 'text-slate-600 dark:text-neutral-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-white/[0.02]'}
+            `}
+            style={{ fontFamily: 'Roboto, sans-serif' }}
+          >
+            <tab.icon className="w-4 h-4" />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+          className="space-y-8"
+        >
+          {activeTab === 'profile' && (
+            <div className="space-y-6">
+              <Card title="Identity" subtitle="Personal details and preferences" icon={User}>
+                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 p-6 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-gray-200 dark:border-slate-800">
+                  <div className="relative group">
+                    {profileImage ? (
+                      <div className="relative">
+                        <img 
+                          src={profileImage} 
+                          alt="Profile" 
+                          className="w-24 h-24 rounded-full object-cover shadow-lg ring-4 ring-white dark:ring-slate-800"
+                        />
+                        {uploadingImage && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full">
+                            <Loader2 className="w-6 h-6 text-white animate-spin" />
+                          </div>
+                        )}
+                        <button
+                          onClick={removeProfileImage}
+                          className="absolute -top-1 -right-1 w-7 h-7 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg transition-all opacity-0 group-hover:opacity-100"
+                          title="Remove image"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-24 h-24 rounded-full bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center text-3xl font-bold text-white shadow-lg ring-4 ring-white dark:ring-slate-800" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                        {firstName[0]?.toUpperCase() || 'U'}
+                      </div>
+                    )}
+                    <label 
+                      htmlFor="profile-image-upload"
+                      className="absolute -bottom-1 -right-1 w-8 h-8 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center shadow-lg cursor-pointer transition-all"
+                      title="Upload image"
+                    >
+                      <Upload className="w-4 h-4" />
+                      <input
+                        id="profile-image-upload"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                        disabled={uploadingImage}
+                      />
+                    </label>
+                  </div>
+                  <div className="flex-1 text-center sm:text-left">
+                    <h4 className="text-slate-900 dark:text-white font-bold text-xl" style={{ fontFamily: 'Roboto, sans-serif' }}>{firstName} {lastName}</h4>
+                    <p className="text-slate-500 dark:text-neutral-400 text-sm mt-1" style={{ fontFamily: 'Roboto, sans-serif' }}>{user?.email}</p>
+                    <p className="text-xs text-slate-400 dark:text-neutral-500 mt-2" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      Click the upload button to add your profile picture. Square images work best.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Field label="First Name" value={firstName} onChange={setFirstName} placeholder="John" icon={User} />
+                  <Field label="Last Name" value={lastName} onChange={setLastName} placeholder="Doe" icon={User} />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Field label="Email Address" value={user?.email || ''} disabled hint="Email verification is linked to your primary account." icon={Mail} />
+                  <div className="space-y-2">
+                    <label className="block text-xs font-semibold tracking-wide text-slate-500 dark:text-neutral-400 ml-1" style={{ fontFamily: 'Roboto, sans-serif' }}>Preferred Language</label>
+                    <div className="relative group">
+                       <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-500 dark:text-neutral-400" />
+                       <select value={language} onChange={e => setLanguage(e.target.value)} className="w-full bg-white dark:bg-slate-800/50 border border-gray-300 dark:border-slate-700 rounded-xl py-3.5 pl-12 pr-4 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50 transition-all appearance-none cursor-pointer" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                          <option value="en">English (Global)</option>
+                          <option value="ar">Arabic (العربية)</option>
+                          <option value="fr">French (Français)</option>
+                       </select>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {activeTab === 'security' && (
+            <Card title="Authentication" subtitle="Secure your account with a strong password" icon={Lock}>
+              <div className="space-y-6">
+                <Field label="Current Password" type="password" value={currentPwd} onChange={setCurrentPwd} icon={Lock} />
+                <div className="h-px bg-slate-200 dark:bg-slate-800" />
+                <Field label="New Password" type="password" value={newPwd} onChange={setNewPwd} icon={Lock} />
+                <Field label="Confirm New Password" type="password" value={confirmPwd} onChange={setConfirmPwd} icon={Lock} />
+              </div>
+            </Card>
+          )}
+
+          {activeTab === 'privacy' && (
+            <div className="space-y-6">
+              <Card title="Data & Privacy" icon={Shield}>
+                <div className="space-y-6">
+                  <ToggleItem label="Public Profile" desc="Allow recruiters to find your profile in talent search." />
+                  <ToggleItem label="AI Training" desc="Anonymous data contribution to improve matching models." active />
+                  <ToggleItem label="Marketing" desc="Receive career growth insights and system updates." />
+                </div>
+              </Card>
+              <Card title="Data Portability" icon={Download}>
+                 <button className="w-full p-6 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-gray-200 dark:border-slate-800 flex items-center justify-between group hover:border-sky-500/50 hover:bg-slate-100 dark:hover:bg-slate-900/50 transition-all">
+                    <div className="text-left space-y-1.5">
+                       <h4 className="text-slate-900 dark:text-white font-semibold text-base" style={{ fontFamily: 'Roboto, sans-serif' }}>Download Archive</h4>
+                       <p className="text-sm text-slate-500 dark:text-neutral-400" style={{ fontFamily: 'Roboto, sans-serif' }}>Request a complete JSON export of your neural data.</p>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-slate-500 dark:text-neutral-400 group-hover:text-sky-500 group-hover:translate-x-1 transition-all" />
+                 </button>
+              </Card>
+            </div>
+          )}
+
+          {activeTab === 'appearance' && (
+            <Card title="Visual Theme" icon={Palette}>
+               <div className="flex items-center justify-between p-6 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-gray-200 dark:border-slate-800">
+                  <div className="space-y-1.5">
+                     <h4 className="text-slate-900 dark:text-white font-semibold text-base" style={{ fontFamily: 'Roboto, sans-serif' }}>Adaptive Interface</h4>
+                     <p className="text-sm text-slate-500 dark:text-neutral-400" style={{ fontFamily: 'Roboto, sans-serif' }}>Toggle between dark and light cinematic modes.</p>
+                  </div>
+                  <ThemeToggle />
+               </div>
+            </Card>
+          )}
+
+          {activeTab === 'danger' && (
+            <Card title="Termination" subtitle="Irreversible account actions" icon={AlertTriangle}>
+               <div className="p-6 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/30 space-y-6">
+                  <div className="space-y-2">
+                     <h4 className="text-rose-600 dark:text-rose-400 font-bold text-base" style={{ fontFamily: 'Roboto, sans-serif' }}>Delete Account</h4>
+                     <p className="text-sm text-slate-600 dark:text-neutral-400 leading-relaxed" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                        This will permanently erase your resumes, analyses, and interview history. This action cannot be undone.
+                     </p>
+                  </div>
+                  <div className="space-y-4">
+                     <input 
+                        type="text" 
+                        value={deleteConfirm} 
+                        onChange={e => setDeleteConfirm(e.target.value)} 
+                        placeholder="Type DELETE to confirm" 
+                        className="w-full bg-white dark:bg-slate-950 border border-rose-300 dark:border-rose-900/50 rounded-xl py-3.5 px-4 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500/50 focus:border-rose-500/50 transition-all" 
+                        style={{ fontFamily: 'Roboto, sans-serif' }}
+                     />
+                     <button disabled={deleteConfirm !== 'DELETE'} className="w-full py-4 bg-rose-500 hover:bg-rose-600 border border-rose-600 text-white rounded-xl font-semibold text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-rose-500/20" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                        Permanently Delete Account
+                     </button>
+                  </div>
+               </div>
+            </Card>
+          )}
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  )
+}
+
+function ToggleItem({ label, desc, active = false }: { label: string; desc: string; active?: boolean }) {
+  const [isOn, setIsOn] = useState(active)
+  return (
+    <div className="flex items-center justify-between group">
+      <div className="space-y-1.5">
+        <h4 className="text-slate-900 dark:text-white font-semibold text-base" style={{ fontFamily: 'Roboto, sans-serif' }}>{label}</h4>
+        <p className="text-sm text-slate-500 dark:text-neutral-400" style={{ fontFamily: 'Roboto, sans-serif' }}>{desc}</p>
+      </div>
+      <button 
+        onClick={() => setIsOn(!isOn)}
+        className={`w-14 h-7 rounded-full transition-all relative ${isOn ? 'bg-sky-500 shadow-lg shadow-sky-500/20' : 'bg-slate-200 dark:bg-slate-700'}`}
+      >
+        <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-sm transition-all ${isOn ? 'left-8' : 'left-1'}`} />
+      </button>
     </div>
   )
 }

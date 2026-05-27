@@ -1,342 +1,352 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { useAuth } from '@/contexts/auth-context'
-import { ProgressBar } from '@/components/ui/progress-bar'
-import { ThemeToggle } from '@/components/theme-toggle'
+import { Eye, EyeOff, Mail, Lock, ArrowRight, User, Briefcase, UserCircle, Shield, Sparkles, AlertCircle } from 'lucide-react'
+import { AuthHeader } from '@/components/auth/AuthHeader'
 import { toast } from 'sonner'
 
 export function RegisterForm() {
   const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'candidate' as 'candidate' | 'recruiter',
-    first_name: '',
-    last_name: '',
+    role: 'candidate' as 'candidate' | 'recruiter'
   })
-  const [loading, setLoading] = useState(false)
-  const [passwordStrength, setPasswordStrength] = useState(0)
+  
   const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [focusedField, setFocusedField] = useState<string | null>(null)
   const { register } = useAuth()
-  const router = useRouter()
-
-  const calculatePasswordStrength = (password: string): number => {
-    let strength = 0
-    if (password.length >= 8) strength++
-    if (password.length >= 12) strength++
-    if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++
-    if (/\d/.test(password)) strength++
-    if (/[^a-zA-Z0-9]/.test(password)) strength++
-    return strength
-  }
-
-  const handlePasswordChange = (password: string) => {
-    setFormData({ ...formData, password })
-    setPasswordStrength(calculatePasswordStrength(password))
-  }
-
-  const validateForm = (): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(formData.email)) {
-      toast.error('Please enter a valid email address')
-      return false
-    }
-
-    if (formData.password.length < 8) {
-      toast.error('Password must be at least 8 characters long')
-      return false
-    }
-    if (!/[a-z]/.test(formData.password)) {
-      toast.error('Password must contain at least one lowercase letter')
-      return false
-    }
-    if (!/[A-Z]/.test(formData.password)) {
-      toast.error('Password must contain at least one uppercase letter')
-      return false
-    }
-    if (!/\d/.test(formData.password)) {
-      toast.error('Password must contain at least one number')
-      return false
-    }
-    if (!/[^a-zA-Z0-9]/.test(formData.password)) {
-      toast.error('Password must contain at least one special character')
-      return false
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      toast.error('Passwords do not match')
-      return false
-    }
-
-    return true
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    if (!validateForm()) {
+    setError(null)
+    
+    if (formData.password !== formData.confirmPassword) {
+      const msg = 'Passwords do not match'
+      setError(msg)
+      toast.error(msg)
       return
     }
 
     setLoading(true)
-
     try {
-      const { confirmPassword, ...registerData } = formData
-      await register(registerData)
-      toast.success('Account created! Welcome to ResumeAI.')
+      await register({
+        email: formData.email,
+        password: formData.password,
+        role: formData.role,
+        first_name: formData.firstName,
+        last_name: formData.lastName
+      })
+      toast.success('Account created successfully!')
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Registration failed. Please try again.')
+      const msg = err.message || 'Registration failed. Please try again.'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
   }
 
-  const getPasswordStrengthColor = (): 'red' | 'yellow' | 'green' => {
-    if (passwordStrength <= 2) return 'red'
-    if (passwordStrength <= 3) return 'yellow'
-    return 'green'
-  }
-
-  const getPasswordStrengthText = () => {
-    if (passwordStrength === 0) return ''
-    if (passwordStrength <= 2) return 'Weak'
-    if (passwordStrength <= 3) return 'Medium'
-    return 'Strong'
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
   }
 
   return (
-    <div className="min-h-screen theme-bg flex items-center justify-center px-4 py-12 relative overflow-hidden">
-      {/* Animated Background */}
-      <div className="fixed inset-0 z-0">
-        <div className="absolute inset-0 theme-glow-bg" />
-        <div className="absolute top-0 left-1/4 w-96 h-96 theme-glow-1 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 theme-glow-2 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-      </div>
+    <>
+      <AuthHeader />
+      <div className="min-h-screen bg-white dark:bg-slate-700 flex items-center justify-center relative overflow-hidden pt-20 pb-12">
+        {/* Background Grid Pattern */}
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.02)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:72px_72px]" />
 
-      {/* Theme Toggle - Fixed Position */}
-      <div className="fixed top-6 right-6 z-50">
-        <ThemeToggle />
-      </div>
-
-      <motion.div
-        className="max-w-md w-full relative z-10"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <div className="theme-card p-8 rounded-3xl shadow-2xl">
-          {/* Header */}
-          <motion.div
-            className="text-center mb-8"
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-          >
-            <h2 className="text-4xl font-bold theme-text mb-2">Create Account</h2>
-            <p className="theme-text-muted">Join us to start analyzing your resume</p>
-          </motion.div>
-
-          <form className="space-y-6" onSubmit={handleSubmit}>
-
-            {/* Role Selection */}
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="flex flex-col lg:flex-row items-center justify-between gap-12 xl:gap-16">
+            
+            {/* Left Content - Marketing */}
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
+              className="hidden lg:flex w-full lg:w-1/2 flex-col"
+              initial={{ opacity: 0, x: -50 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
+              transition={{ duration: 0.8 }}
             >
-              <label className="block text-sm font-medium theme-text mb-3">I am a</label>
-              <div className="grid grid-cols-2 gap-3">
-                {['candidate', 'recruiter'].map((role) => (
-                  <motion.button
-                    key={role}
-                    type="button"
-                    onClick={() => setFormData({ ...formData, role: role as any })}
-                    className={`px-4 py-3 rounded-xl border-2 transition-all font-medium ${
-                      formData.role === role
-                        ? 'border-sky-500 bg-sky-500/20 theme-text shadow-lg'
-                        : 'theme-border theme-text-secondary hover:border-sky-500/50 hover:bg-white/10'
-                    }`}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+              <div className="space-y-8">
+
+
+                <div className="space-y-6">
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2, duration: 0.8 }}
                   >
-                    {role.charAt(0).toUpperCase() + role.slice(1)}
-                  </motion.button>
-                ))}
-              </div>
-            </motion.div>
+                    <h1 className="text-4xl lg:text-5xl xl:text-6xl font-extrabold text-gray-900 dark:text-white mb-4 leading-tight">
+                      Join the future of <span className="text-sky-500">hiring.</span>
+                    </h1>
+                    <p className="text-lg lg:text-xl text-gray-700 dark:text-gray-300 leading-relaxed max-w-xl">
+                      Create your account and experience the power of explainable AI in your career journey.
+                    </p>
+                  </motion.div>
 
-            {/* Name Fields */}
-            <motion.div
-              className="grid grid-cols-2 gap-3"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-            >
-              <div>
-                <label className="block text-sm font-medium theme-text mb-2">
-                  First Name
-                </label>
-                <input
-                  type="text"
-                  value={formData.first_name}
-                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                  className="theme-input"
-                  placeholder="John"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium theme-text mb-2">Last Name</label>
-                <input
-                  type="text"
-                  value={formData.last_name}
-                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                  className="theme-input"
-                  placeholder="Doe"
-                />
-              </div>
-            </motion.div>
-
-            {/* Email */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.4 }}
-            >
-              <label className="block text-sm font-medium theme-text mb-2">
-                Email Address
-              </label>
-              <input
-                type="email"
-                required
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="theme-input"
-                placeholder="you@example.com"
-              />
-            </motion.div>
-
-            {/* Password */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.5 }}
-            >
-              <label className="block text-sm font-medium theme-text mb-2">Password</label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  required
-                  value={formData.password}
-                  onChange={(e) => handlePasswordChange(e.target.value)}
-                  className="theme-input pr-12"
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xl theme-text-tertiary hover:theme-text transition-colors"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? '🙈' : '👁️'}
-                </button>
-              </div>
-              {formData.password && (
-                <div className="mt-3">
-                  <div className="flex items-center gap-3 mb-1">
-                    <ProgressBar
-                      value={passwordStrength}
-                      max={5}
-                      color={getPasswordStrengthColor()}
-                      className="flex-1"
-                    />
-                    <span className="text-xs font-medium theme-text-secondary">
-                      {getPasswordStrengthText()}
-                    </span>
-                  </div>
-                  <p className="text-xs theme-text-tertiary">
-                    Must contain: 8+ chars, uppercase, lowercase, number, special char
-                  </p>
+                  <motion.div
+                    className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4, duration: 0.8 }}
+                  >
+                    {[
+                      { icon: Shield, text: 'Privacy Protected' },
+                      { icon: Sparkles, text: 'AI Career Coach' },
+                      { icon: Briefcase, text: 'Smart Job Matching' },
+                      { icon: UserCircle, text: 'Personal Branding' }
+                    ].map((feature, index) => (
+                      <div key={index} className="flex items-center space-x-3 text-gray-800 dark:text-gray-200 bg-white/50 dark:bg-white/5 backdrop-blur-sm border border-gray-200 dark:border-white/10 p-3 rounded-xl">
+                        <feature.icon className="w-5 h-5 text-sky-500" />
+                        <span className="text-sm font-medium">{feature.text}</span>
+                      </div>
+                    ))}
+                  </motion.div>
                 </div>
-              )}
-            </motion.div>
-
-            {/* Confirm Password */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.6 }}
-            >
-              <label className="block text-sm font-medium theme-text mb-2">
-                Confirm Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showConfirmPassword ? "text" : "password"}
-                  required
-                  value={formData.confirmPassword}
-                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                  className="theme-input pr-12"
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xl theme-text-tertiary hover:theme-text transition-colors"
-                  aria-label={showConfirmPassword ? "Hide password" : "Show password"}
-                >
-                  {showConfirmPassword ? '🙈' : '👁️'}
-                </button>
               </div>
             </motion.div>
 
-            {/* Submit Button */}
+            {/* Right Content - Form */}
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              className="w-full lg:w-[500px] xl:w-[550px]"
+              initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.7 }}
+              transition={{ duration: 0.6 }}
             >
-              <button
-                type="submit"
-                disabled={loading}
-                className="group relative w-full px-8 py-4 rounded-full bg-gradient-to-r from-sky-500 to-blue-500 btn-text-white font-semibold text-lg overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <span className="relative z-10">{loading ? 'Creating account...' : 'Create Account'}</span>
-                <div className="absolute inset-0 bg-gradient-to-r from-sky-600 to-blue-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              </button>
-            </motion.div>
+              <div className="bg-gray-50/80 dark:bg-slate-800/80 backdrop-blur-2xl border border-gray-200 dark:border-slate-700/50 rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden">
+                {/* Accent line */}
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-sky-500 to-blue-600" />
+                
+                <div className="mb-8">
+                  <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">Create Account</h2>
+                  <p className="text-gray-600 dark:text-gray-400">Join 10,000+ professionals using ResumeAI</p>
+                </div>
 
-            {/* Sign In Link */}
-            <motion.div
-              className="text-center text-sm"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.5, delay: 0.8 }}
-            >
-              <span className="theme-text-secondary">Already have an account? </span>
-              <Link href="/login" className="font-medium theme-text hover:opacity-80">
-                Sign in
-              </Link>
+                <form onSubmit={handleSubmit} className="space-y-5">
+                  {/* Error Alert */}
+                  {error && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-xl"
+                    >
+                      <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-red-900 dark:text-red-200 mb-1">Registration Failed</p>
+                        <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 ml-1">
+                        First Name
+                      </label>
+                      <div className="relative">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+                          <User className="w-4 h-4" />
+                        </div>
+                        <input
+                          type="text"
+                          name="firstName"
+                          required
+                          value={formData.firstName}
+                          onChange={(e) => {
+                            handleChange(e)
+                            setError(null)
+                          }}
+                          onFocus={() => setFocusedField('firstName')}
+                          onBlur={() => setFocusedField(null)}
+                          className={`w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-900/50 border rounded-xl text-gray-900 dark:text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500/20 ${
+                            error ? 'border-red-300 dark:border-red-900/50' : focusedField === 'firstName' ? 'border-sky-500 shadow-sm' : 'border-gray-200 dark:border-slate-700'
+                          }`}
+                          placeholder="John"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 ml-1">
+                        Last Name
+                      </label>
+                      <div className="relative">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+                          <User className="w-4 h-4" />
+                        </div>
+                        <input
+                          type="text"
+                          name="lastName"
+                          required
+                          value={formData.lastName}
+                          onChange={(e) => {
+                            handleChange(e)
+                            setError(null)
+                          }}
+                          onFocus={() => setFocusedField('lastName')}
+                          onBlur={() => setFocusedField(null)}
+                          className={`w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-900/50 border rounded-xl text-gray-900 dark:text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500/20 ${
+                            error ? 'border-red-300 dark:border-red-900/50' : focusedField === 'lastName' ? 'border-sky-500 shadow-sm' : 'border-gray-200 dark:border-slate-700'
+                          }`}
+                          placeholder="Doe"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 ml-1">
+                      Email Address
+                    </label>
+                    <div className="relative">
+                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+                        <Mail className="w-4 h-4" />
+                      </div>
+                      <input
+                        type="email"
+                        name="email"
+                        required
+                        value={formData.email}
+                        onChange={handleChange}
+                        onFocus={() => setFocusedField('email')}
+                        onBlur={() => setFocusedField(null)}
+                        className={`w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-900/50 border rounded-xl text-gray-900 dark:text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500/20 ${
+                          focusedField === 'email' ? 'border-sky-500 shadow-sm' : 'border-gray-200 dark:border-slate-700'
+                        }`}
+                        placeholder="john@example.com"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 ml-1">
+                      I am a...
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, role: 'candidate' }))}
+                        className={`flex items-center justify-center space-x-2 py-3 px-4 rounded-xl border transition-all duration-200 ${
+                          formData.role === 'candidate'
+                            ? 'bg-sky-500/10 border-sky-500 text-sky-600 dark:text-sky-400 font-semibold'
+                            : 'bg-white dark:bg-slate-900/30 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400'
+                        }`}
+                      >
+                        <User className="w-4 h-4" />
+                        <span>Candidate</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, role: 'recruiter' }))}
+                        className={`flex items-center justify-center space-x-2 py-3 px-4 rounded-xl border transition-all duration-200 ${
+                          formData.role === 'recruiter'
+                            ? 'bg-sky-500/10 border-sky-500 text-sky-600 dark:text-sky-400 font-semibold'
+                            : 'bg-white dark:bg-slate-900/30 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400'
+                        }`}
+                      >
+                        <Briefcase className="w-4 h-4" />
+                        <span>Recruiter</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 ml-1">
+                        Password
+                      </label>
+                      <div className="relative">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+                          <Lock className="w-4 h-4" />
+                        </div>
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          name="password"
+                          required
+                          value={formData.password}
+                          onChange={handleChange}
+                          onFocus={() => setFocusedField('password')}
+                          onBlur={() => setFocusedField(null)}
+                          className={`w-full pl-11 pr-11 py-3 bg-white dark:bg-slate-900/50 border rounded-xl text-gray-900 dark:text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500/20 ${
+                            focusedField === 'password' ? 'border-sky-500 shadow-sm' : 'border-gray-200 dark:border-slate-700'
+                          }`}
+                          placeholder="••••••••"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 ml-1">
+                        Confirm
+                      </label>
+                      <div className="relative">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+                          <Lock className="w-4 h-4" />
+                        </div>
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          name="confirmPassword"
+                          required
+                          value={formData.confirmPassword}
+                          onChange={handleChange}
+                          onFocus={() => setFocusedField('confirmPassword')}
+                          onBlur={() => setFocusedField(null)}
+                          className={`w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-900/50 border rounded-xl text-gray-900 dark:text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500/20 ${
+                            focusedField === 'confirmPassword' ? 'border-sky-500 shadow-sm' : 'border-gray-200 dark:border-slate-700'
+                          }`}
+                          placeholder="••••••••"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full relative group mt-4 py-4 bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-sky-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <div className="relative z-10 flex items-center justify-center space-x-2">
+                      {loading ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          <span>Creating Account...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Get Started</span>
+                          <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                        </>
+                      )}
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-r from-sky-600 to-blue-700 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  </button>
+
+                  <p className="text-center text-sm text-gray-600 dark:text-gray-400 mt-6">
+                    Already have an account?{' '}
+                    <Link href="/login" className="text-sky-500 font-semibold hover:text-sky-600 underline-offset-4 hover:underline transition-all">
+                      Sign In
+                    </Link>
+                  </p>
+                </form>
+              </div>
             </motion.div>
-          </form>
+          </div>
         </div>
-
-        {/* Back to Home */}
-        <motion.div
-          className="text-center mt-6"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.9 }}
-        >
-          <Link href="/" className="text-sm theme-text-tertiary hover:theme-text transition-colors">
-            ← Back to Home
-          </Link>
-        </motion.div>
-      </motion.div>
-    </div>
+      </div>
+    </>
   )
 }

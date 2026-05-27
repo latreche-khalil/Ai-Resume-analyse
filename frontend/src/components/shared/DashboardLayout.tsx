@@ -48,10 +48,10 @@ const NAV_GROUPS = {
     {
       label: 'System',
       items: [
-        { icon: LayoutDashboard, label: 'Dashboard',    href: '/admin',        id: 'admin'        },
-        { icon: ShieldCheck,     label: 'Audit Logs',   href: '/audit-logs',   id: 'audit-logs'   },
-        { icon: MessageSquare,   label: 'Testimonials', href: '/testimonials', id: 'testimonials' },
-        { icon: HeartHandshake,  label: 'Feedback',     href: '/feedback',     id: 'feedback'     },
+        { icon: LayoutDashboard, label: 'Dashboard',    href: '/admin',              id: 'admin'        },
+        { icon: ShieldCheck,     label: 'Audit Logs',   href: '/admin/audit-logs',   id: 'audit-logs'   },
+        { icon: HeartHandshake,  label: 'Feedback',     href: '/admin/feedback',     id: 'feedback'     },
+        { icon: MessageSquare,   label: 'Testimonials', href: '/admin/testimonials', id: 'testimonials' },
       ],
     },
   ],
@@ -73,11 +73,20 @@ interface SidebarProps {
   pathname: string | null
   userInitial: string
   userName: string
+  userId: string | undefined
   logout: () => void
 }
 
-function Sidebar({ role, collapsed, pathname, userInitial, userName, logout }: SidebarProps) {
+function Sidebar({ role, collapsed, pathname, userInitial, userName, userId, logout }: SidebarProps) {
   const groups = NAV_GROUPS[role] || []
+  const [profileImage, setProfileImage] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (userId) {
+      const savedImage = localStorage.getItem(`profile_image_${userId}`)
+      if (savedImage) setProfileImage(savedImage)
+    }
+  }, [userId])
 
   const isActive = (id: string, href: string) => {
     if (id === 'dashboard'    && pathname === '/dashboard')    return true
@@ -179,9 +188,17 @@ function Sidebar({ role, collapsed, pathname, userInitial, userName, logout }: S
         </button>
         {!collapsed && (
           <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700/50 flex items-center gap-2.5 px-1">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
-              {userInitial}
-            </div>
+            {profileImage ? (
+              <img 
+                src={profileImage} 
+                alt="Profile" 
+                className="w-8 h-8 rounded-full object-cover shrink-0 ring-2 ring-white dark:ring-slate-700"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                {userInitial}
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-gray-900 dark:text-white truncate leading-none">{userName}</p>
               <p className="text-[10px] text-sky-500 font-medium capitalize mt-0.5">{role}</p>
@@ -199,8 +216,16 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [profileImage, setProfileImage] = useState<string | null>(null)
 
   useEffect(() => { setMounted(true) }, [])
+  
+  useEffect(() => {
+    if (user?.id) {
+      const savedImage = localStorage.getItem(`profile_image_${user.id}`)
+      if (savedImage) setProfileImage(savedImage)
+    }
+  }, [user?.id])
   const sidebarW = sidebarOpen ? 350 : 60
   const userInitial = mounted ? (user?.first_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U') : 'U'
   const userName    = mounted ? (user?.first_name || user?.email?.split('@')[0] || 'User') : 'User'
@@ -209,7 +234,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
   const breadcrumbs  = pathSegments.map(s => s.charAt(0).toUpperCase() + s.slice(1).replace(/-/g, ' '))
   if (breadcrumbs.length === 0) breadcrumbs.push('Dashboard')
 
-  const sidebarProps: SidebarProps = { role, collapsed: !sidebarOpen, pathname, userInitial, userName, logout }
+  const sidebarProps: SidebarProps = { role, collapsed: !sidebarOpen, pathname, userInitial, userName, userId: user?.id, logout }
 
   return (
     <div className="bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white font-sans" style={{ minHeight: '100vh' }}>
@@ -302,9 +327,17 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
                 <p className="text-xs font-semibold text-gray-900 dark:text-white leading-none">{userName}</p>
                 <p className="text-[10px] text-sky-500 font-medium capitalize mt-0.5">{role}</p>
               </div>
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center text-white text-xs font-bold shadow-md shadow-sky-500/20">
-                {userInitial}
-              </div>
+              {profileImage ? (
+                <img 
+                  src={profileImage} 
+                  alt="Profile" 
+                  className="w-8 h-8 rounded-full object-cover shadow-md ring-2 ring-white dark:ring-slate-700"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center text-white text-xs font-bold shadow-md shadow-sky-500/20">
+                  {userInitial}
+                </div>
+              )}
             </div>
           </div>
         </header>
