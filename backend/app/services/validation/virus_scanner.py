@@ -37,6 +37,11 @@ class VirusScannerService:
         
         Requirements: 3.3
         """
+        if getattr(settings, 'SKIP_VIRUS_SCAN', False):
+            logger.info("ClamAV virus scanning is skipped by configuration")
+            self.clamd = None
+            return
+
         try:
             self.clamd = pyclamd.ClamdNetworkSocket(
                 host=settings.CLAMAV_HOST,

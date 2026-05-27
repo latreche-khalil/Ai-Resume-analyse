@@ -1,109 +1,177 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/auth-context'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { Menu, X } from 'lucide-react'
 
 export function Navigation() {
   const [scrolled, setScrolled] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const { user, logout } = useAuth()
-  const router = useRouter()
 
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 50)
+    const handleScroll = () => setScrolled(window.scrollY > 20)
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  const handleLogout = async () => {
-    await logout()
-  }
-
   const dashboardHref = user?.role === 'recruiter'
-    ? '/recruiter-dashboard'
+    ? '/recruiter'
     : user?.role === 'admin'
-    ? '/admin-dashboard'
+    ? '/admin'
     : '/dashboard'
 
+  const navLinks = [
+    { href: '#features', label: 'Features' },
+    { href: '#how-it-works', label: 'How it works' },
+    { href: '#xai', label: 'Explainable AI' },
+    { href: '#faq', label: 'FAQ' },
+  ]
+
   return (
-    <motion.nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled ? 'theme-card border-b theme-border' : ''
-      }`}
-      initial={{ y: -100 }}
-      animate={{ y: 0 }}
-      transition={{ duration: 0.6 }}
-    >
-      <div className="container mx-auto px-6 py-4">
-        <div className="flex items-center justify-between">
-          <motion.div 
-            className="flex items-center space-x-2"
-            whileHover={{ scale: 1.05 }}
-          >
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-500 to-blue-500 flex items-center justify-center">
-              <span className="btn-text-white font-bold text-lg">R</span>
-            </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
-              ResumeAI
-            </span>
-          </motion.div>
+    <>
+      <motion.nav
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+          scrolled 
+            ? 'bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-b border-gray-200 dark:border-slate-600/50' 
+            : 'bg-transparent'
+        }`}
+        initial={{ y: -100 }}
+        animate={{ y: 0 }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-14 sm:h-16">
+            {/* Logo */}
+            <Link href="/" className="flex items-center space-x-2 group">
+              <motion.div 
+                className="relative"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                {/* Simple Geometric Logo */}
+                <div className="w-8 h-8 rounded-lg bg-gray-900 dark:bg-white flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M10 2L18 6V14L10 18L2 14V6L10 2Z" stroke="currentColor" className="text-white dark:text-gray-900" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M10 10L14 8" stroke="currentColor" className="text-white dark:text-gray-900" strokeWidth="1.5" strokeLinecap="round"/>
+                    <path d="M10 10V14" stroke="currentColor" className="text-white dark:text-gray-900" strokeWidth="1.5" strokeLinecap="round"/>
+                    <path d="M10 10L6 8" stroke="currentColor" className="text-white dark:text-gray-900" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                </div>
+              </motion.div>
+              <span className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
+                ResumeAI
+              </span>
+            </Link>
 
-          <div className="hidden md:flex items-center space-x-8">
-            <a href="#features" className="text-sm font-medium theme-text-muted hover:opacity-100 transition-opacity">Features</a>
-            <a href="#how-it-works" className="text-sm font-medium theme-text-muted hover:opacity-100 transition-opacity">How It Works</a>
-            <a href="#faq" className="text-sm font-medium theme-text-muted hover:opacity-100 transition-opacity">FAQ</a>
-          </div>
-
-          <div className="flex items-center space-x-4">
-            <ThemeToggle />
-
-            {user ? (
-              <>
-                <motion.button
-                  onClick={handleLogout}
-                  className="px-6 py-2 text-sm font-medium theme-text-muted hover:opacity-100 transition-opacity"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center space-x-1">
+              {navLinks.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-white/5"
                 >
-                  Logout
-                </motion.button>
-                <Link href={dashboardHref}>
-                  <motion.button
-                    className="px-6 py-2 rounded-full bg-gradient-to-r from-sky-500 to-blue-500 btn-text-white text-sm font-bold shadow-lg shadow-sky-500/20"
-                    whileHover={{ scale: 1.05, boxShadow: '0 0 20px rgba(14, 165, 233, 0.4)' }}
-                    whileTap={{ scale: 0.95 }}
+                  {link.label}
+                </a>
+              ))}
+            </div>
+
+            {/* Right Side Actions */}
+            <div className="flex items-center space-x-2 sm:space-x-3">
+              <ThemeToggle />
+
+              {user ? (
+                <>
+                  <button
+                    onClick={logout}
+                    className="hidden md:block px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
                   >
-                    Dashboard
-                  </motion.button>
-                </Link>
-              </>
-            ) : (
-              <>
-                <Link href="/login">
-                  <motion.button
-                    className="px-6 py-2 text-sm font-medium theme-text-muted hover:theme-text transition-all"
-                    whileHover={{ scale: 1.05 }}
-                  >
-                    Login
-                  </motion.button>
-                </Link>
-                <Link href="/register">
-                  <motion.button
-                    className="px-6 py-2 rounded-full bg-gradient-to-r from-sky-500 to-blue-500 btn-text-white text-sm font-bold shadow-lg shadow-sky-500/20"
-                    whileHover={{ scale: 1.05, boxShadow: '0 0 20px rgba(14, 165, 233, 0.4)' }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    Get Started
-                  </motion.button>
-                </Link>
-              </>
-            )}
+                    Logout
+                  </button>
+                  <Link href={dashboardHref}>
+                    <motion.button
+                      className="px-3 sm:px-4 py-2 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 text-white text-xs sm:text-sm font-medium shadow-lg shadow-sky-500/25 hover:shadow-sky-500/40 transition-shadow"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      Dashboard
+                    </motion.button>
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link href="/login" className="hidden md:block">
+                    <button className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors">
+                      Sign in
+                    </button>
+                  </Link>
+                  <Link href="/register">
+                    <motion.button
+                      className="px-3 sm:px-4 py-2 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 text-white text-xs sm:text-sm font-medium shadow-lg shadow-sky-500/25 hover:shadow-sky-500/40 transition-shadow"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      Get started
+                    </motion.button>
+                  </Link>
+                </>
+              )}
+
+              {/* Mobile Menu Button */}
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="md:hidden p-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
+              >
+                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    </motion.nav>
+      </motion.nav>
+
+      {/* Mobile Menu */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <motion.div
+            className="fixed inset-0 z-40 md:hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="absolute inset-0 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl" onClick={() => setMobileMenuOpen(false)} />
+            <motion.div
+              className="absolute top-16 left-0 right-0 bg-white/95 dark:bg-slate-700/95 backdrop-blur-xl border-b border-gray-200 dark:border-slate-600/50 p-6"
+              initial={{ y: -20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -20, opacity: 0 }}
+            >
+              <div className="flex flex-col space-y-4">
+                {navLinks.map((link) => (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="px-4 py-3 text-base font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-colors"
+                  >
+                    {link.label}
+                  </a>
+                ))}
+                {!user && (
+                  <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
+                    <button className="w-full px-4 py-3 text-base font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-colors text-left">
+                      Sign in
+                    </button>
+                  </Link>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   )
 }

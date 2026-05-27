@@ -10,10 +10,10 @@ interface CVPreviewProps {
 }
 
 interface CVPage {
-  page: number
   image: string
-  width: number
-  height: number
+  page?: number
+  width?: number
+  height?: number
 }
 
 export function CVPreview({ documentId, className = '' }: CVPreviewProps) {
@@ -33,7 +33,12 @@ export function CVPreview({ documentId, className = '' }: CVPreviewProps) {
       setError(null)
       
       const response = await apiClient.getCVPreview(documentId)
-      setPages(response.images || [])
+      // Map images to CVPage structure if needed, or just cast
+      const images = (response.images || []).map((img: any, idx: number) => ({
+        ...img,
+        page: idx + 1
+      }))
+      setPages(images)
       
       if (response.images?.length === 0) {
         setError('No preview available for this CV')

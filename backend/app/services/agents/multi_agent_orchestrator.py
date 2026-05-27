@@ -5,6 +5,7 @@ Coordinates all AI agents for CV processing and matching.
 
 Requirements: 4.1, 6.1, 7.1, 8.1, 9.1, 10.1
 """
+import asyncio
 from typing import Dict, Any, Optional
 from uuid import UUID
 
@@ -198,8 +199,8 @@ class MultiAgentOrchestrator:
             if not job_description:
                 raise ValueError("Job description not found")
             
-            # Step 4: Matching Agent
-            logger.info("Step 1/3: Matching Agent - Calculating match score")
+            # Match CV to JD using Matching Agent
+            logger.info(f"Step 2/3: Matching Agent for analysis {analysis_id}")
             try:
                 match_result = await matching_agent.match(
                     masked_cv=cv_document.masked_text,
@@ -216,8 +217,11 @@ class MultiAgentOrchestrator:
                     skill_report=skill_report
                 )
             
-            # Update analysis record with simplified fields
-            analysis_record.match_score = match_result['match_score']
+            # Update analysis record with match results
+            logger.info(f"Matching Agent returned score: {match_result.get('match_score')} for analysis {analysis_id}")
+            with open("debug_log.txt", "a") as f:
+                f.write(f"ANALYSIS {analysis_id}: Score {match_result.get('match_score')} | Skills: {len(match_result.get('matching_skills', []))}\n")
+            analysis_record.match_score = match_result.get('match_score', 0.0)
             
             # Deduplicate: Ensure matching and missing skills are mutually exclusive
             matching_set = {s.lower() for s in match_result['matching_skills']}
@@ -255,43 +259,66 @@ class MultiAgentOrchestrator:
 
             await db.commit()
             
-            # Step 5: Gap Agent
-            logger.info("Step 2/3: Gap Agent - Analyzing skill gaps")
-            try:
-                gap_result = await gap_agent.analyze_gaps(
-                    match_result=match_result,
-                    cv_skills=[],  
-                    jd_text=job_description.description,
-                    analysis_record_id=analysis_record.id,
-                    db=db,
-                    cv_document_id=cv_document_id,
-                )
-                # Flush to ensure GapReport is in the DB before XAI starts
-                await db.commit()
-                await db.refresh(analysis_record)
-            except Exception as gap_err:
-                logger.warning(f"Gap agent failed ({gap_err}), using empty result")
-                gap_result = {'critical_gaps': [], 'important_gaps': [], 'nice_to_have_gaps': [], 'learning_roadmap': [], 'quick_wins': []}
+            # Step 5 & 6: Gap and XAI Agents in parallel
+            logger.info("Step 2/3: Running Gap and XAI Agents in parallel")
             
-            # Step 6: XAI Agent (with graceful degradation)
-            logger.info("Step 3/3: XAI Agent - Generating explanations")
-            xai_failed = False
-            try:
-                xai_result = await xai_agent.explain(
-                    match_result=match_result,
-                    cv_text=cv_document.masked_text,
-                    jd_text=job_description.description,
-                    analysis_record_id=analysis_record.id,
-                    language=cv_document.detected_language or 'en',
-                    db=db,
-                    cv_document_id=cv_document_id
-                )
-                # Final commit for XAI and status update
-                await db.commit()
-            except Exception as xai_err:
-                logger.warning(f"XAI agent failed ({xai_err}), using empty result")
-                xai_result = {'explanation': 'Analysis completed with local matching.'}
-                xai_failed = True
+            async def run_gap():
+                try:
+                    return await gap_agent.analyze_gaps(
+                        match_result=match_result,
+                        cv_skills=[],  
+                        jd_text=job_description.description,
+                        analysis_record_id=analysis_record.id,
+                        db=db,
+                        cv_document_id=cv_document_id,
+                    )
+                except Exception as gap_err:
+                    logger.warning(f"Gap agent failed ({gap_err}), using empty result")
+                    return {'critical_gaps': [], 'important_gaps': [], 'nice_to_have_gaps': [], 'learning_roadmap': [], 'quick_wins': []}
+
+            async def run_xai():
+                try:
+                    return await xai_agent.explain(
+                        match_result=match_result,
+                        cv_text=cv_document.masked_text,
+                        jd_text=job_description.description,
+                        analysis_record_id=analysis_record.id,
+                        language=cv_document.detected_language or 'en',
+                        db=db,
+                        cv_document_id=cv_document_id
+                    )
+                except Exception as xai_err:
+                    logger.warning(f"XAI agent failed ({xai_err}), returning empty results.")
+                    return {
+                        'summary': 'AI Explanation unavailable.',
+                        'overall_explanation': 'Could not generate AI explanation at this time.',
+                        'evidence_for_match': [],
+                        'evidence_against_match': [],
+                        'counterfactuals': []
+                    }
+
+            # Run agents sequentially to avoid free tier rate limits/concurrency issues
+            gap_result = await run_gap()
+            xai_result = await run_xai()
+            
+            with open("debug_log.txt", "a") as f:
+                f.write(f"ANALYSIS {analysis_id}: Gap and XAI finished. Committing...\n")
+
+            # Flush to ensure everything is saved
+            await db.commit()
+            await db.refresh(analysis_record)
+            
+            with open("debug_log.txt", "a") as f:
+                f.write(f"ANALYSIS {analysis_id}: SUCCESSFUL COMMIT.\n")
+
+            xai_failed = xai_result.get('summary') == 'AI Explanation unavailable.'
+            gap_data_found = any([
+                gap_result.get('critical_gaps'),
+                gap_result.get('important_gaps'),
+                gap_result.get('nice_to_have_gaps'),
+                gap_result.get('learning_roadmap')
+            ])
+            gap_failed = not gap_data_found
 
             # Update analysis status — partial_done if any agent failed
             gap_data_found = any([
@@ -329,6 +356,8 @@ class MultiAgentOrchestrator:
             
         except Exception as e:
             logger.error(f"CV-JD matching error: {str(e)}")
+            with open("debug_log.txt", "a") as f:
+                f.write(f"ANALYSIS {analysis_id if 'analysis_id' in locals() else 'unknown'}: CRITICAL ERROR: {str(e)}\n")
             
             # Update analysis status to failed
             if 'analysis_record' in locals() and analysis_record:

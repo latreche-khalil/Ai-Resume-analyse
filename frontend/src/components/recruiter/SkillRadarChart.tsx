@@ -120,7 +120,7 @@ export function SkillRadarChart({ skills }: SkillRadarChartProps) {
 
   if (skills.length === 0) {
     return (
-      <div className="text-center py-12 theme-text-tertiary">
+      <div className="text-center py-12 text-slate-500">
         <span className="text-4xl mb-4 block">📊</span>
         <p>No skill data available</p>
       </div>
@@ -132,12 +132,12 @@ export function SkillRadarChart({ skills }: SkillRadarChartProps) {
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.5 }}
-      className="theme-card border theme-border rounded-2xl p-6"
+      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6"
     >
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-xl font-bold theme-text">📊 Skill Radar Chart</h3>
-          <p className="text-sm theme-text-tertiary mt-1">
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white">📊 Skill Radar Chart</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             Compare your skills vs job requirements
           </p>
         </div>
@@ -146,11 +146,11 @@ export function SkillRadarChart({ skills }: SkillRadarChartProps) {
         <div className="flex gap-4 text-sm">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-purple-500 rounded"></div>
-            <span className="theme-text-secondary">Your Skills</span>
+            <span className="text-slate-600 dark:text-slate-300">Your Skills</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 border-2 border-blue-500 border-dashed rounded"></div>
-            <span className="theme-text-secondary">Required</span>
+            <span className="text-slate-600 dark:text-slate-300">Required</span>
           </div>
         </div>
       </div>
@@ -172,24 +172,24 @@ export function SkillRadarChart({ skills }: SkillRadarChartProps) {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: idx * 0.05 }}
-              className="bg-white/5 rounded-lg p-3"
+              className="bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-transparent rounded-lg p-3"
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium theme-text">{skill.name}</span>
+                <span className="text-sm font-medium text-slate-900 dark:text-white">{skill.name}</span>
                 {isGap && (
-                  <span className="text-xs px-2 py-0.5 bg-red-500/20 text-red-400 rounded-full">
+                  <span className="text-xs px-2 py-0.5 bg-red-500/20 text-red-600 dark:text-red-400 rounded-full">
                     -{gap}%
                   </span>
                 )}
               </div>
 
-              <div className="flex items-center gap-2 text-xs theme-text-tertiary">
+              <div className="flex items-center gap-2 text-xs text-slate-500">
                 <div className="flex-1">
                   <div className="flex justify-between mb-1">
                     <span>Current</span>
-                    <span className="text-purple-400 font-semibold">{skill.current}%</span>
+                    <span className="text-purple-600 dark:text-purple-400 font-semibold">{skill.current}%</span>
                   </div>
-                  <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-slate-200 dark:bg-white/10 rounded-full overflow-hidden">
                     <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: `${skill.current}%` }}
@@ -200,13 +200,13 @@ export function SkillRadarChart({ skills }: SkillRadarChartProps) {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 text-xs theme-text-tertiary mt-2">
+              <div className="flex items-center gap-2 text-xs text-slate-500 mt-2">
                 <div className="flex-1">
                   <div className="flex justify-between mb-1">
                     <span>Required</span>
-                    <span className="text-blue-400 font-semibold">{skill.required}%</span>
+                    <span className="text-blue-600 dark:text-blue-400 font-semibold">{skill.required}%</span>
                   </div>
-                  <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-slate-200 dark:bg-white/10 rounded-full overflow-hidden">
                     <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: `${skill.required}%` }}
@@ -230,8 +230,8 @@ export function SkillRadarChart({ skills }: SkillRadarChartProps) {
       >
         <div className="flex items-start gap-3">
           <span className="text-2xl">💡</span>
-          <div className="text-sm theme-text-secondary">
-            <span className="font-semibold theme-text">Insight:</span> The radar chart shows your skill 
+          <div className="text-sm text-slate-600 dark:text-slate-300">
+            <span className="font-semibold text-slate-900 dark:text-white">Insight:</span> The radar chart shows your skill 
             profile compared to ideal requirements. Areas where the purple area is smaller than the blue 
             dashed line indicate skill gaps to focus on.
           </div>

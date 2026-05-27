@@ -46,6 +46,8 @@ class ExtractionAgent:
     LOCAL_NLP_CONFIDENCE = 0.7
     LLM_CONFIDENCE = 0.95
 
+    # Centralized stop words will be imported where needed
+
     def __init__(self):
         logger.info("Extraction Agent initialized (Hybrid: LocalNLP + OpenRouter)")
 
@@ -76,10 +78,22 @@ class ExtractionAgent:
         # Step 3: Merge
         if llm_result:
             merged = self._merge(local_result, llm_result)
-            logger.info(f"Hybrid merged: {len(merged['skills'])} total skills")
-            return merged
+        else:
+            merged = local_result
 
-        return local_result
+        # Step 4: Final Cleaning (Filter out junk)
+        from app.core.constants import SKILL_STOP_WORDS
+        
+        def is_clean(skill_obj):
+            # Handle both string and dictionary formats
+            name = skill_obj.get('name', '') if isinstance(skill_obj, dict) else str(skill_obj)
+            name_clean = name.lower().strip()
+            return name_clean not in SKILL_STOP_WORDS and len(name_clean) > 2
+
+        merged['skills'] = [s for s in merged.get('skills', []) if is_clean(s)]
+        
+        logger.info(f"Final cleaned: {len(merged['skills'])} total skills")
+        return merged
 
     async def store_extraction_results(
         self,

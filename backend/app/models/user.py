@@ -134,6 +134,13 @@ class User(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         lazy="noload"
     )
     
+    testimonials = relationship(
+        "Testimonial",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="noload"
+    )
+    
     # Constraints
     __table_args__ = (
         CheckConstraint(

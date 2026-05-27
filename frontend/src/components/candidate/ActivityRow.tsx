@@ -1,12 +1,8 @@
-import Link from 'next/link'
+'use client'
+
 import { motion } from 'framer-motion'
-
 import { CVDocument } from '@/types/candidate'
-
-interface ActivityRowProps {
-  cv: CVDocument
-  index: number
-}
+import Link from 'next/link'
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: string }> = {
   completed:  { label: 'Optimized',    color: 'text-green-400 bg-green-500/10 border-green-500/30',  icon: '✅' },
@@ -15,7 +11,7 @@ const STATUS_MAP: Record<string, { label: string; color: string; icon: string }>
   failed:     { label: 'Failed',       color: 'text-red-400 bg-red-500/10 border-red-500/30',        icon: '❌' },
 }
 
-export function ActivityRow({ cv, index }: ActivityRowProps) {
+export function ActivityRow({ cv, index }: { cv: CVDocument; index: number }) {
   const status = STATUS_MAP[cv.processing_status] || STATUS_MAP.pending
   const date = new Date(cv.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
@@ -26,27 +22,17 @@ export function ActivityRow({ cv, index }: ActivityRowProps) {
       transition={{ delay: index * 0.08 }}
       className="flex items-center gap-4 p-4 rounded-xl theme-card border theme-border hover:border-sky-500/40 transition-all group"
     >
-      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-sky-500/20 to-blue-500/20 flex items-center justify-center text-xl flex-shrink-0">
-        📄
-      </div>
-
+      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-sky-500/20 to-blue-500/20 flex items-center justify-center text-xl flex-shrink-0">📄</div>
       <div className="flex-1 min-w-0">
         <p className="font-medium theme-text truncate text-sm">{cv.original_filename}</p>
         <p className="text-xs theme-text-tertiary mt-0.5">{date}</p>
       </div>
-
       <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${status.color} flex-shrink-0`}>
         {status.icon} {status.label}
       </span>
-
-      {/* Quick actions */}
       <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-        <Link href={`/analysis/new`} title="Analyze">
-          <button className="w-7 h-7 rounded-lg bg-sky-500/20 hover:bg-sky-500/40 transition-colors flex items-center justify-center text-sm">🎯</button>
-        </Link>
-        <Link href={`/documents/${cv.id}`} title="View Report">
-          <button className="w-7 h-7 rounded-lg bg-blue-500/20 hover:bg-blue-500/40 transition-colors flex items-center justify-center text-sm">📊</button>
-        </Link>
+        <Link href={`/analysis/new`}><button className="w-7 h-7 rounded-lg bg-sky-500/20 flex items-center justify-center text-sm">🎯</button></Link>
+        <Link href={`/documents/${cv.id}`}><button className="w-7 h-7 rounded-lg bg-blue-500/20 flex items-center justify-center text-sm">📊</button></Link>
       </div>
     </motion.div>
   )

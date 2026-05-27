@@ -110,98 +110,66 @@ class GapAgent:
         jd_text: str,
         match_score: float,
         rag_context: str = "",
-        language: str = "Arabic"
+        language: str = "English"
     ) -> str:
-        """Create gap analysis prompt via OpenRouter."""
+        """Create gap analysis prompt with Vercel-grade precision and English language."""
         rag_section = f"\n\nCANDIDATE BACKGROUND:\n{rag_context[:self.RAG_CONTEXT_LIMIT]}\n" if rag_context else ""
         
-        return f"""You are a career coach. Create a learning plan for these MISSING skills.
-IMPORTANT: You MUST generate your response in {language}. The JSON keys must remain in English, but all string values (reasons, impacts, notes, recommendations) MUST be in {language}.
+        return f"""You are a Strategic Engineering Lead and Career Mentor. Create a high-density, ACCELERATED learning roadmap.
+
+OUTPUT LANGUAGE: MUST be {language}.
+
+IMPORTANT CONSTRAINTS:
+- Keep durations short (1-3 weeks per skill).
+- Total roadmap must be <= 10 weeks.
+- Provide SPECIFIC, high-quality resources (Official Docs, Top courses, Professional videos).
 
 JOB REQUIREMENTS:
 {jd_text[:self.JD_TEXT_LIMIT]}
 
-MISSING SKILLS (what candidate needs to learn):
+MISSING SKILLS:
 {', '.join(missing_skills[:self.MISSING_SKILLS_LIMIT])}
 
 CURRENT MATCH SCORE: {match_score:.0%}
 {rag_section}
 
 INSTRUCTIONS:
-1. Identify CRITICAL gaps (must-have for the role)
-2. Identify IMPORTANT gaps (highly desired but not strictly mandatory)
-3. Identify NICE-TO-HAVE gaps (good to have but optional)
-3. Create a learning roadmap with specific resources
-4. Suggest quick wins (easy improvements)
+1. Identify CRITICAL gaps (Blocking technical requirements).
+2. Identify IMPORTANT gaps (Performance differentiators).
+3. Identify NICE-TO-HAVE (Cultural/Tooling additions).
+4. Create a roadmap with specific RESOURCE providers (Coursera, Udemy, YouTube, Official Docs).
 
 OUTPUT FORMAT (JSON only):
 {{
   "critical_gaps": [
     {{
-      "skill": "React",
-      "reason": "Required for frontend development",
-      "impact": "High - critical for role",
-      "weight": "90%",
-      "priority": 1,
-      "learning_difficulty": "moderate",
-      "time_to_proficiency": "2-3 months"
-    }}
-  ],
-  "important_gaps": [
-    {{
-      "skill": "TypeScript",
-      "reason": "Preferred but not required",
-      "impact": "Medium - highly desired",
-      "weight": "40%",
-      "priority": 2
-    }}
-  ],
-  "nice_to_have_gaps": [
-    {{
-      "skill": "Docker",
-      "reason": "Bonus skill for this role",
-      "impact": "Low - good for DevOps",
-      "weight": "10%",
-      "priority": 3
+      "skill": "Name",
+      "reason": "Technical justification",
+      "impact": "High",
+      "priority": 1
     }}
   ],
   "learning_roadmap": [
     {{
-      "skill": "React",
-      "personalized_note": "Start with React basics, then move to hooks",
+      "skill": "Skill Name",
+      "personalized_note": "Focused approach based on candidate history",
       "resources": [
-        {{
-          "type": "course",
-          "name": "React - The Complete Guide",
-          "provider": "Udemy",
-          "duration": "40 hours",
-          "cost": "paid",
-          "level": "beginner"
-        }}
+        {{ "name": "Exact Course/Doc Title", "provider": "Provider Name", "url_hint": "Search query", "type": "course/video/docs" }}
       ],
-      "estimated_weeks": 8,
-      "prerequisites": ["JavaScript", "HTML", "CSS"],
-      "roi": "High - directly addresses job requirement"
+      "hands_on_project": "A specific project task to build, e.g., 'Build a real-time chat app using Socket.io'",
+      "estimated_weeks": 2,
+      "roi": "Impact on technical readiness"
     }}
   ],
   "quick_wins": [
-    {{
-      "action": "Complete a React tutorial project",
-      "impact": "Demonstrates basic React knowledge",
-      "effort": "low",
-      "timeline": "1 week"
-    }}
+    {{ "action": "Actionable task", "timeline": "1-2 days" }}
   ]
 }}
 
-IMPORTANT RULES:
-- Focus ONLY on the missing skills listed above
-- Do NOT mention skills the candidate already has
-- Provide specific, actionable learning resources
-- Keep it practical and realistic
-- ALWAYS output values in {language}
-
-Return ONLY the JSON object. No explanations, no markdown, just JSON."""
+RULES:
+- RESPONSE MUST BE IN {language}.
+- Max 5 skills in roadmap for focus.
+- Return ONLY the JSON object."""
 
     def _parse_gap_response(self, response: str) -> Dict[str, Any]:
         """Parse gap response - only return the 4 required fields. [v3.2.1]"""

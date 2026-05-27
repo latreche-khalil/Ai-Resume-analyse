@@ -1,3 +1,4 @@
+
 'use client'
 
 import { motion } from 'framer-motion'
@@ -6,15 +7,11 @@ import { useState, useEffect } from 'react'
 interface MatchScoreGaugeProps {
   score: number // 0-1
   confidence?: number // 0-1
-  isBinding?: boolean
-  requiresReview?: boolean
 }
 
 export function MatchScoreGauge({ 
   score, 
-  confidence = 0.8,
-  isBinding = false,
-  requiresReview = false
+  confidence = 0.8
 }: MatchScoreGaugeProps) {
   const [displayPercentage, setDisplayPercentage] = useState(0)
   
@@ -26,10 +23,10 @@ export function MatchScoreGauge({
       return
     }
 
-    let totalDuration = 1500
-    let iterationTime = totalDuration / Math.max(end, 1)
+    const totalDuration = 1000
+    const iterationTime = totalDuration / Math.max(end, 1)
 
-    let timer = setInterval(() => {
+    const timer = setInterval(() => {
       start += 1
       if (start <= end) {
         setDisplayPercentage(start)
@@ -43,25 +40,31 @@ export function MatchScoreGauge({
   
   const percentage = Math.round(score * 100)
   const size = 180
-  const strokeWidth = 8
-  const radius = (size - strokeWidth) / 2
+  const strokeWidth = 10
+  const radius = (size - strokeWidth * 2) / 2
   const circumference = 2 * Math.PI * radius
   const strokeDashoffset = circumference - (score * circumference)
   
-  // Rotation for the needle (starts from top)
-  const rotation = score * 360
-  
-  // Optimized color thresholds: Green starts at 60% for a better user experience
-  const theme = {
-    color: percentage >= 60 ? '#10B981' : percentage >= 40 ? '#3B82F6' : percentage >= 25 ? '#F59E0B' : '#EF4444',
-    label: percentage >= 85 ? 'Exceptional' : percentage >= 60 ? 'Strong' : percentage >= 40 ? 'Good' : percentage >= 25 ? 'Fair' : 'Low'
+  const getTheme = () => {
+    if (percentage >= 80) return { color: '#059669', label: 'Exceptional' }
+    if (percentage >= 60) return { color: '#0284c7', label: 'Strong' }
+    if (percentage >= 40) return { color: '#d97706', label: 'Fair' }
+    return { color: '#e11d48', label: 'Weak' }
   }
+
+  const theme = getTheme()
   
   return (
     <div className="flex flex-col items-center">
-      {/* Corporate Gauge with Dynamic Color Needle */}
       <div className="relative" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="absolute transform -rotate-90">
+          <defs>
+            <linearGradient id="minimalGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor={theme.color} stopOpacity="0.8" />
+              <stop offset="100%" stopColor={theme.color} />
+            </linearGradient>
+          </defs>
+
           {/* Background Track */}
           <circle
             cx={size / 2}
@@ -70,7 +73,7 @@ export function MatchScoreGauge({
             stroke="currentColor"
             strokeWidth={strokeWidth}
             fill="none"
-            className="theme-text-quaternary opacity-5"
+            className="text-slate-100 dark:text-slate-800"
           />
           
           {/* Progress Arc */}
@@ -78,7 +81,7 @@ export function MatchScoreGauge({
             cx={size / 2}
             cy={size / 2}
             r={radius}
-            stroke={theme.color}
+            stroke="url(#minimalGradient)"
             strokeWidth={strokeWidth}
             fill="none"
             strokeLinecap="round"
@@ -89,48 +92,32 @@ export function MatchScoreGauge({
           />
         </svg>
 
-        {/* Needle / Pointer - Color synced to theme.color */}
-        <div 
-          className="absolute inset-0 z-20 pointer-events-none transition-transform duration-[1500ms] ease-out"
-          style={{ transform: `rotate(${rotation}deg)` }}
-        >
-          <div 
-            className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1 w-2.5 h-4.5"
-            style={{ 
-              clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)',
-              backgroundColor: theme.color,
-              boxShadow: `0 0 10px ${theme.color}80`
-            }}
-          />
-        </div>
-
         {/* Centered Content */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <motion.span 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-5xl font-black theme-text leading-none tracking-tighter"
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="space-y-0"
+            style={{ fontFamily: 'Roboto, sans-serif' }}
           >
-            {displayPercentage}
-          </motion.span>
-          <span className="text-[10px] font-black uppercase tracking-[0.2em] theme-text-tertiary mt-1">
-            Match Index
-          </span>
+            <div className="flex items-start justify-center">
+               <span className="text-5xl font-bold text-gray-900 dark:text-white tracking-tight leading-none">
+                  {displayPercentage}
+               </span>
+               <span className="text-base font-medium text-gray-400 mt-1.5 ml-0.5">%</span>
+            </div>
+            <div className="text-[9px] font-semibold uppercase tracking-widest text-gray-400 dark:text-neutral-500 mt-1">
+               Match
+            </div>
+          </motion.div>
         </div>
       </div>
 
-      {/* Status Badge */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.8 }}
-        className="mt-6 px-4 py-1.5 rounded-full border theme-border bg-white/5 backdrop-blur-sm flex items-center gap-2"
-      >
-        <div className="w-2 h-2 rounded-full shadow-[0_0_8px_currentColor]" style={{ backgroundColor: theme.color, color: theme.color }} />
-        <span className="text-xs font-bold theme-text-secondary uppercase tracking-widest">
-          {theme.label} Alignment
-        </span>
-      </motion.div>
+      {/* Label Pill */}
+      <div className="mt-3 px-3 py-1 rounded-full bg-gray-50 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 flex items-center gap-1.5" style={{ fontFamily: 'Roboto, sans-serif' }}>
+         <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: theme.color }} />
+         <span className="text-[10px] font-semibold text-gray-500 dark:text-neutral-400 uppercase tracking-widest">{theme.label}</span>
+      </div>
     </div>
   )
 }

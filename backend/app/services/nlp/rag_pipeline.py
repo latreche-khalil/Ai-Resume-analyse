@@ -30,7 +30,7 @@ class RAGPipeline:
     """
     
     # Chunking parameters
-    CHUNK_SIZE = 512  # tokens
+    CHUNK_SIZE = 300  # tokens (reduced for higher density)
     CHUNK_OVERLAP = 50  # tokens
     
     # Performance targets
@@ -38,7 +38,7 @@ class RAGPipeline:
     SEARCH_TARGET_MS = 500  # milliseconds
     
     # Similarity threshold
-    SIMILARITY_THRESHOLD = 0.3  # Lowered for better recall
+    SIMILARITY_THRESHOLD = 0.4  # Increased for better precision
     TOP_K_RESULTS = 5
     
     def __init__(self):

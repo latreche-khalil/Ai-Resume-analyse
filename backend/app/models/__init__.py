@@ -20,6 +20,7 @@ from app.models.feedback import Feedback
 from app.models.talent_pool import TalentPool, TalentPoolCV
 from app.models.pii_audit_trail import PIIAuditTrail
 from app.models.dlq_record import DLQRecord
+from app.models.testimonial import Testimonial
 
 __all__ = [
     # Base classes
@@ -64,4 +65,7 @@ __all__ = [
     "Feedback",
     "TalentPool",
     "TalentPoolCV",
+    
+    # Testimonials
+    "Testimonial",
 ]

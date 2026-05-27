@@ -28,6 +28,25 @@ interface RegisterData {
   role: 'candidate' | 'recruiter'
   first_name?: string
   last_name?: string
+  preferred_language?: string
+}
+
+const SESSION_KEY = 'resumeai_user'
+
+function getCachedUser(): User | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(SESSION_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
+function setCachedUser(user: User | null) {
+  if (typeof window === 'undefined') return
+  try {
+    if (user) localStorage.setItem(SESSION_KEY, JSON.stringify(user))
+    else localStorage.removeItem(SESSION_KEY)
+  } catch {}
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -37,89 +56,86 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
-  /**
-   * Fetch current user from the API and update state.
-   * Returns the fetched User so callers can act on the fresh value
-   * without depending on the async setState update.
-   */
-  const refreshUser = useCallback(async (): Promise<User | null> => {
+  const setUserAndCache = (u: User | null) => {
+    setUser(prev => {
+      // لا تغير الـ state إذا البيانات نفسها — يمنع re-render غير ضروري
+      if (prev && u && prev.id === u.id && prev.role === u.role && prev.email === u.email) return prev
+      return u
+    })
+    setCachedUser(u)
+  }
+
+  const refreshUser = useCallback(async (background = false): Promise<User | null> => {
     try {
-      const userData: User = await apiClient.getCurrentUser()
-      setUser(userData)
-      return userData
+      const userData = await apiClient.getCurrentUser() as any
+      const freshUser: User = {
+        id: userData.id,
+        email: userData.email,
+        role: userData.role,
+        first_name: userData.first_name,
+        last_name: userData.last_name,
+        preferred_language: userData.preferred_language || 'en',
+      }
+      setUserAndCache(freshUser)
+      return freshUser
     } catch {
-      // Token invalid / expired → clear local state
-      setUser(null)
+      // Background refresh فشل — لا نمسح الـ user المحفوظ
+      // فقط نمسحه إذا كان الطلب أساسياً (مش background)
+      if (!background) setUserAndCache(null)
       return null
     } finally {
-      setLoading(false)
+      if (!background) setLoading(false)
     }
   }, [])
 
-  // On mount: try to restore session via cookie (no localStorage needed)
-  // Only check auth on protected routes, not on public pages
   useEffect(() => {
-    // Check if we're on a public page (home, login, register)
-    if (typeof window !== 'undefined') {
-      const publicPaths = ['/', '/login', '/register']
-      const currentPath = window.location.pathname
-      
-      // If on public page, don't auto-fetch user (avoid 401 errors)
-      if (publicPaths.includes(currentPath)) {
-        setLoading(false)
-        return
-      }
+    const publicPaths = ['/', '/login', '/register', '/forgot-password', '/reset-password']
+    const currentPath = window.location.pathname
+
+    // On public pages: don't fetch, just clear loading
+    if (publicPaths.some(p => currentPath === p || currentPath.startsWith(p + '/'))) {
+      setLoading(false)
+      return
     }
-    
-    // On protected routes, check authentication
-    refreshUser()
+
+    const cached = getCachedUser()
+    if (cached) {
+      // لدينا cache — نعرضه فوراً بدون spinner
+      setUser(cached)
+      setLoading(false)
+      // ثم نتحقق في الخلفية بدون تغيير loading
+      refreshUser(true).catch(() => {})
+    } else {
+      // لا cache — نجلب من API
+      refreshUser(false)
+    }
   }, [refreshUser])
 
-  /** Redirect user to the correct dashboard based on role. */
   const redirectByRole = (role: User['role']) => {
-    if (role === 'recruiter') {
-      router.push('/recruiter-dashboard')
-    } else if (role === 'admin') {
-      router.push('/admin-dashboard')
-    } else {
-      router.push('/dashboard')
-    }
+    if (role === 'recruiter') router.push('/recruiter')
+    else if (role === 'admin') router.push('/admin')
+    else router.push('/dashboard')
   }
 
   const login = async (email: string, password: string) => {
-    // Backend call sets HttpOnly cookies; no token handling needed on client
     await apiClient.login(email, password)
-
-    // ── FIX: use the return value of refreshUser (fresh user object)
-    //    instead of reading `user` state which is still null before re-render
     const freshUser = await refreshUser()
-
-    if (freshUser) {
-      redirectByRole(freshUser.role)
-    }
+    if (freshUser) redirectByRole(freshUser.role)
   }
 
   const register = async (data: RegisterData) => {
-    await apiClient.register(data)
-    // Auto-login after registration
+    await apiClient.register(data as any)
     await login(data.email, data.password)
   }
 
   const logout = async () => {
-    try {
-      await apiClient.logout()
-    } catch {
-      // ignore backend errors - always clear local state
-    } finally {
-      setUser(null)
-      router.push('/login')
-    }
+    try { await apiClient.logout() } catch {}
+    setUserAndCache(null)
+    router.push('/login')
   }
 
   return (
-    <AuthContext.Provider
-      value={{ user, loading, login, register, logout, refreshUser }}
-    >
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   )
@@ -127,8 +143,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
-  }
+  if (context === undefined) throw new Error('useAuth must be used within an AuthProvider')
   return context
 }

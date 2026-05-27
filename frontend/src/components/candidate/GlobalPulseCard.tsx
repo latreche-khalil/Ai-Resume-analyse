@@ -1,42 +1,24 @@
+'use client'
+
 import { motion } from 'framer-motion'
 
-interface GlobalPulseCardProps {
-  label: string
-  value: string | number
-  icon: string
-  color: string
-  border: string
-  sub: string
-  small?: boolean
-  index: number
-}
-
-export function GlobalPulseCard({ 
-  label, 
-  value, 
-  icon, 
-  color, 
-  border, 
-  sub, 
-  small = false,
-  index 
-}: GlobalPulseCardProps) {
+export function GlobalPulseCard({ label, value, icon, color, border, sub, small, index }: any) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.1 }}
-      className={`relative p-6 bg-gradient-to-br ${color} rounded-xl border ${border} shadow-sm hover:shadow-md transition-shadow`}
+      className={`p-5 rounded-2xl bg-gradient-to-br ${color} border ${border} relative overflow-hidden group`}
     >
-      <div className="flex items-start justify-between mb-4">
-        <span className="text-3xl">{icon}</span>
-        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+      <div className="flex justify-between items-start relative z-10">
+        <div className="space-y-1">
+          <p className="text-xs font-bold theme-text-tertiary uppercase tracking-widest">{label}</p>
+          <p className={`${small ? 'text-xl' : 'text-3xl'} font-black theme-text tracking-tighter`}>{value}</p>
+        </div>
+        <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">{icon}</div>
       </div>
-      <p className={`font-bold text-gray-900 dark:text-white mb-1 ${small ? 'text-lg' : 'text-3xl'}`}>
-        {value}
-      </p>
-      <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">{label}</p>
-      <p className="text-xs text-gray-500 dark:text-gray-400">{sub}</p>
+      <p className="text-[10px] theme-text-tertiary mt-4 font-medium uppercase tracking-wider relative z-10">{sub}</p>
+      <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/5 rounded-full blur-2xl group-hover:bg-white/10 transition-colors" />
     </motion.div>
   )
 }

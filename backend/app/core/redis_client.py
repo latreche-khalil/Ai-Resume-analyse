@@ -26,7 +26,7 @@ class RedisClient:
         self._client: Optional[Redis] = None
     
     async def connect(self) -> None:
-        """Establish connection to Redis."""
+        """Establish connection to Redis (non-fatal if unavailable)."""
         try:
             self._client = await redis.from_url(
                 settings.REDIS_URL,
@@ -37,8 +37,8 @@ class RedisClient:
             await self._client.ping()
             logger.info("Redis connection established")
         except Exception as e:
-            logger.error(f"Failed to connect to Redis: {str(e)}")
-            raise
+            logger.warning(f"Redis unavailable — running without cache/blacklist: {e}")
+            self._client = None
     
     async def disconnect(self) -> None:
         """Close Redis connection."""
@@ -47,10 +47,13 @@ class RedisClient:
             logger.info("Redis connection closed")
     
     @property
-    def client(self) -> Redis:
-        """Get Redis client instance."""
-        if not self._client:
-            raise RuntimeError("Redis client not connected. Call connect() first.")
+    def is_available(self) -> bool:
+        """Check if Redis is available."""
+        return self._client is not None
+
+    @property
+    def client(self) -> Optional[Redis]:
+        """Get Redis client instance (may be None if unavailable)."""
         return self._client
     
     # Session Management Methods
@@ -76,6 +79,9 @@ class RedisClient:
         """
         session_key = f"session:{user_id}"
         
+        if not self.is_available:
+            logger.debug("Redis unavailable — session not stored")
+            return session_key
         try:
             # Store session data as JSON
             await self.client.setex(
@@ -105,6 +111,8 @@ class RedisClient:
         """
         session_key = f"session:{user_id}"
         
+        if not self.is_available:
+            return None
         try:
             data = await self.client.get(session_key)
             
@@ -137,6 +145,8 @@ class RedisClient:
         """
         session_key = f"session:{user_id}"
         
+        if not self.is_available:
+            return False
         try:
             await self.client.setex(
                 session_key,
@@ -163,6 +173,8 @@ class RedisClient:
         """
         session_key = f"session:{user_id}"
         
+        if not self.is_available:
+            return False
         try:
             result = await self.client.delete(session_key)
             logger.debug(f"Session deleted for user {user_id}")
@@ -191,6 +203,8 @@ class RedisClient:
         """
         session_key = f"session:{user_id}"
         
+        if not self.is_available:
+            return False
         try:
             result = await self.client.expire(session_key, ttl_seconds)
             return result
@@ -220,6 +234,9 @@ class RedisClient:
         """
         blacklist_key = f"blacklist:{token}"
         
+        if not self.is_available:
+            logger.debug("Redis unavailable — token blacklist skipped")
+            return False
         try:
             await self.client.setex(blacklist_key, ttl_seconds, "1")
             logger.debug("Token added to blacklist")
@@ -243,6 +260,8 @@ class RedisClient:
         """
         blacklist_key = f"blacklist:{token}"
         
+        if not self.is_available:
+            return False  # If Redis is down, assume token is NOT blacklisted (safe default)
         try:
             result = await self.client.exists(blacklist_key)
             return result > 0
@@ -270,6 +289,8 @@ class RedisClient:
         Returns:
             True if successful, False otherwise
         """
+        if not self.is_available:
+            return False
         try:
             serialized_value = json.dumps(value)
             
@@ -294,6 +315,8 @@ class RedisClient:
         Returns:
             Cached value if exists, None otherwise
         """
+        if not self.is_available:
+            return None
         try:
             value = await self.client.get(key)
             
@@ -315,6 +338,8 @@ class RedisClient:
         Returns:
             True if deleted, False otherwise
         """
+        if not self.is_available:
+            return False
         try:
             result = await self.client.delete(key)
             return result > 0
@@ -333,6 +358,8 @@ class RedisClient:
         Returns:
             Number of keys deleted
         """
+        if not self.is_available:
+            return 0
         try:
             keys = []
             async for key in self.client.scan_iter(match=pattern):

@@ -50,13 +50,25 @@ export function useAnalysisData(id: string | undefined) {
 
       setData(finalData)
 
-      // 3. Poll if still processing
-      const status = baseData.processing_status
+      // 3. Extract advanced metrics from enhanced data to avoid redundant 404s
+      if (enhanced.status === 'fulfilled') {
+        const ed = enhanced.value
+        setAdvancedData({
+          radar: ed.radar_data || null,
+          heatmap: ed.heatmap_data || null,
+          proximity: ed.semantic_search || null,
+          redFlags: ed.red_flags || [],
+          interviewGuide: ed.xai_report?.hard_talk_questions || [],
+          confidence: ed.confidence_score || 0.8,
+          bias: ed.xai_report?.bias_check || null,
+          hallucination: ed.xai_report?.credibility_analysis || null,
+        })
+      }
+
+      // 4. Poll if still processing
+      const status = baseData.processing_status || baseData.analysis_status
       if (status === 'processing' || status === 'pending') {
-        setTimeout(() => loadAllData(false), 3000) // Poll every 3s, not initial
-      } else {
-        // 4. (Optional) Fetch advanced data in background
-        loadAdvancedMetrics(id!)
+        setTimeout(() => loadAllData(false), 3000) 
       }
 
     } catch (err: any) {
@@ -66,33 +78,7 @@ export function useAnalysisData(id: string | undefined) {
     }
   }
 
-  const loadAdvancedMetrics = async (analysisId: string) => {
-    try {
-      const metrics = await Promise.allSettled([
-        apiClient.getSkillRadarData(analysisId),
-        apiClient.getExperienceHeatmap(analysisId),
-        apiClient.getSemanticProximity(analysisId),
-        apiClient.getRedFlags(analysisId),
-        apiClient.getInterviewGuide(analysisId),
-        apiClient.getAIConfidence(analysisId),
-        apiClient.getBiasCheck(analysisId),
-        apiClient.getHallucinationGuard(analysisId)
-      ])
-      
-      setAdvancedData({
-        radar: metrics[0].status === 'fulfilled' ? metrics[0].value : null,
-        heatmap: metrics[1].status === 'fulfilled' ? metrics[1].value : null,
-        proximity: metrics[2].status === 'fulfilled' ? metrics[2].value : null,
-        redFlags: metrics[3].status === 'fulfilled' ? metrics[3].value : null,
-        interviewGuide: metrics[4].status === 'fulfilled' ? metrics[4].value : null,
-        confidence: metrics[5].status === 'fulfilled' ? metrics[5].value : null,
-        bias: metrics[6].status === 'fulfilled' ? metrics[6].value : null,
-        hallucination: metrics[7].status === 'fulfilled' ? metrics[7].value : null,
-      })
-    } catch (err) {
-      console.warn('Failed to load advanced metrics', err)
-    }
-  }
+
 
   const submitReview = async (analysisId: string, decision: 'approved' | 'rejected') => {
     try {

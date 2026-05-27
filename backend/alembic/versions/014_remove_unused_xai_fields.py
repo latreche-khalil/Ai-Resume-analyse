@@ -27,16 +27,18 @@ depends_on = None
 def upgrade() -> None:
     """Remove unused XAI fields."""
     # Drop columns that are no longer used in SHAP v3.3.0
-    op.drop_column('xai_reports', 'skill_depth_analysis')
-    op.drop_column('xai_reports', 'interview_focus_areas')
-    op.drop_column('xai_reports', 'hard_talk_questions')
-    op.drop_column('xai_reports', 'competitive_advantage')
+    with op.batch_alter_table('xai_reports') as batch_op:
+        batch_op.drop_column('skill_depth_analysis')
+        batch_op.drop_column('interview_focus_areas')
+        batch_op.drop_column('hard_talk_questions')
+        batch_op.drop_column('competitive_advantage')
 
 
 def downgrade() -> None:
     """Restore unused XAI fields."""
     # Restore columns if needed (for rollback)
-    op.add_column('xai_reports', sa.Column('skill_depth_analysis', postgresql.JSONB(astext_type=sa.Text()), nullable=True, comment='Skill depth vs claims analysis'))
-    op.add_column('xai_reports', sa.Column('interview_focus_areas', postgresql.JSONB(astext_type=sa.Text()), nullable=True, comment='Interview focus areas for recruiter'))
-    op.add_column('xai_reports', sa.Column('hard_talk_questions', postgresql.JSONB(astext_type=sa.Text()), nullable=True, comment='Hard-talk questions to expose weaknesses'))
-    op.add_column('xai_reports', sa.Column('competitive_advantage', postgresql.JSONB(astext_type=sa.Text()), nullable=True, comment='Competitive advantage analysis'))
+    with op.batch_alter_table('xai_reports') as batch_op:
+        batch_op.add_column(sa.Column('skill_depth_analysis', sa.JSON(), nullable=True, comment='Skill depth vs claims analysis'))
+        batch_op.add_column(sa.Column('interview_focus_areas', sa.JSON(), nullable=True, comment='Interview focus areas for recruiter'))
+        batch_op.add_column(sa.Column('hard_talk_questions', sa.JSON(), nullable=True, comment='Hard-talk questions to expose weaknesses'))
+        batch_op.add_column(sa.Column('competitive_advantage', sa.JSON(), nullable=True, comment='Competitive advantage analysis') )

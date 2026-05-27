@@ -1,5 +1,10 @@
 from pydantic_settings import BaseSettings
 from typing import List
+import os
+from dotenv import load_dotenv
+
+# Force load .env from current directory
+load_dotenv()
 
 
 class Settings(BaseSettings):
@@ -25,6 +30,7 @@ class Settings(BaseSettings):
     # ClamAV
     CLAMAV_HOST: str = "clamav"
     CLAMAV_PORT: int = 3310
+    SKIP_VIRUS_SCAN: bool = False
     
     # OpenRouter
     OPENROUTER_API_KEY: str = ""
@@ -32,7 +38,7 @@ class Settings(BaseSettings):
     # JWT
     SECRET_KEY: str  # Main secret key for JWT signing
     JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_HOURS: int = 24  # 24-hour token expiry (Requirements 1.10)
+    ACCESS_TOKEN_EXPIRE_HOURS: int = 168  # 7-day token expiry for 'Remember Me' feel
     
     # Privacy Salts
     PII_ENCRYPTION_SALT: str = "default_pii_encryption_salt"

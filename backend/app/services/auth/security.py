@@ -22,7 +22,9 @@ class SecurityService:
     BCRYPT_COST_FACTOR = 12
     
     # JWT token expiry duration (Requirements 1.10)
-    ACCESS_TOKEN_EXPIRE_HOURS = 24
+    @property
+    def ACCESS_TOKEN_EXPIRE_HOURS(self):
+        return settings.ACCESS_TOKEN_EXPIRE_HOURS
     
     def __init__(self):
         """Initialize security service with configuration."""
@@ -159,11 +161,11 @@ class SecurityService:
         """
         to_encode = data.copy()
         
-        # Set expiry time (7 days for refresh tokens)
+        # Set expiry time (30 days for refresh tokens to support "Remember Me")
         if expires_delta:
             expire = datetime.now(timezone.utc) + expires_delta
         else:
-            expire = datetime.now(timezone.utc) + timedelta(days=7)
+            expire = datetime.now(timezone.utc) + timedelta(days=30)
         
         # Add standard JWT claims
         to_encode.update({

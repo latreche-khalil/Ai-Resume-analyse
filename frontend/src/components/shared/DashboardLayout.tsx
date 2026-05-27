@@ -30,7 +30,6 @@ const NAV_GROUPS = {
     {
       label: 'AI Tools',
       items: [
-        { icon: Target,        label: 'Job Matching', href: '/analysis',     id: 'analysis'     },
         { icon: Zap,           label: 'New Analysis', href: '/analysis/new', id: 'analysis-new' },
         { icon: Mic,           label: 'Interview',    href: '/interview',    id: 'interview'    },
         { icon: MessageSquare, label: 'AI Coach',     href: '/coaching',     id: 'coaching'     },

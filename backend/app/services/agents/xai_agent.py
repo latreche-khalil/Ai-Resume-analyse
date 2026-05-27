@@ -40,9 +40,9 @@ class XAIAgent:
     RAG_TOP_K = 8
     RAG_EVIDENCE_MAX_LENGTH = 1500
     
-    # Prompt text limits
-    JD_TEXT_LIMIT = 800
-    CV_TEXT_LIMIT = 1200
+    # Prompt limits
+    JD_TEXT_LIMIT = 4000
+    CV_TEXT_LIMIT = 8000  # Increased for full context
     
     # Result limits
     MAX_FEATURE_CONTRIBUTIONS = 10
@@ -170,65 +170,92 @@ class XAIAgent:
         
         rag_section = f"\n\nEVIDENCE FROM CV:\n{rag_evidence[:self.RAG_EVIDENCE_MAX_LENGTH]}\n" if rag_evidence else ""
         
-        return f"""You are an AI explainability expert. Explain WHY the match score is {match_score:.0%}.
-IMPORTANT: You MUST generate your response in {lang}. The JSON keys must remain in English, but all string values (descriptions, claims, gaps, reasons) MUST be in {lang}.
+        return f"""You are a Lead Executive Recruiter and XAI Architect at a top-tier global consultancy (e.g., McKinsey or Google). 
+Your objective is to provide an "Executive Talent Decomposition" for a candidate who received a match score of {match_score:.0%}.
 
-MATCH SCORE: {match_score:.0%}
-MATCHING SKILLS: {', '.join(matching_skills[:10])}
-MISSING SKILLS: {', '.join(missing_skills[:10])}
+STRUCTURE YOUR RESPONSE INTO THESE PROFESSIONAL SECTIONS:
 
-JOB REQUIREMENTS:
+### 1. EXECUTIVE SUMMARY
+A high-level overview of the candidate's strategic fit. Use high-density, professional language.
+
+### 2. TECHNICAL PROFICIENCY DEEP-DIVE
+Analyze the evidence for core technical requirements. Mention specific tools, methodologies, and years of impact found in the CV.
+
+### 3. STRATEGIC ALIGNMENT & GAPS
+Identify the "Why" behind the score delta. Explain exactly what is missing or what exceeds expectations.
+
+### 4. GROWTH POTENTIAL & RECOMMENDATION
+Based on current data, what is the candidate's trajectory?
+
+### 5. COMPETITIVE ADVANTAGE (The "X-Factor")
+What makes this candidate stand out from the typical talent pool? Highlight unique project combinations or specific tech stack depth.
+
+THINK STEP-BY-STEP:
+1. EVIDENCE RULES:
+1. RECONCILIATION: The sum of all contributions (positive and negative) added to the base_score MUST EQUAL the provided match_score of {match_score:.0%}. Adjust the 'contribution' values in 'feature_contributions' to ensure this mathematical harmony.
+2. EVIDENCE: Every claim must include a "DIRECT QUOTE" from the CV.
+3. LOGIC: If a skill is missing but the score is high, explain why the existing skills compensate for the gap.
+4. NO TRUNCATION: Keep explanations dense but complete.
+
+OUTPUT FORMAT (Strict JSON): Look for achievements, not just keywords.
+
+OUTPUT LANGUAGE: MUST be {lang}. (Keys must be English).
+
+JOB ARCHITECTURE:
 {jd_text[:self.JD_TEXT_LIMIT]}
 
-CANDIDATE CV:
+CANDIDATE DNA (CV):
 {cv_text[:self.CV_TEXT_LIMIT]}
 {rag_section}
 
-INSTRUCTIONS:
-1. Explain WHY the score is {match_score:.0%}
-2. Find EXACT QUOTES from CV as evidence
-3. List what helped the score (evidence FOR)
-4. List what hurt the score (evidence AGAINST)
-5. Suggest "what-if" scenarios to improve score
+MATCHING DATA:
+Score: {match_score:.0%}
+Matching Skills: {', '.join(matching_skills[:12])}
+Missing Skills: {', '.join(missing_skills[:12])}
 
-OUTPUT FORMAT (JSON only):
+OUTPUT FORMAT (Strict JSON):
 {{
-  "summary": "The candidate scored {match_score:.0%} because...",
+  "overall_explanation": "Full structured report. You MUST quote specific projects and roles from the candidate DNA.",
   "evidence_for_match": [
-    {{
-      "claim": "Strong React experience",
-      "evidence": "EXACT QUOTE FROM CV",
-      "impact": "Increased score by 10%",
-      "weight": 0.8
+    {{ 
+      "claim": "Specific Skill/Achievement", 
+      "evidence": "DIRECT QUOTE from the CV text (e.g., 'Led a team of 5 to develop...')", 
+      "credibility": "high", 
+      "weight": 0.1-1.0 
     }}
   ],
   "evidence_against_match": [
-    {{
-      "gap": "No Docker experience",
-      "required": "EXACT QUOTE FROM JD",
-      "impact": "Decreased score by 5%",
-      "weight": 0.6
+    {{ 
+      "gap": "Missing requirement", 
+      "required": "JD requirement text", 
+      "current": "What is actually found in CV regarding this", 
+      "impact": "Strategic impact", 
+      "weight": 0.1-1.0 
     }}
   ],
+  "shap_analysis": {{
+    "base_score": 0.5,
+    "feature_contributions": [
+      {{ "feature": "Domain Name", "contribution": 0.XX, "reason": "Justification based on CV evidence" }}
+    ]
+  }},
   "what_if_scenarios": [
-    {{
-      "change": "If candidate learned Docker",
-      "expected_score": {match_score + 0.1},
-      "explanation": "Docker is required for deployment",
-      "feasibility": "moderate",
-      "time_to_achieve": "2-3 months"
+    {{ 
+      "change": "Target certification or project", 
+      "expected_score": 0.XX, 
+      "explanation": "Why this specific move raises your score", 
+      "feasibility": "easy/medium/hard" 
     }}
-  ]
+  ],
+  "key_achievements": ["Direct evidence of high-impact performance directly extracted from CV projects with metrics"],
+  "competitive_advantage": "Specific technical edge identified during neural analysis.",
+  "credibility_analysis": "Executive assessment of CV validity."
 }}
 
-IMPORTANT RULES:
-- Use quotes or paraphrased evidence from CV and JD (CV might be masked for PII, so be flexible)
-- Be specific and concrete
-- Focus on technical skills only
-- Keep explanations short and clear
-- ALWAYS output values in {lang}
-
-Return ONLY the JSON object. No explanations, no markdown, just JSON."""
+RULES:
+- NO GENERIC TEXT. Use specific details from the texts provided.
+- Be RIGOROUS. High scores must be EARNED by evidence.
+- Return ONLY the JSON object."""
 
     
     def _parse_xai_response(self, response: str, language: str) -> Dict[str, Any]:
@@ -242,11 +269,16 @@ Return ONLY the JSON object. No explanations, no markdown, just JSON."""
             # Extract JSON using unified parser
             result = json_parser.extract_json_object(response)
             if not result:
+                logger.error(f"XAI Agent: No valid JSON found in response. Raw start: {response[:100]}...")
                 raise ValueError("No valid JSON found in response")
             
             # SHAP analysis fields (v3.3.0)
             shap_analysis = result.get('shap_analysis', {})
-            raw_what_if = result.get('what_if_scenarios', [])[:self.MAX_WHAT_IF_SCENARIOS]
+            if not shap_analysis and 'feature_contributions' in result:
+                # Fallback: model might have put feature_contributions at top level
+                shap_analysis = {'feature_contributions': result.get('feature_contributions'), 'base_score': result.get('base_score', 0.5)}
+            
+            raw_what_if = result.get('what_if_scenarios', result.get('scenarios', []))[:self.MAX_WHAT_IF_SCENARIOS]
             
             # Map predicted_score to expected_score for frontend compatibility
             what_if_scenarios = []
@@ -596,7 +628,7 @@ Return ONLY the JSON object. No explanations, no markdown, just JSON."""
             async with AsyncSessionLocal() as fresh_db:
                 xai_report = XAIReport(
                     analysis_record_id=analysis_record_id,
-                    overall_explanation=xai_explanation.get('overall_explanation', ''),
+                    overall_explanation=xai_explanation.get('summary', xai_explanation.get('overall_explanation', '')),
                     # Core SHAP v3.3.0 fields
                     evidence_for_match=xai_explanation.get('evidence_for_match', []),
                     evidence_against_match=xai_explanation.get('evidence_against_match', []),

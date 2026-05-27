@@ -9,10 +9,14 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+import asyncio
+
 
 from app.core.config import settings
 from app.api.v1.router import api_router
 from app.core.errors import http_exception_handler, general_exception_handler
+
+logger.info(f"CRITICAL DEBUG: main.py sees SMTP_USER='{settings.SMTP_USER}'")
 
 
 # Initialize Sentry
@@ -34,6 +38,104 @@ async def lifespan(app: FastAPI):
         logger.info("Redis connection established")
     except Exception as e:
         logger.warning(f"Redis unavailable (non-fatal): {e}")
+
+    # ── Database Migrations (Automatic Fix for Schema Inconsistencies) ────
+    try:
+        import os
+        from alembic.config import Config
+        from alembic import command
+        from sqlalchemy import create_engine, text, inspect
+        
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        ini_path = os.path.join(base_dir, "alembic.ini")
+        
+        # 1. Run Standard Alembic Migrations
+        if os.path.exists(ini_path):
+            logger.info("Running alembic upgrade head...")
+            alembic_cfg = Config(ini_path)
+            alembic_cfg.set_main_option("script_location", os.path.join(base_dir, "alembic"))
+            await asyncio.to_thread(command.upgrade, alembic_cfg, "head")
+            logger.info("Alembic migrations completed")
+        
+        # 2. Deep Safety Check: Force-sync missing columns for complex tables
+        # This fixes cases where Alembic marks a migration as done but SQLite didn't apply it
+        db_path = os.path.join(base_dir, "ai_resume.db")
+        engine = create_engine(f"sqlite:///{db_path}")
+        
+        with engine.connect() as conn:
+            inspector = inspect(engine)
+            
+            # Helper to add column if missing
+            def ensure_col(table_name, col_name, col_type_sql):
+                existing_cols = [c['name'] for c in inspector.get_columns(table_name)]
+                if col_name not in existing_cols:
+                    logger.info(f"FIXING SCHEMA: Adding {col_name} to {table_name}")
+                    try:
+                        conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type_sql}"))
+                        conn.commit()
+                    except Exception as e:
+                        logger.warning(f"Could not add {col_name} to {table_name}: {e}")
+
+            # Tables to repair
+            tables = inspector.get_table_names()
+            
+            # Repair XAI Reports
+            if 'xai_reports' in tables:
+                ensure_col('xai_reports', 'overall_explanation', 'JSON')
+                ensure_col('xai_reports', 'evidence_for_match', "JSON DEFAULT '[]'")
+                ensure_col('xai_reports', 'evidence_against_match', "JSON DEFAULT '[]'")
+                ensure_col('xai_reports', 'key_achievements', "JSON DEFAULT '[]'")
+                ensure_col('xai_reports', 'counterfactuals', "JSON DEFAULT '[]'")
+                ensure_col('xai_reports', 'visual_data', 'JSON')
+                ensure_col('xai_reports', 'force_plot_data', 'JSON')
+                ensure_col('xai_reports', 'waterfall_data', 'JSON')
+                ensure_col('xai_reports', 'summary_plot_data', 'JSON')
+                ensure_col('xai_reports', 'credibility_analysis', 'JSON')
+                ensure_col('xai_reports', 'updated_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP')
+
+            # Repair Gap Reports
+            if 'gap_reports' in tables:
+                ensure_col('gap_reports', 'critical_gaps', "JSON DEFAULT '[]'")
+                ensure_col('gap_reports', 'important_gaps', "JSON DEFAULT '[]'")
+                ensure_col('gap_reports', 'nice_to_have_gaps', "JSON DEFAULT '[]'")
+                ensure_col('gap_reports', 'learning_roadmap', "JSON DEFAULT '[]'")
+                ensure_col('gap_reports', 'estimated_time_weeks', 'INTEGER')
+                ensure_col('gap_reports', 'quick_wins', 'JSON')
+                ensure_col('gap_reports', 'competitive_differentiator', 'JSON')
+                ensure_col('gap_reports', 'total_potential_improvement', 'NUMERIC(3,2)')
+                ensure_col('gap_reports', 'updated_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP')
+
+            # Repair Analysis Records (Standard columns)
+            if 'analysis_records' in tables:
+                ensure_col('analysis_records', 'seniority_alignment', 'JSON')
+                ensure_col('analysis_records', 'red_flags', 'JSON')
+                ensure_col('analysis_records', 'hiring_urgency', 'VARCHAR(20)')
+                ensure_col('analysis_records', 'is_partial', 'BOOLEAN DEFAULT 0')
+                ensure_col('analysis_records', 'confidence_score', 'NUMERIC(3,2)')
+                ensure_col('analysis_records', 'requires_human_review', 'BOOLEAN DEFAULT 0')
+                ensure_col('analysis_records', 'human_review_status', 'VARCHAR(20)')
+                ensure_col('analysis_records', 'updated_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP')
+            
+            # Repair Audit Logs
+            if 'audit_logs' in tables:
+                ensure_col('audit_logs', 'updated_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP')
+            
+            # Repair Skill Reports
+            if 'skill_reports' in tables:
+                ensure_col('skill_reports', 'job_titles', "JSON DEFAULT '[]'")
+                ensure_col('skill_reports', 'companies', "JSON DEFAULT '[]'")
+                ensure_col('skill_reports', 'updated_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP')
+
+            # Repair CV Documents
+            if 'cv_documents' in tables:
+                ensure_col('cv_documents', 'deleted_at', 'DATETIME')
+                ensure_col('cv_documents', 'updated_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP')
+
+            conn.commit()
+            logger.info("Database Deep Safety Sync completed")
+            
+    except Exception as m_err:
+        logger.error(f"Automatic migration/sync failed: {m_err}")
 
     # ── Background Service Warm-up ──────────────────────────────────────────
     # Proactively load heavy ML models into memory to avoid first-request timeout
@@ -62,7 +164,6 @@ async def lifespan(app: FastAPI):
             logger.error(f"Service Warm-up failed: {warmup_err}")
 
     # Start warm-up without blocking startup
-    import asyncio
     asyncio.create_task(warmup_services())
 
     yield
@@ -90,9 +191,25 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ── CORS ───────────────────────────────────────────────────────────────────────
+# NOTE: We CANNOT use allow_origins=["*"] with allow_credentials=True —
+# browsers block cookies when the origin is a wildcard. Always use explicit origins.
+origins = settings.cors_origins_list
+
+# In development, if CORS_ORIGINS is default, also add common dev origins
+if settings.ENVIRONMENT == "development":
+    dev_origins = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+    ]
+    for o in dev_origins:
+        if o not in origins:
+            origins.append(o)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -165,6 +282,27 @@ async def rate_limit_by_route(request: Request, call_next):
 
 # ── Prometheus ─────────────────────────────────────────────────────────────────
 Instrumentator().instrument(app).expose(app)
+
+# ── Legacy Redirects (Fallback for non-versioned frontend calls) ─────────────────
+@app.post("/auth/login")
+async def legacy_login_redirect(request: Request):
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/api/v1/auth/login", status_code=307)
+
+@app.post("/auth/register")
+async def legacy_register_redirect(request: Request):
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/api/v1/auth/register", status_code=307)
+
+@app.get("/auth/me")
+async def legacy_me_redirect(request: Request):
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/api/v1/auth/me", status_code=307)
+
+@app.api_route("/users/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+async def legacy_users_redirect(path: str, request: Request):
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url=f"/api/v1/users/{path}", status_code=307)
 
 # ── Router ─────────────────────────────────────────────────────────────────────
 app.include_router(api_router, prefix="/api/v1")

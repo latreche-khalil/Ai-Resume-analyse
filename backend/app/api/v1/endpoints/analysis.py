@@ -566,7 +566,7 @@ async def list_analyses(
             {
                 'id': str(row.AnalysisRecord.id),
                 'cv_document_id': str(row.AnalysisRecord.cv_document_id),
-                'job_description_id': str(row.AnalysisRecord.job_description_id),
+                'job_description_id': str(row.AnalysisRecord.job_description_id) if row.AnalysisRecord.job_description_id else None,
                 'match_score': float(row.AnalysisRecord.match_score) if row.AnalysisRecord.match_score else None,
                 'analysis_status': row.AnalysisRecord.processing_status,
                 'created_at': row.AnalysisRecord.created_at.isoformat() if row.AnalysisRecord.created_at else None,

@@ -31,11 +31,19 @@ export function JobDescriptionsView() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this job description?')) return
+    
+    // Optimistic update
+    const previousJDs = [...jobDescriptions]
+    setJobDescriptions(prev => prev.filter(jd => jd.id !== id))
+    
     try {
-      await apiClient.request('DELETE', `/job-descriptions/${id}`)
+      await apiClient.deleteJobDescription(id)
+      // Optional: reload in background to sync
       loadJobDescriptions()
     } catch (error) {
       console.error('Failed to delete job description:', error)
+      // Rollback on error
+      setJobDescriptions(previousJDs)
     }
   }
 

@@ -13,6 +13,8 @@ from typing import Optional
 from app.core.config import settings
 from app.utils.logger import logger
 
+logger.info(f"MODULE LOAD: email_service.py - SMTP_USER is '{settings.SMTP_USER}'")
+
 
 # ─── OTP store (Redis-backed in production, in-memory for dev) ────────────────
 
@@ -98,16 +100,20 @@ def send_otp_email(to_email: str, otp: str) -> bool:
     Returns True on success, False on failure.
     Falls back to console log when SMTP is not configured.
     """
+    logger.info(f"EXEC: send_otp_email to {to_email} with OTP {otp}")
     subject = f"🔐 Your ResumeAI reset code: {otp}"
 
     # ── Fallback: no SMTP configured ─────────────────────────────────────────
+    logger.info(f"DEBUG: SMTP_USER='{settings.SMTP_USER}', SMTP_PASSWORD_LEN={len(settings.SMTP_PASSWORD)}")
     if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
+        logger.info("DEBUG: Using Email Fallback (Console)")
         logger.warning(
             f"[EMAIL FALLBACK] SMTP not configured. "
             f"OTP for {to_email}: {otp}  (valid 10 min)"
         )
         return True   # pretend success so the flow continues in dev
 
+    logger.info(f"DEBUG: Attempting REAL SMTP send to {to_email} via {settings.SMTP_HOST}...")
     # ── Real SMTP send ────────────────────────────────────────────────────────
     try:
         msg = MIMEMultipart("alternative")
@@ -126,8 +132,15 @@ def send_otp_email(to_email: str, otp: str) -> bool:
         logger.info(f"OTP email sent to {to_email}")
         return True
 
+    except smtplib.SMTPAuthenticationError as e:
+        logger.error(f"DEBUG ERROR: Authentication failed (535). Check your App Password: {e}")
+        return False
+    except smtplib.SMTPConnectError as e:
+        logger.error(f"DEBUG ERROR: Connection failed. Check host/port: {e}")
+        return False
     except Exception as e:
-        logger.error(f"Failed to send OTP email to {to_email}: {e}")
+        logger.exception(f"DEBUG ERROR: Unexpected error: {type(e).__name__}")
+        logger.error(f"Failed to send OTP email: {e}")
         return False
 
 

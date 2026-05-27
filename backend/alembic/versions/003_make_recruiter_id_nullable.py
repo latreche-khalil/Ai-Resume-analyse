@@ -18,13 +18,15 @@ depends_on = None
 
 def upgrade() -> None:
     # Make recruiter_id nullable to allow candidates to create JDs for analysis
-    op.alter_column('job_descriptions', 'recruiter_id',
-                    existing_type=sa.UUID(),
-                    nullable=True)
+    with op.batch_alter_table('job_descriptions') as batch_op:
+        batch_op.alter_column('recruiter_id',
+                        existing_type=sa.UUID(),
+                        nullable=True)
 
 
 def downgrade() -> None:
     # Revert to non-nullable
-    op.alter_column('job_descriptions', 'recruiter_id',
-                    existing_type=sa.UUID(),
-                    nullable=False)
+    with op.batch_alter_table('job_descriptions') as batch_op:
+        batch_op.alter_column('recruiter_id',
+                        existing_type=sa.UUID(),
+                        nullable=False)

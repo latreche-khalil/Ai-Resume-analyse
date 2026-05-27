@@ -27,6 +27,7 @@ router = APIRouter(prefix="/coaching")
 
 
 # Chat endpoints
+@router.post("/chat/session", status_code=status.HTTP_201_CREATED)
 @router.post("/chat/sessions", status_code=status.HTTP_201_CREATED)
 async def create_chat_session(
     current_user: User = Depends(get_current_user),
@@ -65,6 +66,7 @@ from pydantic import BaseModel as _PydanticBase
 class _ChatMsg(_PydanticBase):
     message: str
 
+@router.post("/chat/{session_id}/message")
 @router.post("/chat/sessions/{session_id}/messages")
 async def send_chat_message(
     session_id: UUID,

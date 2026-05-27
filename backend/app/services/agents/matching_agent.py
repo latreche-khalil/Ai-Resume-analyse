@@ -40,11 +40,11 @@ class MatchingAgent:
     
     # LLM Configuration
     TEMPERATURE = 0.2  # Lower for consistency and speed
-    MAX_TOKENS = 1200  # Reduced for faster generation
+    MAX_TOKENS = 2000  # Increased to prevent truncation on detailed analyses
     
-    # Text limits
-    CV_TEXT_LIMIT = 10000
-    JD_TEXT_LIMIT = 5000
+    # Text limits (Optimized for balance between context and free-tier stability)
+    CV_TEXT_LIMIT = 6000
+    JD_TEXT_LIMIT = 3000
     
     # Result limits
     MAX_MATCHING_SKILLS = 30
@@ -63,59 +63,41 @@ class MatchingAgent:
         language: str = "en"
     ) -> Dict[str, Any]:
         """
-        Match CV with job description.
-        
-        Args:
-            masked_cv: Masked CV text
-            job_description: Job description text
-            cv_document_id: CV document ID
-            jd_id: Job description ID
-            db: Database session
-            language: Language for prompts (ar/en/fr)
-            
-        Returns:
-            Match results with score and skills
-            
-        Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6
+        Match CV with job description with fresh AI analysis.
         """
         start_time = time.time()
         
         try:
-            # Check cache
-            cache_key = f"match:{cv_document_id}:{jd_id}"
-            cached_result = await redis_client.get_cache(cache_key)
+            # Bypass cache to ensure the user sees fresh LLM results after the fix
+            # cache_key = f"match:{cv_document_id}:{jd_id}"
+            # cached_result = await redis_client.get_cache(cache_key)
+            # if cached_result: return cached_result
             
-            if cached_result:
-                logger.info(f"Cache hit for match: {cache_key}")
-                return cached_result
-            
-            # Try to use RAG for intelligent CV chunk retrieval
-            cv_context = masked_cv  # Default: use full CV
+            # Try to use RAG for intelligent CV chunk retrieval - ONLY if text is short
+            cv_context = masked_cv
             
             try:
-                # Extract key requirements from JD for better RAG search
-                jd_summary = job_description[:500]  # First 500 chars usually contain key requirements
-                
-                cv_chunks = await rag_pipeline.semantic_search(
-                    query=jd_summary,
-                    document_ids=[cv_document_id],
-                    top_k=8  # Increased from 5 to get more context
-                )
-                
-                if cv_chunks and len(cv_chunks) > 0:
-                    # RAG available: use relevant chunks + full CV summary
-                    relevant_text = "\n\n".join([chunk['text'] for chunk in cv_chunks])
-                    cv_context = f"{masked_cv[:self.CV_TEXT_LIMIT]}\n\n--- RELEVANT EXPERIENCE ---\n\n{relevant_text}"
-                    logger.info(f"RAG: Retrieved {len(cv_chunks)} relevant chunks")
-                else:
-                    # RAG empty: use full CV (better than truncating)
-                    logger.info("RAG: No chunks found, using full CV text")
-                    
-            except Exception as rag_error:
-                # RAG failed: gracefully fallback to full CV
-                logger.warning(f"RAG error ({rag_error}), using full CV text")
+                # Optimized RAG: only run if CV is short or if we need specific evidence
+                if len(masked_cv) < 2000:
+                    jd_summary = job_description[:300]
+                    cv_chunks = await rag_pipeline.semantic_search(
+                        query=jd_summary,
+                        document_ids=[cv_document_id],
+                        top_k=4 # Reduced for speed
+                    )
+                    if cv_chunks:
+                        relevant_text = "\n\n".join([chunk['text'] for chunk in cv_chunks])
+                        cv_context = f"{masked_cv[:self.CV_TEXT_LIMIT]}\n\n--- KEY EVIDENCE ---\n\n{relevant_text}"
+            except Exception as rag_err:
+                logger.warning(f"Matching Agent RAG skipped: {rag_err}")
                 cv_context = masked_cv
             
+            # Validate inputs
+            if not cv_context or len(cv_context.strip()) < 50:
+                raise ValueError(f"CV context is too short or empty ({len(cv_context) if cv_context else 0} chars). Extraction might have failed.")
+            if not job_description or len(job_description.strip()) < 20:
+                raise ValueError(f"Job description is too short or empty ({len(job_description) if job_description else 0} chars).")
+
             # Create matching prompt
             prompt = self._create_matching_prompt(
                 cv_text=cv_context,
@@ -123,7 +105,7 @@ class MatchingAgent:
                 language=language
             )
             
-            # Call Unified LLM Client with optimized settings
+            # Call Unified LLM Client
             response = await llm_client.generate(
                 prompt=prompt,
                 task_type="analysis",
@@ -134,30 +116,26 @@ class MatchingAgent:
             if not response:
                 raise Exception("Failed to get response from LLM")
             
+            # Debug log for reasoning/response analysis
+            with open("debug_llm_response.txt", "a", encoding="utf-8") as f:
+                f.write(f"\n--- ANALYSIS {cv_document_id} ---\n")
+                f.write(response)
+                f.write("\n---------------------------\n")
+            
             # Parse response
             match_result = self._parse_matching_response(response)
             
-            # Validate match score
-            if not (0.0 <= match_result['match_score'] <= 1.0):
-                logger.warning(f"Invalid match score: {match_result['match_score']}, clamping to [0, 1]")
-                match_result['match_score'] = max(0.0, min(1.0, match_result['match_score']))
+            # Critical check: if score is 0 but matching_skills exist, the model failed to calculate properly
+            if match_result.get('match_score', 0) == 0 and len(match_result.get('matching_skills', [])) > 0:
+                # Heuristic fallback: base score on matching skills density
+                match_result['match_score'] = min(0.9, len(match_result['matching_skills']) / 10.0)
+                match_result['summary'] = f"[ADJUSTED] {match_result['summary']}"
             
-            # Cache result
-            await redis_client.set_cache(
-                cache_key,
-                match_result,
-                ttl_seconds=self.CACHE_TTL_SECONDS
-            )
+            # Validate match score range
+            match_result['match_score'] = max(0.0, min(1.0, float(match_result.get('match_score', 0.0))))
             
             elapsed_time = time.time() - start_time
-            
-            if elapsed_time > self.PERFORMANCE_TARGET_SECONDS:
-                logger.warning(
-                    f"Matching exceeded target: {elapsed_time:.2f}s > "
-                    f"{self.PERFORMANCE_TARGET_SECONDS}s"
-                )
-            else:
-                logger.info(f"Matching completed in {elapsed_time:.2f}s")
+            logger.info(f"Fresh AI matching completed in {elapsed_time:.2f}s")
             
             return match_result
             
@@ -171,63 +149,54 @@ class MatchingAgent:
         jd_text: str,
         language: str = "en"
     ) -> str:
-        """Create matching prompt via OpenRouter."""
+        """Create a high-intelligence matching prompt with self-correction."""
         lang_map = {'ar': 'Arabic', 'en': 'English', 'fr': 'French'}
         lang = lang_map.get(language, 'English')
         
-        return f"""You are a professional recruiter. Compare this CV with the job requirements.
+        return f"""You are a Senior Technical Recruiter at a Top-Tier Tech Firm (e.g., Google, NVIDIA). Your task is a RIGOROUS semantic match between a CV and a Job Description.
 
-JOB REQUIREMENTS:
+THINK STEP-BY-STEP:
+1. DECONSTRUCT the Job Description into Core Competencies, Secondary Tools, and Seniority Expectations.
+2. ANALYZE the Candidate CV for explicit evidence, project impact, and technical depth. Do not assume skills not mentioned.
+3. CROSS-REFERENCE: Where are the direct matches? Where are the semantic overlaps (Transferable)? What is strictly missing?
+4. CALCULATE: Match score should be 100% only if ALL critical requirements are met with proven impact.
+
+BE CONCISE and use high-density professional language in your summary. Focus on the candidate's Value Proposition.
+
+OUTPUT LANGUAGE: MUST be {lang}.
+
+JOB DESCRIPTION:
 {jd_text[:self.JD_TEXT_LIMIT]}
 
 CANDIDATE CV:
 {cv_text[:self.CV_TEXT_LIMIT]}
 
-INSTRUCTIONS:
-1. Extract TECHNICAL SKILLS ONLY (programming languages, frameworks, tools, technologies)
-2. Compare CV skills with job requirements
-3. Calculate match score (0.0 to 1.0)
-4. List matching skills (skills candidate HAS that job needs)
-5. List missing skills (skills job needs but candidate LACKS)
-6. List transferable skills (related skills that could help)
-7. Analyze SENIORITY level alignment (cv_level vs jd_level)
-8. Identify any potential RED FLAGS
-9. Determine hiring urgency based on JD language
-
-IMPORTANT RULES:
-- Extract HARD and SPECIALIZED SKILLS specific to the job domain (e.g., "Revenue Forecasting", "Orthopedic Surgery", "Legal Drafting", "React", "Supply Chain Optimization").
-- Do NOT include generic soft skills (e.g., "communication", "teamwork", "fast learner").
-- Do NOT include adjectives (e.g., "passionate", "experienced").
-- Do NOT include job titles (e.g., "developer", "engineer") as skills.
-- Each skill should be a concise professional term (1-4 words maximum).
-- Seniority levels should be: Junior, Mid, Senior, Lead, or Expert.
-
-OUTPUT FORMAT (JSON only):
+OUTPUT FORMAT (Strict JSON):
 {{
-  "match_score": 0.75,
-  "matching_skills": ["React", "JavaScript", "TypeScript"],
-  "missing_skills": ["Redux", "GraphQL", "Docker"],
-  "transferable_skills": ["Vue.js", "Node.js"],
-  "summary": "Candidate has strong frontend skills but lacks some backend technologies.",
-  "recommendation": "interview",
-  "confidence": "high",
+  "match_score": 0.XX,
+  "matching_skills": ["Verified Hard Skill 1", "Verified Hard Skill 2"],
+  "missing_skills": ["Critical Gap 1", "Missing Tool 2"],
+  "transferable_skills": ["Related Skill that helps"],
+  "summary": "Start with a critical verdict. Explain EXACTLY why the score is X/100 based on the evidence found or missing.",
+  "recommendation": "shortlist/interview/reject",
+  "confidence": "high/medium/low",
   "seniority_alignment": {{
-    "cv_level": "Senior",
-    "jd_level": "Senior",
-    "match": "matched",
-    "explanation": "Candidate has 7 years of relevant experience."
+    "cv_level": "Level detected",
+    "jd_level": "Level required",
+    "match": "matched/underqualified/overqualified",
+    "explanation": "Depth of experience vs years required."
   }},
-  "red_flags": ["Frequent job changes in the last 2 years"],
-  "hiring_urgency": "standard"
+  "red_flags": ["Gaps, lack of impact, or missing mandatory stack"],
+  "hiring_urgency": "low/medium/high"
 }}
 
-Return ONLY the JSON object. No explanations, no markdown, just JSON."""
+RULES:
+- Be CRITICAL. Low-quality matches must have low scores (<0.40).
+- Only return the JSON object."""
     
     def _parse_matching_response(self, response: str) -> Dict[str, Any]:
         """
-        Parse OpenRouter response into structured format with market intelligence.
-        
-        Requirements: 8.3, 8.4, 8.5
+        Parse response with strict skill filtering.
         """
         try:
             # Extract JSON using unified parser
@@ -235,55 +204,52 @@ Return ONLY the JSON object. No explanations, no markdown, just JSON."""
             if not result:
                 raise ValueError("No valid JSON found in response")
             
-            # Extract skills as simple strings (handle both formats)
-            def extract_skills(skills_list, limit=15):
-                if not skills_list:
-                    return []
+            # Helper to extract and filter skills
+            def get_clean_skills(key, limit=15):
+                raw = result.get(key, [])
                 extracted = []
-                for skill in skills_list:
-                    if isinstance(skill, str):
-                        extracted.append(skill)
-                    elif isinstance(skill, dict):
-                        extracted.append(skill.get('skill', skill.get('name', str(skill))))
-                return extracted[:limit]
+                for s in raw:
+                    if isinstance(s, str): extracted.append(s)
+                    elif isinstance(s, dict): extracted.append(s.get('skill', s.get('name', str(s))))
+                
+                # Use centralized stop words filter
+                from app.core.constants import SKILL_STOP_WORDS
+                
+                return [
+                    s for s in extracted 
+                    if s.lower().strip() not in SKILL_STOP_WORDS and len(s) > 2
+                ][:limit]
             
-            # Validate and normalize - simplified output
+            # Validate and normalize
             return {
-                # Core matching
                 'match_score': float(result.get('match_score', 0.0)),
-                'matching_skills': extract_skills(result.get('matching_skills', []), self.MAX_MATCHING_SKILLS),
-                'missing_skills': extract_skills(result.get('missing_skills', []), self.MAX_MISSING_SKILLS),
-                'transferable_skills': extract_skills(result.get('transferable_skills', []), self.MAX_TRANSFERABLE_SKILLS),
-                'summary': result.get('summary', ''),
+                'matching_skills': get_clean_skills('matching_skills', self.MAX_MATCHING_SKILLS),
+                'missing_skills': get_clean_skills('missing_skills', self.MAX_MISSING_SKILLS),
+                'transferable_skills': get_clean_skills('transferable_skills', self.MAX_TRANSFERABLE_SKILLS),
+                'summary': result.get('summary', result.get('assessment', '')),
                 'recommendation': result.get('recommendation', 'consider'),
                 'confidence': result.get('confidence', 'medium'),
-                'confidence_score': 0.9 if result.get('confidence') == 'high' else 0.6 if result.get('confidence') == 'medium' else 0.3,
-                
-                # Professional fields
                 'seniority_alignment': result.get('seniority_alignment', {
-                    'cv_level': 'unknown',
-                    'jd_level': 'unknown',
-                    'match': 'unknown',
-                    'explanation': ''
+                    'cv_level': 'unknown', 'jd_level': 'unknown', 'match': 'unknown', 'explanation': ''
                 }),
                 'red_flags': result.get('red_flags', [])[:self.MAX_RED_FLAGS],
                 'hiring_urgency': result.get('hiring_urgency', 'standard')
             }
             
         except Exception as e:
-            logger.error(f"Failed to parse matching response: {str(e)}")
-            # Return default result
+            logger.error(f"Failed to generate/parse matching response: {str(e)}")
+            # Return diagnostic result that clearly states the failure
             return {
                 'match_score': 0.0,
                 'matching_skills': [],
                 'missing_skills': [],
                 'transferable_skills': [],
-                'summary': 'Failed to analyze match',
-                'recommendation': 'consider',
+                'summary': f"⚠️ AI ANALYSIS FAILED: {str(e)}. This usually happens when the API key is invalid, credits are exhausted, or the model is unavailable. Please check your OpenRouter settings.",
+                'recommendation': 'error',
                 'confidence': 'low',
-                'seniority_alignment': {'cv_level': 'unknown', 'jd_level': 'unknown', 'match': 'unknown', 'explanation': ''},
-                'red_flags': [],
-                'hiring_urgency': 'standard'
+                'seniority_alignment': {'cv_level': 'N/A', 'jd_level': 'N/A', 'match': 'error', 'explanation': f'Technical Error: {str(e)}'},
+                'red_flags': [f"AI Processing Error: {str(e)}"],
+                'hiring_urgency': 'unknown'
             }
 
 

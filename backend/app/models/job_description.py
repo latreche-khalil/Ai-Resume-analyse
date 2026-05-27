@@ -10,10 +10,10 @@ from sqlalchemy import (
 from app.models.base import UUIDType
 from sqlalchemy.orm import relationship
 
-from app.models.base import Base, UUIDMixin, TimestampMixin
+from app.models.base import Base, UUIDMixin, TimestampMixin, SoftDeleteMixin
 
 
-class JobDescription(Base, UUIDMixin, TimestampMixin):
+class JobDescription(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     """
     Job Description model for recruiter job postings.
     

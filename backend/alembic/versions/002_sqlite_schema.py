@@ -54,6 +54,7 @@ def upgrade() -> None:
         sa.Column('word_count', sa.Integer),
         sa.Column('processing_status', sa.String(20), nullable=False, server_default='pending'),
         sa.Column('virus_scan_status', sa.String(20), nullable=False, server_default='pending'),
+        sa.Column('status_message', sa.String(255)),
         sa.Column('virus_scan_at', sa.DateTime),
         sa.Column('retention_until', sa.DateTime, nullable=False),
         sa.Column('created_at', sa.DateTime, nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
@@ -181,9 +182,12 @@ def upgrade() -> None:
         sa.Column('operation', sa.String(100), nullable=False),
         sa.Column('resource_type', sa.String(100)),
         sa.Column('resource_id', sa.String(36)),
-        sa.Column('details', sa.JSON),
+        sa.Column('entity_type', sa.String(20)),
+        sa.Column('confidence_score', sa.Numeric(3, 2)),
+        sa.Column('legal_basis', sa.String(100)),
         sa.Column('ip_address', sa.String(45)),
-        sa.Column('user_agent', sa.String(255)),
+        sa.Column('user_agent', sa.Text),
+        sa.Column('operation_metadata', sa.JSON),
         sa.Column('created_at', sa.DateTime, nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
     )
     
@@ -199,27 +203,12 @@ def upgrade() -> None:
         sa.Column('updated_at', sa.DateTime, nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
     )
     
-    # PII Mappings table
-    op.create_table(
-        'pii_mappings',
-        sa.Column('id', sa.String(36), primary_key=True),
-        sa.Column('user_id', sa.String(36), sa.ForeignKey('users.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('document_id', sa.String(36), sa.ForeignKey('cv_documents.id', ondelete='CASCADE')),
-        sa.Column('masked_token', sa.String(50), nullable=False),
-        sa.Column('entity_type', sa.String(50), nullable=False),
-        sa.Column('encrypted_value', sa.LargeBinary, nullable=False),
-        sa.Column('encryption_key_id', sa.String(50), nullable=False),
-        sa.Column('confidence_score', sa.Float),
-        sa.Column('flagged_for_review', sa.Boolean, server_default='0'),
-        sa.Column('retention_until', sa.DateTime, nullable=False),
-        sa.Column('created_at', sa.DateTime, nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
-        sa.Column('updated_at', sa.DateTime, nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
-    )
+
 
 
 def downgrade() -> None:
     """Drop all tables."""
-    op.drop_table('pii_mappings')
+    # op.drop_table('pii_mappings') # Handled by migration 004
     op.drop_table('feedback')
     op.drop_table('audit_logs')
     op.drop_table('interview_sessions')

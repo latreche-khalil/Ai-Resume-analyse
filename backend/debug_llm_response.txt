@@ -1,0 +1,208 @@
+
+--- ANALYSIS 0a03e3ce-af04-473e-bf34-9f4af8e2f7e6 ---
+```json
+{
+  "match_score": 0.42,
+  "matching_skills": [
+    "React",
+    "TypeScript",
+    "Tailwind CSS",
+    "Zustand",
+    "Git",
+    "GitHub"
+  ],
+  "missing_skills": [
+    "HTML5",
+    "CSS3",
+    "Sass",
+    "SCSS",
+    "JavaScript (ES6+)",
+    "Next.js",
+    "Redux",
+    "React Context API",
+    "RESTful APIs",
+    "GraphQL",
+    "Agile",
+    "Scrum"
+  ],
+  "transferable_skills": [
+    "Node.js",
+    "SQL",
+    "NoSQL"
+  ],
+  "summary": "The candidate demonstrates a foundational grasp of the modern React ecosystem, specifically matching requirements for React, TypeScript, and Zustand. However, there is a significant lack of explicit evidence regarding core web technologies (HTML5/CSS3/JS) and advanced styling methodologies (Sass/SCSS) required by the JD. Most critically, the candidate is currently a student, whereas the JD requires a minimum of 3 years of professional experience.",
+  "recommendation": "reject",
+  "confidence": "high",
+  "seniority_alignment": {
+    "cv_level": "Junior/Student",
+    "jd_level": "Mid-Level (3+ years)",
+    "match": "underqualified",
+    "explanation": "The candidate is a 3rd-year Bachelor student. The JD explicitly mandates a minimum of 3 years of professional experience, creating a fundamental seniority gap."
+  },
+  "red_flags": [
+    "Lack of professional experience (currently in academic studies)",
+    "Missing core web fundamentals in explicit skill listing (HTML/CSS/JS)",
+    "No mention of API integration experience (REST/GraphQL) which is a key responsibility"
+  ],
+  "hiring_urgency": "low"
+}
+```
+---------------------------
+
+--- ANALYSIS 3ad8da77-d58d-4856-a4fc-b64d38182506 ---
+
+{
+  "match_score": 0.42,
+  "matching_skills": ["React", "TypeScript", "Tailwind CSS", "Zustand", "Git", "GitHub", "SQL"],
+  "missing_skills": ["HTML5", "CSS3", "Sass/SCSS", "JavaScript ES6+", "Vue.js", "Next.js", "Redux", "React Context API", "Styled Components", "RESTful APIs", "GraphQL", "GitLab"],
+  "transferable_skills": ["Node.js", "NoSQL", "React Router"],
+  "summary": "The candidate demonstrates foundational frontend skills with React, TypeScript, and Tailwind CSS, plus state management experience with Zustand. However, they lack several critical requirements including 3+ years professional experience, Vue.js/Next.js proficiency, RESTful API integration experience, and advanced CSS styling frameworks. As a 3rd-year CS student, they are significantly underqualified for the mid-level position requiring extensive professional experience.",
+  "recommendation": "reject",
+  "confidence": "high",
+  "seniority_alignment": {
+    "cv_level": "Entry-Level",
+    "jd_level": "Mid-Level",
+    "match": "underqualified",
+    "explanation": "Candidate is currently a 3rd-year Computer Science student with academic projects, while the JD explicitly requires minimum 3 years of professional experience with React.js, Vue.js, or Next.js."
+  },
+  "red_flags": ["No professional experience despite JD requiring 3+ years", "Missing core frontend technologies (HTML5, CSS3/Sass
+---------------------------
+
+--- ANALYSIS 27d3375a-8364-4980-b456-34d7c837ddff ---
+{"match_score":0.10,"matching_skills":["React","React Router","Tailwind CSS","Zustand","Git"],"missing_skills":["TypeScript","Vue.js","Next.js","Redux","React Context API","Styled Components","Sass/SCSS","JavaScript ES6+","HTML5","CSS3","GraphQL","RESTful APIs","SOLID principles","Agile/Scrum"],"transferable_skills":["Node.js"],"summary":"The candidate demonstrates foundational React skills through two portfolio projects using React, Tailwind, and Zustand. However, there are critical gaps: no TypeScript experience (explicitly required), no Vue.js or Next.js exposure, and no demonstrated experience with state management beyond Zustand. The candidate is a 3rd-year CS student with no professional experience, while the JD requires minimum 3 years of professional experience. The seniority mismatch is severe - this is a senior-level position requiring production expertise, but the CV shows only academic projects. English proficiency is limited (B1 level), which may impact collaboration in an Agile environment.","recommendation":"reject","confidence":"high","seniority_alignment":{"cv_level":"Entry-Level/Junior (Student)","jd_level":"Senior (3+ years professional experience)","explanation":"The JD explicitly requires minimum 3 years of professional experience with React/Vue/Next.js. The candidate is a 3rd-year undergraduate with only academic projects - no internship or employment history mentioned. This represents a fundamental seniority mismatch where the candidate is several experience levels below the position requirements."},"red_flags":["No TypeScript proficiency despite being a must-have requirement","No professional work experience - only academic projects","No Vue.js or Next.js experience (frameworks explicitly required)","Missing 3 years of professional experience requirement","Limited English proficiency (B1) for Agile collaboration","No demonstration of mobile-first responsive design practices","No API integration experience shown in projects","No Redux or advanced state management demonstrated"],"hiring_urgency":"low"}
+---------------------------
+
+--- ANALYSIS df7d6a4b-9753-440f-93d0-322a27dab511 ---
+```json
+{
+  "match_score": 0.30,
+  "matching_skills": ["React.js", "TypeScript", "Tailwind CSS", "Zustand", "Git & GitHub"],
+  "missing_skills": ["3+ years professional experience", "Sass/SCSS", "Redux/React Context API", "Styled Components", "RESTful API/GraphQL integration", "Performance optimization", "Mobile-First responsive design", "SOLID principles"],
+  "transferable_skills": ["Problem-solving (Critical Thinking)", "Communication (Effective Communication)", "Full-stack development experience"],
+  "summary": "Critical verdict: The candidate is a Computer Science student with relevant technical skills but lacks the required professional experience. While they demonstrate practical knowledge of React, TypeScript, and some modern tools, they don't meet the minimum 3 years professional experience requirement. Their projects show foundational understanding but
+---------------------------
+
+--- ANALYSIS bded0dcd-a567-4e29-8790-81af17b52b57 ---
+
+{
+  "match_score": 0.35,
+  "matching_skills": ["React.js", "Tailwind CSS", "Zustand (State Management)", "Git & GitHub"],
+  "missing_skills": ["3+ years professional experience", "Completed Bachelor's degree", "Explicit TypeScript usage in projects", "RESTful API/GraphQL integration", "Performance optimization experience
+---------------------------
+
+--- ANALYSIS b0680307-5748-409e-a055-344d308a9155 ---
+{"match_score":0.35,"matching_skills":["React","React Router","Tailwind CSS","Zustand","Git/GitHub","TypeScript (mentioned in profile)","Bachelor's in CS (in progress)"],"missing_skills":["3 years professional experience (mandatory)","HTML5 (explicit)","CSS3 (explicit)","Sass/SCSS","JavaScript ES6+ (explicit)","RESTful APIs/GraphQL integration experience","Redux or React Context (has Zustand only)","SOLID principles knowledge","Agile/Scrum experience","Professional portfolio/impact metrics"],"transferable_skills":["Full-stack project work shows backend understanding","Node.js experience indicates full-stack capability","Critical thinking and communication listed"],"summary":"CRITICAL VERDICT: Score 35/100. Candidate is a 3rd-year CS student with only academic project experience, while JD explicitly requires minimum 3 years professional experience with frameworks. Direct matches exist: React, Tailwind, Zustand, TypeScript (mentioned), Git. However, missing explicit HTML5/CSS3/JavaScript ES6+ skills (core requirements), no professional work history, no API integration experience mentioned, and no Agile/Scrum exposure. English B1 level may hinder communication in English-speaking tech environment. Projects show practical ability but lack scale/impact metrics required for senior role. Education incomplete (graduates 2026).','recommendation':'reject','confidence':'high','seniority_alignment':{'cv_level':'Junior/Entry-level (student with academic projects)','jd_level':'Professional with 3+ years experience','match':'underqualified','explanation':'JD requires 3 years professional framework experience. Candidate is 3rd-year student with only portfolio projects. No professional employment history demonstrated. Significant experience gap.'},'red_flags':['No professional experience (mandatory 3 years)','Incomplete degree (graduates 2026)','Missing core HTML5/CSS3/JS ES6+ explicit mention','No API integration experience','No Agile/Scrum exposure','Basic English (B1) for tech role','No impact/scale metrics on projects'],'hiring_urgency':'low'}
+---------------------------
+
+--- ANALYSIS 46be8185-3aef-47b3-8a54-92ea5f6c07b1 ---
+```json
+{
+  "match_score": 0.35,
+  "matching_skills": [
+    "React.js",
+    "TypeScript",
+    "Tailwind CSS",
+    "Zustand",
+    "Git & GitHub"
+  ],
+  "missing_skills": [
+    "Vue.js / Next.js",
+    "Redux",
+    "SCSS/Sass",
+    "RESTful API integration",
+    "Performance optimization",
+    "SOLID principles",
+    "3+ years professional experience"
+  ],
+  "transferable_skills": [
+    "Node.js",
+    "SQL / NoSQL",
+    "React Router",
+    "MUI (Material UI)",
+    "Data visualization (nivo)"
+  ],
+  "summary": "The candidate demonstrates foundational frontend skills with React, TypeScript, and Tailwind, and has practical project experience. However, the CV lacks evidence of the required 3+ years of professional experience, proficiency with Redux or Next.js, SCSS usage, explicit performance optimization, and SOLID coding practices. Consequently, the match score is 0.35/1.0.",
+  "recommendation": "reject",
+  "confidence": "high",
+  "seniority_alignment": {
+    "cv_level": "Junior (student, <1 year)",
+    "jd_level": "Mid-level (3+ years)",
+    "match": "underqualified",
+    "explanation": "The candidate’s experience level is significantly below the 3+ years of professional experience required for the role."
+  },
+  "red_flags": [
+    "Insufficient professional experience",
+    "Missing key framework (Redux/Next.js)",
+    "No evidence of performance tuning or SOLID principles",
+    "Limited language proficiency (English B1)"
+  ],
+  "hiring_urgency": "low"
+}
+```
+---------------------------
+
+--- ANALYSIS 78cdceb8-e555-459c-a712-6ad523b2be92 ---
+```json
+{
+  "match_score": 0.72,
+  "matching_skills": ["React.js", "TypeScript", "Git", "GitHub", "Tailwind CSS"],
+  "missing_skills": ["Vue.js", "Next.js", "Redux", "GraphQL"],
+  "transferable_skills": ["JavaScript", "CSS", "HTML5", "State Management with Zustand"],
+  "summary": "The candidate demonstrates strong proficiency in React, TypeScript, and utility-first CSS frameworks like Tailwind CSS. However, there are gaps in experience with other required frameworks like Vue.js and Next.js, as well as GraphQL. The candidate's projects showcase a good understanding of frontend development principles and version control with Git and GitHub.",
+  "recommendation": "shortlist",
+  "confidence": "medium",
+  "seniority_alignment": {
+    "cv_level": "Junior",
+    "jd_level": "Mid-level",
+    "match": "underqualified",
+    "explanation": "The candidate is currently in their 3rd year of university and has limited professional experience, which does not fully align with the mid-level seniority expected for the role."
+  },
+  "red_flags": ["Limited professional experience", "No mention of SOLID principles or performance optimization"],
+  "hiring_urgency": "medium"
+}
+```
+---------------------------
+
+--- ANALYSIS 5ed94413-3e99-4f8e-b42c-a44bb772d965 ---
+```json
+{
+  "match_score": 0.72,
+  "matching_skills": ["React.js", "TypeScript", "Git", "GitHub", "Tailwind CSS"],
+  "missing_skills": ["Vue.js", "Next.js", "Redux", "GraphQL"],
+  "transferable_skills": ["Node.js", "SQL", "NoSQL", "Critical Thinking", "Effective Communication"],
+  "summary": "The candidate demonstrates a strong foundation in frontend development, particularly with React and TypeScript. However, the lack of experience with other required frameworks like Vue.js and Next.js, as well as state management tools such as Redux, reduces the overall match score. The presence of transferable skills like Node.js, SQL, and NoSQL, along with critical thinking and effective communication, contributes positively to the score.",
+  "recommendation": "shortlist",
+  "confidence": "medium",
+  "seniority_alignment": {
+    "cv_level": "Junior",
+    "jd_level": "Mid-level",
+    "match": "underqualified",
+    "explanation": "The candidate's experience and skills align more with junior-level expectations, whereas the job description requires a minimum of 3 years of professional experience, indicating a mid-level position."
+  },
+  "red_flags": ["Limited experience with state management tools", "No direct experience with GraphQL"],
+  "hiring_urgency": "medium"
+}
+```
+---------------------------
+
+--- ANALYSIS 456967ec-f6bb-4155-a027-8b6c24fa1183 ---
+```
+{
+  "match_score": 0.92,
+  "matching_skills": ["Python", "PyTorch", "TensorFlow", "Keras", "Hugging Face Transformers", "LangChain", "LangGraph", "PhiData", "AWS", "GCP", "SQL", "NoSQL", "Vector Databases"],
+  "missing_skills": ["Azure ML", "Certifications in MLOps, LLMOps, Cloud Solutions Architecture, and Data Science"],
+  "transferable_skills": ["Scikit-Learn", "NLTK", "OpenCV", "FastAPI", "Streamlit", "Pandas", "NumPy", "Matplotlib", "Plotly"],
+  "summary": "The candidate demonstrates a strong match with the job description, showcasing expertise in Generative AI, LLMs, and Autonomous AI Systems. The candidate's experience in leading AI-driven product innovation, LLMOps strategies, and multimodal AI, along with their technical skills in Python, PyTorch, and Hugging Face Transformers, aligns well with the job requirements. However, the candidate lacks certifications in MLOps, LLMOps, Cloud Solutions Architecture, and Data Science, and has limited experience with Azure ML.",
+  "recommendation": "shortlist",
+  "confidence": "high",
+  "seniority_alignment": {
+    "cv_level": "Senior",
+    "jd_level": "Senior",
+    "match": "matched",
+    "explanation": "The candidate's 2+ years of experience in leading AI-driven product innovation and their technical expertise align with the seniority level required for the job."
+  },
+  "red_flags": ["Limited experience with Azure ML", "Lack of certifications in MLOps, LLMOps, Cloud Solutions Architecture, and Data Science"],
+  "hiring_urgency": "high"
+}
+```
+---------------------------

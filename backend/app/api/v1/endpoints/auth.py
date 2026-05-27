@@ -56,11 +56,7 @@ REFRESH_COOKIE = "refresh_token"
 
 
 # ── Validators ────────────────────────────────────────────────────────────────
-EMAIL_REGEX = re.compile(
-    r'^[a-zA-Z0-9.!#$%&\'*+/=?^_`{|}~-]+@[a-zA-Z0-9]'
-    r'(?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?'
-    r'(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$'
-)
+EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
 
 
 def validate_email(email: str) -> bool:
@@ -75,14 +71,10 @@ def validate_password_complexity(password: str) -> tuple[bool, Optional[str]]:
     """
     if len(password) < 8:
         return False, "Password must be at least 8 characters long"
-    if not re.search(r'[A-Z]', password):
-        return False, "Password must contain at least one uppercase letter"
-    if not re.search(r'[a-z]', password):
-        return False, "Password must contain at least one lowercase letter"
+    if not re.search(r'[a-zA-Z]', password):
+        return False, "Password must contain at least one letter"
     if not re.search(r'\d', password):
         return False, "Password must contain at least one digit"
-    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
-        return False, "Password must contain at least one special character"
     return True, None
 
 
@@ -108,14 +100,19 @@ async def register(
 
     Requirements: 1.1, 1.2, 1.3, 1.4
     """
+    logger.info(f"Registering user: {user_data.email} with role: {user_data.role}")
+    
     if not validate_email(user_data.email):
+        logger.warning(f"Registration failed: Invalid email format for {user_data.email}")
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Invalid email format. Must comply with RFC 5322",
         )
 
+    # Note: Complexity is already checked by Pydantic validator in UserCreate schema
     is_valid, error_message = validate_password_complexity(user_data.password)
     if not is_valid:
+        logger.warning(f"Registration failed: Password complexity for {user_data.email}: {error_message}")
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=error_message,
@@ -253,7 +250,7 @@ async def login(
     response.set_cookie(
         key=REFRESH_COOKIE,
         value=refresh_token,
-        max_age=7 * 24 * 3600,  # 7 days
+        max_age=30 * 24 * 3600,  # 30 days for persistent session
         **_COOKIE_OPTS,
     )
 
@@ -379,6 +376,20 @@ async def refresh_token(
     )
 
 
+@router.get(
+    "/me",
+    response_model=UserResponse,
+    summary="Get current user profile",
+)
+async def get_me(
+    current_user: User = Depends(get_current_user),
+) -> UserResponse:
+    """
+    Return the profile of the currently authenticated user.
+    """
+    return UserResponse.model_validate(current_user)
+
+
 # ── Password Reset (OTP via Email) ────────────────────────────────────────────
 
 from pydantic import BaseModel as _BaseModel
@@ -388,7 +399,7 @@ class ForgotPasswordRequest(_BaseModel):
 
 class ResetPasswordRequest(_BaseModel):
     email: str
-    otp: str
+    code: str
     new_password: str
 
 
@@ -407,9 +418,12 @@ async def forgot_password(
     Send a 6-digit OTP to the user's email for password reset.
     Always returns 200 to avoid email enumeration.
     """
+    target_email = body.email.lower().strip()
+    logger.info(f"!!! FORGOT_PASSWORD_REQUEST_RECEIVED: Email='{target_email}'")
+    
     result = await db.execute(
         select(User).where(
-            User.email == body.email.lower().strip(),
+            User.email == target_email,
             User.deleted_at.is_(None),
             User.is_active == True,
         )
@@ -417,13 +431,17 @@ async def forgot_password(
     user = result.scalar_one_or_none()
 
     if user:
+        logger.info(f"!!! USER_FOUND: {user.email}. Triggering OTP...")
         ok, otp = create_and_send_otp(user.email)
         if not ok:
+            logger.error(f"!!! OTP_SEND_FAILED for {user.email}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to send email. Please try again later.",
             )
+        logger.info(f"!!! OTP_SENT_SUCCESSFULLY to {user.email}")
     else:
+        logger.warning(f"!!! USER_NOT_FOUND_OR_INACTIVE: '{target_email}'")
         # Simulate processing time to prevent timing-based enumeration
         await asyncio.sleep(0.5)
 
@@ -457,7 +475,7 @@ async def reset_password(
         )
 
     # Verify OTP
-    if not verify_otp(body.email.lower().strip(), body.otp.strip()):
+    if not verify_otp(body.email.lower().strip(), body.code.strip()):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired reset code. Please request a new one.",

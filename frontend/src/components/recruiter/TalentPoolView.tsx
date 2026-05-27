@@ -20,7 +20,7 @@ export function TalentPoolView() {
   useEffect(() => {
     Promise.all([
       apiClient.listTalentPools().then(setPools),
-      apiClient.getJobDescriptions({ limit: 50 }).then(r => setJds(Array.isArray(r) ? r : r.items || [])),
+      apiClient.getJobDescriptions({ limit: 50 }).then(r => setJds(r.items || [])),
       apiClient.getDocuments({ limit: 100 }).then(r => setAvailableCVs(r.documents || []))
     ]).finally(() => setLoading(false))
   }, [])

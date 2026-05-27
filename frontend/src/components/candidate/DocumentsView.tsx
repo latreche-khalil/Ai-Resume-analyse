@@ -65,6 +65,9 @@ function AnalysisDrawer({ doc, onClose }: { doc: CVDocument; onClose: () => void
   const [loading, setLoading]   = useState(true)
 
   useEffect(() => {
+    let retryCount = 0
+    const maxRetries = 3
+    
     const load = async () => {
       setLoading(true)
       try {
@@ -74,9 +77,14 @@ function AnalysisDrawer({ doc, onClose }: { doc: CVDocument; onClose: () => void
           (a: any) => a.cv_document_id === doc.id
         )
         setAnalyses(cvAnalyses)
+        retryCount = 0 // Reset on success
       } catch (error) {
+        // Silently log error and retry
         console.log('Failed to load analyses:', error)
-        toast.error('Failed to load analyses')
+        if (retryCount < maxRetries) {
+          retryCount++
+          setTimeout(load, 1000) // Retry after 1 second
+        }
       } finally {
         setLoading(false)
       }
@@ -596,8 +604,8 @@ export function DocumentsView() {
           {filtered.map((doc, i) => (
             <CVCard key={doc.id} doc={doc} index={i} onDelete={handleDelete} isDeleting={deletingIds.has(doc.id)} onClick={() => setSelectedDoc(doc)} isAnalyzing={analyzingCVs.has(doc.id)} />
           ))}
-          </div>
-        ) : (
+        </div>
+      ) : (
           <div className="bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] rounded-2xl overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left">

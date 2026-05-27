@@ -78,6 +78,11 @@ class LocalNLPExtractor:
                 if len(value) < 2: continue
 
                 if label == "Skill":
+                    # Filter out junk words using centralized list
+                    from app.core.constants import SKILL_STOP_WORDS
+                    if value.lower().strip() in SKILL_STOP_WORDS:
+                        continue
+                        
                     extracted["skills"].append({
                         "name": value.title(),
                         "level": self._estimate_level(value, text),
@@ -135,11 +140,44 @@ class LocalNLPExtractor:
         return min(max(span * 12, 0), 600)
 
     def _fallback_extract(self, text: str) -> Dict[str, Any]:
-        """Very basic fallback if model fails."""
+        """Keyword-based fallback if GLiNER model fails."""
+        from app.core.constants import POPULAR_SKILLS
+        
+        # 1. Extract skills from a known list
+        text_lower = text.lower()
+        found_skills = []
+        for skill in POPULAR_SKILLS:
+            # Use word boundaries to avoid partial matches (e.g., 'C' in 'Cloud')
+            pattern = r'\b' + re.escape(skill.lower()) + r'\b'
+            if re.search(pattern, text_lower):
+                found_skills.append({
+                    "name": skill,
+                    "level": 70,
+                    "category": "Detected",
+                    "demand": 75
+                })
+        
+        # 2. Extract job titles (simple patterns)
+        titles = set()
+        title_patterns = [
+            r'\b(?:Senior|Junior|Lead|Principal)?\s*(?:Software|Data|Systems|DevOps|Frontend|Backend|Fullstack|Cloud)\s*(?:Engineer|Developer|Architect|Analyst)\b',
+            r'\b(?:Project|Product|Program|Operations|Marketing|Sales)\s*(?:Manager|Director|Specialist|Lead)\b',
+            r'\b(?:Medical|Doctor|Nurse|Surgeon|Pharmacist)\b',
+            r'\b(?:Attorney|Lawyer|Counsel|Consultant)\b'
+        ]
+        for p in title_patterns:
+            matches = re.findall(p, text, re.IGNORECASE)
+            for m in matches:
+                titles.add(m.title())
+
         return {
-            "skills": [], "job_titles": [], "companies": [], 
-            "education": [], "certifications": [],
-            "total_experience_months": 0, "extraction_confidence": 0.1,
+            "skills": found_skills[:25],
+            "job_titles": list(titles)[:5],
+            "companies": [], 
+            "education": [], 
+            "certifications": [],
+            "total_experience_months": self._estimate_experience(text),
+            "extraction_confidence": 0.3,
             "flagged_for_review": True
         }
 

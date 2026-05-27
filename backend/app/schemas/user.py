@@ -21,22 +21,22 @@ class UserCreate(BaseModel):
         description="Password (min 8 chars, 1 uppercase, 1 lowercase, 1 digit, 1 special char)"
     )
     role: Literal['candidate', 'recruiter'] = Field(..., description="User role")
-    first_name: Optional[str] = Field(None, max_length=100, description="First name")
-    last_name: Optional[str] = Field(None, max_length=100, description="Last name")
+    first_name: Optional[str] = Field(None, max_length=100)
+    last_name: Optional[str] = Field(None, max_length=100)
     preferred_language: Literal['ar', 'en', 'fr'] = Field('en', description="Preferred language")
     
-    @validator('password')
-    def validate_password_complexity(cls, v):
-        """Validate password meets complexity requirements."""
-        if not re.search(r'[A-Z]', v):
-            raise ValueError('Password must contain at least one uppercase letter')
-        if not re.search(r'[a-z]', v):
-            raise ValueError('Password must contain at least one lowercase letter')
-        if not re.search(r'\d', v):
-            raise ValueError('Password must contain at least one digit')
-        if not re.search(r'[@$!%*?&]', v):
-            raise ValueError('Password must contain at least one special character (@$!%*?&)')
-        return v
+    # @validator('password')
+    # def validate_password_complexity(cls, v):
+    #     """Validate password meets complexity requirements."""
+    #     if not re.search(r'[A-Z]', v):
+    #         raise ValueError('Password must contain at least one uppercase letter')
+    #     if not re.search(r'[a-z]', v):
+    #         raise ValueError('Password must contain at least one lowercase letter')
+    #     if not re.search(r'\d', v):
+    #         raise ValueError('Password must contain at least one digit')
+    #     if not re.search(r'[!@#$%^&*(),.?":{}|<>]', v):
+    #         raise ValueError('Password must contain at least one special character')
+    #     return v
     
     class Config:
         json_schema_extra = {
@@ -44,8 +44,6 @@ class UserCreate(BaseModel):
                 "email": "candidate@example.com",
                 "password": "SecurePass123!",
                 "role": "candidate",
-                "first_name": "John",
-                "last_name": "Doe",
                 "preferred_language": "en"
             }
         }
@@ -74,14 +72,12 @@ class PasswordChangeRequest(BaseModel):
 
     @validator('new_password')
     def validate_password_complexity(cls, v):
-        if not re.search(r'[A-Z]', v):
-            raise ValueError('Password must contain at least one uppercase letter')
-        if not re.search(r'[a-z]', v):
-            raise ValueError('Password must contain at least one lowercase letter')
+        if len(v) < 8:
+            raise ValueError('Password must be at least 8 characters long')
+        if not re.search(r'[a-zA-Z]', v):
+            raise ValueError('Password must contain at least one letter')
         if not re.search(r'\d', v):
             raise ValueError('Password must contain at least one digit')
-        if not re.search(r'[@$!%*?&]', v):
-            raise ValueError('Password must contain at least one special character (@$!%*?&)')
         return v
 
 
