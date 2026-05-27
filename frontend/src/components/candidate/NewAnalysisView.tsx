@@ -1,10 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
 import { toast } from 'sonner'
+import {
+  FileText, Plus, Briefcase, Sparkles, Zap,
+  ChevronRight, ArrowLeft, Search, BrainCircuit,
+  Target, Globe, Database, Cpu, ShieldCheck, CheckCircle2,
+} from 'lucide-react'
 import { LanguageSelector, AnalysisLanguage } from '@/components/shared/LanguageSelector'
 import { CVDocument } from '@/types/candidate'
 
@@ -15,14 +20,17 @@ interface JobDescription {
   created_at: string
 }
 
-type Step = 'select-cv' | 'select-jd' | 'analyzing' | 'results'
+type Step = 'select-cv' | 'select-jd' | 'analyzing'
 
 export function NewAnalysisView() {
   const router = useRouter()
-  const [step, setStep] = useState<Step>('select-cv')
+  const searchParams = useSearchParams()
+  const initialCV = searchParams.get('cv')
+
+  const [step, setStep] = useState<Step>(initialCV ? 'select-jd' : 'select-cv')
   const [cvDocuments, setCvDocuments] = useState<CVDocument[]>([])
   const [jobDescriptions, setJobDescriptions] = useState<JobDescription[]>([])
-  const [selectedCV, setSelectedCV] = useState<string | null>(null)
+  const [selectedCV, setSelectedCV] = useState<string | null>(initialCV)
   const [selectedJD, setSelectedJD] = useState<string | null>(null)
   const [newJDText, setNewJDText] = useState('')
   const [newJDTitle, setNewJDTitle] = useState('')
@@ -30,7 +38,7 @@ export function NewAnalysisView() {
   const [loading, setLoading] = useState(false)
   const [uploadMode, setUploadMode] = useState<'existing' | 'new'>('existing')
   const [responseLanguage, setResponseLanguage] = useState<AnalysisLanguage>('en')
-  const [statusMessage, setStatusMessage] = useState<string>('Initializing analysis...')
+  const [statusMessage, setStatusMessage] = useState('Initializing AI Agents...')
 
   useEffect(() => {
     loadCVDocuments()
@@ -40,7 +48,11 @@ export function NewAnalysisView() {
   const loadCVDocuments = async () => {
     try {
       const response = await apiClient.getDocuments({ limit: 50 })
-      setCvDocuments(response.documents || [])
+      const normalizedDocs = (response.documents || []).map((doc: any) => ({
+        ...doc,
+        file_size: doc.file_size_bytes || doc.file_size || 0,
+      }))
+      setCvDocuments(normalizedDocs)
     } catch (error) {
       console.error('Failed to load CVs:', error)
     }
@@ -49,446 +61,316 @@ export function NewAnalysisView() {
   const loadJobDescriptions = async () => {
     try {
       const response = await apiClient.getJobDescriptions({ limit: 50 })
-      setJobDescriptions(Array.isArray(response) ? response : response.items || [])
+      setJobDescriptions(response.items || [])
     } catch (error) {
       console.error('Failed to load JDs:', error)
     }
   }
 
-  const handleCVSelect = (cvId: string) => {
-    setSelectedCV(cvId)
-  }
-
-  const handleJDSelect = (jdId: string) => {
-    setSelectedJD(jdId)
-  }
-
-  const handleNextFromCV = () => {
-    if (!selectedCV) {
-      toast.error('Please select a CV first')
-      return
-    }
-    setStep('select-jd')
-  }
-
-  const handleCreateJD = async () => {
-    if (!newJDTitle || !newJDText) {
-      toast.error('Please fill in all required fields')
-      return
-    }
-
-    setLoading(true)
-    try {
-      const jd = await apiClient.createJobDescription({
-        title: newJDTitle,
-        company: newJDCompany || 'Unknown Company',
-        description: newJDText,
-        required_skills: [],
-        preferred_skills: [],
-        experience_level: null,
-        education_requirements: null,
-        work_arrangement: null,
-        salary_range_min: null,
-        salary_range_max: null,
-      })
-      
-      setSelectedJD(jd.id)
-      
-      if (selectedCV && jd.id) {
-        setStep('analyzing')
-        try {
-          const analysis = await apiClient.createAnalysis(selectedCV, jd.id)
-          await new Promise(resolve => setTimeout(resolve, 2000))
-          router.push(`/analysis/${analysis.id}`)
-        } catch (error: any) {
-          console.error('Failed to create analysis:', error)
-          toast.error(error.response?.data?.detail || 'Failed to create analysis')
-          setStep('select-jd')
-        }
-      }
-    } catch (error: any) {
-      console.error('Failed to create job description:', error)
-      toast.error(error.response?.data?.detail || 'Failed to create job description')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handleAnalyze = async () => {
-    if (!selectedCV || !selectedJD) {
+    if (!selectedCV || (!selectedJD && uploadMode === 'existing')) {
       toast.error('Please select both CV and Job Description')
       return
     }
-
     setStep('analyzing')
     setLoading(true)
-    setStatusMessage('Connecting to AI agents...')
-
     try {
-      const analysis = await apiClient.createAnalysis(selectedCV, selectedJD, responseLanguage)
-      
+      let finalJDId = selectedJD
+      if (uploadMode === 'new') {
+        setStatusMessage('Structuring Job Data...')
+        const jd = await apiClient.createJobDescription({
+          title: newJDTitle,
+          company: newJDCompany || 'Direct Opportunity',
+          description: newJDText,
+          required_skills: [],
+          preferred_skills: [],
+        })
+        finalJDId = jd.id
+      }
+      if (!finalJDId) throw new Error('Failed to identify target job')
+      setStatusMessage('Extracting Semantic Tokens...')
+      const analysis = await apiClient.createAnalysis(selectedCV, finalJDId, responseLanguage)
       const maxAttempts = 30
       let attempts = 0
-      
+      const statuses = [
+        'Running Neural Matcher...', 'Cross-referencing Skills...',
+        'Identifying ATS Gaps...', 'Generating Recommendations...', 'Finalizing AI Report...',
+      ]
       while (attempts < maxAttempts) {
+        setStatusMessage(statuses[Math.min(Math.floor(attempts / 2), statuses.length - 1)])
         await new Promise(resolve => setTimeout(resolve, 2000))
         try {
           const result = await apiClient.getAnalysis(analysis.id)
-          
-          try {
-            const cvDoc = await apiClient.getDocument(selectedCV)
-            if (cvDoc.status_message) {
-              setStatusMessage(cvDoc.status_message)
-            }
-          } catch (docErr) {
-            if (result.analysis_status === 'processing') {
-              setStatusMessage('Extracting deep insights...')
-            }
-          }
-
           if (result.analysis_status === 'completed' || result.processing_status === 'completed') {
-            setStatusMessage('Analysis complete! Preparing results...')
-            await new Promise(resolve => setTimeout(resolve, 1000))
+            setStatusMessage('Analysis Complete!')
+            await new Promise(resolve => setTimeout(resolve, 800))
             router.push(`/analysis/${analysis.id}`)
             return
           } else if (result.analysis_status === 'failed' || result.processing_status === 'failed') {
-            throw new Error('Analysis failed. Please try again.')
+            throw new Error('Analysis failed')
           }
-          attempts++
         } catch (pollError) {
           console.error('Polling error:', pollError)
-          attempts++
         }
+        attempts++
       }
       router.push(`/analysis/${analysis.id}`)
     } catch (error: any) {
-      console.error('Failed to create analysis:', error)
-      toast.error(error.response?.data?.detail || error.message || 'Failed to create analysis')
+      toast.error(error.message || 'Failed to start analysis')
       setStep('select-jd')
     } finally {
       setLoading(false)
     }
   }
 
-  const formatFileSize = (bytes: number): string => {
-    if (bytes < 1024) return bytes + ' B'
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
-  }
-
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
-  }
+  // ── Shared input classes ──────────────────────────────────────────────────
+  const inputCls = 'w-full bg-white dark:bg-slate-800/50 border border-gray-300 dark:border-slate-700 rounded-xl py-3 pl-11 pr-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all'
 
   return (
-    <div className="min-h-screen theme-bg theme-text relative overflow-hidden">
-      <div className="fixed inset-0 z-0">
-        <div className="absolute inset-0 theme-glow-bg" />
-        <div className="absolute top-0 left-1/4 w-96 h-96 theme-glow-1 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 theme-glow-2 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+    <div className="max-w-5xl mx-auto space-y-6 pb-10" style={{ fontFamily: 'Roboto, sans-serif' }}>
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="w-11 h-11 rounded-2xl bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/20 flex items-center justify-center">
+            <BrainCircuit className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">New Analysis</h1>
+            <p className="text-sm text-gray-500 dark:text-neutral-400 mt-0.5">Match your resume to a job description</p>
+          </div>
+        </div>
+        {step !== 'analyzing' && (
+          <button onClick={() => router.back()}
+            className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-neutral-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+            <ArrowLeft className="w-4 h-4" /> Cancel
+          </button>
+        )}
       </div>
 
-      <header className="relative z-10 theme-card backdrop-blur-xl border-b theme-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
-                New CV Analysis
-              </h1>
-              <p className="text-sm theme-text-tertiary mt-1">Match your CV with a job description</p>
-            </div>
-            <button
-              onClick={() => router.back()}
-              className="px-4 py-2 theme-text-secondary hover:theme-text transition-colors"
-            >
-              ← Back
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-center justify-center mb-8">
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center">
-              <motion.div
-                className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
-                  step === 'select-cv'
-                    ? 'bg-gradient-to-r from-sky-500 to-blue-500 text-white'
-                    : 'bg-green-500 text-white'
-                }`}
-                whileHover={{ scale: 1.1 }}
-              >
-                {step === 'select-cv' ? '1' : '✓'}
-              </motion.div>
-              <span className="ml-2 font-medium">Select CV</span>
-            </div>
-            <div className="w-16 h-1 theme-border"></div>
-            <div className="flex items-center">
-              <motion.div
-                className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
-                  step === 'select-jd' || step === 'analyzing'
-                    ? 'bg-gradient-to-r from-sky-500 to-blue-500 text-white'
-                    : step === 'results'
-                    ? 'bg-green-500 text-white'
-                    : 'theme-card theme-text-tertiary'
-                }`}
-                whileHover={{ scale: 1.1 }}
-              >
-                {step === 'results' ? '✓' : '2'}
-              </motion.div>
-              <span className="ml-2 font-medium">Select Job</span>
-            </div>
-            <div className="w-16 h-1 theme-border"></div>
-            <div className="flex items-center">
-              <motion.div
-                className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
-                  step === 'analyzing' || step === 'results'
-                    ? 'bg-gradient-to-r from-sky-500 to-blue-500 text-white'
-                    : 'theme-card theme-text-tertiary'
-                }`}
-                whileHover={{ scale: 1.1 }}
-              >
-                3
-              </motion.div>
-              <span className="ml-2 font-medium">Analyze</span>
-            </div>
-          </div>
-        </div>
-
-
-        <AnimatePresence mode="wait">
-          {step === 'select-cv' && (
-            <motion.div
-              key="select-cv"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              className="theme-card backdrop-blur-xl rounded-3xl border theme-border p-8"
-            >
-              <h2 className="text-2xl font-bold mb-6">Select Your CV</h2>
-              {cvDocuments.length === 0 ? (
-                <div className="text-center py-16">
-                  <div className="text-6xl mb-6">📄</div>
-                  <h3 className="text-xl font-semibold mb-2">No CVs uploaded yet</h3>
-                  <p className="theme-text-tertiary mb-8">Upload a CV first to start analysis</p>
-                  <motion.button
-                    onClick={() => router.push('/upload')}
-                    className="px-8 py-4 rounded-full bg-gradient-to-r from-sky-500 to-blue-500 text-white font-semibold"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    Upload CV
-                  </motion.button>
+      {/* Stepper */}
+      {step !== 'analyzing' && (
+        <div className="relative flex items-center justify-center py-3">
+          <div className="absolute top-1/2 left-0 right-0 h-px bg-gray-200 dark:bg-slate-700 -translate-y-1/2 z-0" />
+          <div className="relative z-10 flex items-center gap-20 sm:gap-32">
+            {[
+              { id: 'select-cv', label: 'Resume',     icon: FileText },
+              { id: 'select-jd', label: 'Job Target', icon: Target   },
+              { id: 'analyzing', label: 'Analysis',   icon: Cpu      },
+            ].map((s) => {
+              const isPast = (step === 'select-jd' && s.id === 'select-cv') || (step === 'analyzing' && s.id !== 'analyzing')
+              const isCurrent = step === s.id
+              return (
+                <div key={s.id} className="flex flex-col items-center gap-2">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all border-2 ${
+                    isPast    ? 'bg-emerald-500 border-emerald-400 text-white shadow-md shadow-emerald-500/20' :
+                    isCurrent ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-500/20' :
+                    'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-400 dark:text-slate-500'
+                  }`}>
+                    {isPast ? <CheckCircle2 className="w-5 h-5" /> : <s.icon className="w-4.5 h-4.5" />}
+                  </div>
+                  <span className={`text-xs font-semibold ${isCurrent ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-neutral-500'}`}>
+                    {s.label}
+                  </span>
                 </div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                    {cvDocuments.map((cv) => (
-                      <motion.div
-                        key={cv.id}
-                        onClick={() => handleCVSelect(cv.id)}
-                        className={`p-4 border-2 rounded-2xl cursor-pointer transition-all theme-card ${
-                          selectedCV === cv.id
-                            ? 'border-sky-500 bg-sky-500/10'
-                            : 'theme-border hover:border-sky-500/40'
-                        }`}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                      >
-                        <div className="flex items-start">
-                          <div className="flex-shrink-0">
-                            <div className="w-12 h-16 bg-gradient-to-br from-sky-500/20 to-blue-500/20 rounded flex items-center justify-center border border-sky-500/30">
-                              <span className="text-2xl">📄</span>
-                            </div>
-                          </div>
-                          <div className="ml-4 flex-1">
-                            <h3 className="font-semibold mb-1 theme-text">{cv.original_filename}</h3>
-                            <p className="text-sm theme-text-tertiary">{formatFileSize(cv.file_size_bytes || 0)}</p>
-                            <p className="text-xs theme-text-quaternary">{formatDate(cv.created_at)}</p>
-                          </div>
-                          {selectedCV === cv.id && (
-                            <div className="flex-shrink-0">
-                              <span className="text-2xl">✓</span>
-                            </div>
-                          )}
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Content */}
+      <AnimatePresence mode="wait">
+
+        {/* ── Step 1: Select CV ── */}
+        {step === 'select-cv' && (
+          <motion.div key="select-cv" initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 16 }} className="space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Upload new */}
+              <motion.div whileHover={{ y: -2 }} onClick={() => router.push('/upload')}
+                className="p-6 rounded-2xl bg-white dark:bg-[#0f0f11] border-2 border-dashed border-gray-300 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/5 transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-3 group shadow-sm">
+                <div className="w-11 h-11 rounded-xl bg-gray-100 dark:bg-slate-800 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Plus className="w-5 h-5 text-gray-400 dark:text-slate-500 group-hover:text-blue-500 transition-colors" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-gray-900 dark:text-white text-sm">Upload New CV</h4>
+                  <p className="text-gray-500 dark:text-neutral-400 text-xs mt-0.5">Add a new version</p>
+                </div>
+              </motion.div>
+
+              {/* CV cards */}
+              {cvDocuments.map((cv, i) => (
+                <motion.div key={cv.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                  whileHover={{ y: -2 }} onClick={() => setSelectedCV(cv.id)}
+                  className={`p-5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden group shadow-sm ${
+                    selectedCV === cv.id
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/5'
+                      : 'bg-white dark:bg-[#0f0f11] border-gray-200 dark:border-[#1e1e24] hover:border-blue-300 dark:hover:border-blue-600'
+                  }`}>
+                  {selectedCV === cv.id && (
+                    <div className="absolute top-3 right-3 text-blue-500"><CheckCircle2 className="w-5 h-5" /></div>
+                  )}
+                  <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-slate-800 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <FileText className="w-5 h-5 text-gray-500 dark:text-neutral-400" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900 dark:text-white text-sm line-clamp-1">{cv.original_filename}</h4>
+                    <p className="text-gray-500 dark:text-neutral-400 text-xs mt-0.5">{new Date(cv.created_at).toLocaleDateString()}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+
+            <div className="flex justify-center pt-2">
+              <button onClick={() => setStep('select-jd')} disabled={!selectedCV}
+                className="flex items-center gap-2 px-7 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold shadow-lg shadow-blue-500/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed group">
+                Next: Select Job <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Step 2: Select JD ── */}
+        {step === 'select-jd' && (
+          <motion.div key="select-jd" initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 16 }} className="space-y-5">
+            <div className="flex flex-col lg:flex-row gap-5">
+
+              {/* Left: JD selector */}
+              <div className="lg:w-1/2 space-y-4">
+                {/* Toggle */}
+                <div className="flex p-1 bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl">
+                  {(['existing','new'] as const).map(m => (
+                    <button key={m} onClick={() => setUploadMode(m)}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${uploadMode === m ? 'bg-white dark:bg-[#0f0f11] text-blue-600 dark:text-white shadow-sm border border-gray-200 dark:border-slate-700' : 'text-gray-500 dark:text-neutral-400 hover:text-gray-900 dark:hover:text-white'}`}>
+                      {m === 'existing' ? 'From Library' : 'Create New'}
+                    </button>
+                  ))}
+                </div>
+
+                {uploadMode === 'existing' ? (
+                  <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
+                    {jobDescriptions.length === 0 ? (
+                      <div className="py-10 text-center text-sm text-gray-500 dark:text-neutral-400 bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] rounded-xl">
+                        No job descriptions yet. Create one.
+                      </div>
+                    ) : jobDescriptions.map((jd) => (
+                      <div key={jd.id} onClick={() => setSelectedJD(jd.id)}
+                        className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex items-center gap-3 group ${
+                          selectedJD === jd.id
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/5'
+                            : 'bg-white dark:bg-[#0f0f11] border-gray-200 dark:border-[#1e1e24] hover:border-blue-300 dark:hover:border-blue-600'
+                        }`}>
+                        <div className={`p-2 rounded-lg transition-transform group-hover:scale-110 ${selectedJD === jd.id ? 'bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-neutral-400'}`}>
+                          <Briefcase className="w-4 h-4" />
                         </div>
-                      </motion.div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-gray-900 dark:text-white font-semibold text-sm truncate">{jd.title}</h4>
+                          <p className="text-gray-500 dark:text-neutral-400 text-xs">{jd.company}</p>
+                        </div>
+                        {selectedJD === jd.id && <CheckCircle2 className="w-4 h-4 text-blue-500 shrink-0" />}
+                      </div>
                     ))}
                   </div>
-                  <div className="flex justify-end">
-                    <motion.button
-                      onClick={handleNextFromCV}
-                      disabled={!selectedCV}
-                      className="px-8 py-3 rounded-full bg-gradient-to-r from-sky-500 to-blue-500 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
-                      whileHover={!selectedCV ? {} : { scale: 1.05 }}
-                      whileTap={!selectedCV ? {} : { scale: 0.95 }}
-                    >
-                      <span className="relative z-10">Next: Select Job →</span>
-                      {selectedCV && (
-                        <div className="absolute inset-0 bg-gradient-to-r from-sky-600 to-blue-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                      )}
-                    </motion.button>
-                  </div>
-                </>
-              )}
-            </motion.div>
-          )}
-
-          {step === 'select-jd' && (
-            <motion.div
-              key="select-jd"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              className="theme-card backdrop-blur-xl rounded-3xl border theme-border p-8"
-            >
-              <h2 className="text-2xl font-bold mb-6">Select Job Description</h2>
-              <div className="flex space-x-4 mb-6">
-                <button onClick={() => setUploadMode('existing')}
-                  className={`flex-1 py-3 px-4 rounded-xl font-medium transition-colors ${
-                    uploadMode === 'existing' ? 'bg-sky-600 text-white' : 'theme-card theme-text-secondary hover:bg-opacity-80'
-                  }`}>Select Existing</button>
-                <button onClick={() => setUploadMode('new')}
-                  className={`flex-1 py-3 px-4 rounded-xl font-medium transition-colors ${
-                    uploadMode === 'new' ? 'bg-sky-600 text-white' : 'theme-card theme-text-secondary hover:bg-opacity-80'
-                  }`}>Create New</button>
-              </div>
-
-              {uploadMode === 'existing' ? (
-                <>
-                  {jobDescriptions.length === 0 ? (
-                    <div className="text-center py-12">
-                      <div className="text-6xl mb-4">💼</div>
-                      <h3 className="text-xl font-semibold mb-2 theme-text">No job descriptions yet</h3>
-                      <p className="theme-text-tertiary mb-6">Create a new job description to continue</p>
-                      <button onClick={() => setUploadMode('new')}
-                        className="px-6 py-3 bg-sky-600 text-white rounded-xl hover:bg-sky-500 transition-colors">
-                        Create Job Description
-                      </button>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="relative">
+                      <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input type="text" value={newJDTitle} onChange={e => setNewJDTitle(e.target.value)} placeholder="Job Title" className={inputCls} />
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-3 mb-6 max-h-72 overflow-y-auto">
-                      {jobDescriptions.map((jd) => (
-                        <motion.div key={jd.id} onClick={() => handleJDSelect(jd.id)}
-                          className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                            selectedJD === jd.id ? 'border-sky-500 bg-sky-500/10' : 'theme-border hover:border-sky-500/40'
-                          }`}
-                          whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h3 className="font-semibold">{jd.title}</h3>
-                              <p className="text-sm theme-text-quaternary">{formatDate(jd.created_at)}</p>
-                            </div>
-                            {selectedJD === jd.id && <span className="text-sky-400 text-xl">✓</span>}
-                          </div>
-                        </motion.div>
-                      ))}
+                    <div className="relative">
+                      <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input type="text" value={newJDCompany} onChange={e => setNewJDCompany(e.target.value)} placeholder="Company Name" className={inputCls} />
                     </div>
-                  )}
-                </>
-              ) : (
-                <div className="space-y-4 mb-6">
-                  <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 text-sm text-blue-300">
-                    After creating the job description, the analysis will start automatically!
-                  </div>
-                  <input type="text" value={newJDTitle} onChange={(e) => setNewJDTitle(e.target.value)}
-                    placeholder="Job Title *"
-                    className="w-full px-4 py-3 theme-card border theme-border rounded-xl theme-text placeholder-opacity-40 focus:outline-none focus:border-sky-500" />
-                  <input type="text" value={newJDCompany} onChange={(e) => setNewJDCompany(e.target.value)}
-                    placeholder="Company Name"
-                    className="w-full px-4 py-3 theme-card border theme-border rounded-xl theme-text placeholder-opacity-40 focus:outline-none focus:border-sky-500" />
-                  <textarea value={newJDText} onChange={(e) => setNewJDText(e.target.value)}
-                    placeholder="Paste the job description here... (min 50 words)" rows={8}
-                    className="w-full px-4 py-3 theme-card border theme-border rounded-xl theme-text placeholder-opacity-40 focus:outline-none focus:border-sky-500 resize-none" />
-                  <button onClick={handleCreateJD} disabled={loading || !newJDTitle || !newJDText}
-                    className="w-full py-3 bg-gradient-to-r from-sky-600 to-blue-600 text-white rounded-xl disabled:opacity-40 hover:opacity-90 transition-opacity font-medium">
-                    {loading ? 'Creating & Analyzing...' : 'Create & Start Analysis →'}
-                  </button>
-                </div>
-              )}
-
-              <div className="flex justify-between items-end mt-4">
-                <button onClick={() => setStep('select-cv')}
-                  className="px-6 py-3 theme-card border theme-border theme-text-secondary rounded-xl hover:border-sky-500/40 transition-colors">
-                  ← Back
-                </button>
-                {uploadMode === 'existing' && jobDescriptions.length > 0 && (
-                  <div className="flex flex-col gap-3 items-end">
-                    <LanguageSelector value={responseLanguage} onChange={setResponseLanguage} disabled={loading} />
-                    <button onClick={handleAnalyze} disabled={!selectedJD || loading}
-                      className="px-8 py-3 bg-gradient-to-r from-sky-600 to-blue-600 text-white rounded-xl disabled:opacity-40 hover:opacity-90 transition-opacity font-medium">
-                      Start Analysis →
-                    </button>
+                    <textarea value={newJDText} onChange={e => setNewJDText(e.target.value)} rows={8}
+                      placeholder="Paste the full job description here..."
+                      className="w-full bg-white dark:bg-slate-800/50 border border-gray-300 dark:border-slate-700 rounded-xl p-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all resize-none" />
                   </div>
                 )}
               </div>
-            </motion.div>
-          )}
 
-          {step === 'analyzing' && (
-            <motion.div
-              key="analyzing"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="theme-card backdrop-blur-xl rounded-3xl border theme-border p-12 text-center"
-            >
-              <div className="mb-8 relative">
-                <motion.div
-                  className="inline-block"
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                >
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-r from-sky-500 to-blue-500 flex items-center justify-center">
-                    <span className="text-4xl">🔍</span>
+              {/* Right: Settings */}
+              <div className="lg:w-1/2">
+                <div className="p-6 rounded-2xl bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] shadow-sm space-y-6">
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-semibold text-gray-500 dark:text-neutral-400 tracking-wide">Analysis Mode</h4>
+                    <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-500/5 border border-blue-200 dark:border-blue-500/20 flex items-start gap-3">
+                      <Sparkles className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">Advanced RAG Mode</p>
+                        <p className="text-xs text-gray-500 dark:text-neutral-400 mt-0.5 leading-relaxed">
+                          Deep semantic cross-referencing between your expertise and job requirements.
+                        </p>
+                      </div>
+                    </div>
                   </div>
+
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-semibold text-gray-500 dark:text-neutral-400 tracking-wide">Response Language</h4>
+                    <LanguageSelector value={responseLanguage} onChange={setResponseLanguage} />
+                  </div>
+
+                  <button onClick={handleAnalyze} disabled={loading || (!selectedJD && !newJDTitle)}
+                    className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-sm shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
+                    <Zap className="w-4 h-4" /> Start Analysis
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Step 3: Analyzing ── */}
+        {step === 'analyzing' && (
+          <motion.div key="analyzing" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="py-8">
+            <div className="relative max-w-xl mx-auto p-10 rounded-2xl bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] shadow-sm text-center space-y-8 overflow-hidden">
+              <div className="absolute inset-0 pointer-events-none"
+                style={{ background: 'radial-gradient(circle at 50% 0%, rgba(59,130,246,0.06) 0%, transparent 60%)' }} />
+
+              {/* Spinner */}
+              <div className="relative">
+                <motion.div animate={{ rotate: 360 }} transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
+                  className="w-28 h-28 mx-auto rounded-full border-2 border-dashed border-blue-300 dark:border-blue-500/30 flex items-center justify-center">
+                  <motion.div animate={{ scale: [1, 1.12, 1] }} transition={{ duration: 2, repeat: Infinity }}
+                    className="w-14 h-14 rounded-2xl bg-blue-600 shadow-xl shadow-blue-500/30 flex items-center justify-center">
+                    <Zap className="w-7 h-7 text-white" />
+                  </motion.div>
                 </motion.div>
-                <motion.div
-                  className="absolute inset-0 rounded-full border-2 border-sky-500/30"
-                  animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl" />
               </div>
-              <h2 className="text-3xl font-bold mb-4 bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
-                Analyzing Your CV...
-              </h2>
-              
-              <motion.div 
-                key={statusMessage}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mb-8 p-4 rounded-2xl bg-sky-500/10 border border-sky-500/20"
-              >
-                <p className="text-xl font-medium text-sky-400 flex items-center justify-center">
-                  <span className="mr-2 animate-pulse">●</span>
-                  {statusMessage}
-                </p>
-              </motion.div>
 
-              <div className="space-y-4 mb-8 max-w-md mx-auto">
-                <div className="flex items-center space-x-3 text-left">
-                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${statusMessage.includes('completed') || statusMessage.includes('ready') ? 'bg-green-500' : 'bg-sky-500 animate-pulse'}`}>
-                    <span className="text-white text-sm">{statusMessage.includes('completed') || statusMessage.includes('ready') ? '✓' : '⚡'}</span>
-                  </div>
-                  <span className="theme-text">Intelligence Engine: Processing</span>
-                </div>
-                <div className="flex items-center space-x-3 text-left">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full theme-card flex items-center justify-center">
-                    <span className="theme-text-tertiary text-sm">○</span>
-                  </div>
-                  <span className="theme-text-tertiary">Generating RAG Insights</span>
+              <div className="space-y-3 relative z-10">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white" style={{ fontFamily: 'Roboto, sans-serif' }}>{statusMessage}</h2>
+                <div className="flex items-center justify-center gap-5">
+                  {[['Neural Engine','blue'],['Semantic Map','indigo']].map(([label, color]) => (
+                    <div key={label} className="flex items-center gap-1.5">
+                      <div className={`w-2 h-2 rounded-full bg-${color}-500 animate-pulse`} />
+                      <span className="text-xs font-medium text-gray-500 dark:text-neutral-400">{label}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
-              <p className="theme-text-tertiary text-sm italic">Privacy Shield: PII Masking is active</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+
+              <div className="grid grid-cols-2 gap-3 relative z-10">
+                <div className="p-4 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 space-y-1.5">
+                  <Database className="w-5 h-5 text-gray-400 dark:text-neutral-500 mx-auto" />
+                  <div className="text-xs font-medium text-gray-500 dark:text-neutral-400">Tokens Parsed</div>
+                  <div className="text-lg font-bold text-gray-900 dark:text-white">4.2k+</div>
+                </div>
+                <div className="p-4 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 space-y-1.5">
+                  <ShieldCheck className="w-5 h-5 text-gray-400 dark:text-neutral-500 mx-auto" />
+                  <div className="text-xs font-medium text-gray-500 dark:text-neutral-400">Privacy Mask</div>
+                  <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">Active</div>
+                </div>
+              </div>
+
+              <p className="text-xs text-gray-400 dark:text-neutral-500 relative z-10">
+                AI is processing your request. This may take up to 60 seconds.
+              </p>
+            </div>
+          </motion.div>
+        )}
+
+      </AnimatePresence>
     </div>
   )
 }

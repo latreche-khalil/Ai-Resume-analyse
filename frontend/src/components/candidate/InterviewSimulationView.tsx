@@ -5,25 +5,27 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
 import { toast } from 'sonner'
+import {
+  Bot, Mic, Square, RefreshCcw, Send, Settings2, Target,
+  BrainCircuit, Award, Clock, Volume2, VolumeX,
+  ChevronLeft, ChevronRight, Activity, CheckCircle2
+} from 'lucide-react'
 
 type Phase = 'setup' | 'interview' | 'complete'
-
 interface Question { id: string; text: string; type: string }
 interface Evaluation { scores: { relevance: number; completeness: number; clarity: number }; feedback: string }
+
+const FONT = { fontFamily: 'Roboto, sans-serif' }
 
 export function InterviewSimulationView() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [phase, setPhase] = useState<Phase>('setup')
   const [jds, setJds] = useState<any[]>([])
-  
-  // Setup State
   const [selectedJd, setSelectedJd] = useState('')
   const [difficulty, setDifficulty] = useState<'junior' | 'mid' | 'senior'>('mid')
   const [interviewType, setInterviewType] = useState<'technical' | 'behavioral' | 'mixed'>('mixed')
   const [mode, setMode] = useState<'training' | 'test'>('training')
-  
-  // Active Interview State
   const [sessionId, setSessionId] = useState('')
   const [question, setQuestion] = useState<Question | null>(null)
   const [answer, setAnswer] = useState('')
@@ -32,113 +34,60 @@ export function InterviewSimulationView() {
   const [loading, setLoading] = useState(false)
   const [timeSeconds, setTimeSeconds] = useState(0)
   const [report, setReport] = useState<any>(null)
-
-  // Voice State
   const [isListening, setIsListening] = useState(false)
-  const [isAiSpeaking, setIsAiSpeaking] = useState(false)
-  const [voiceMode, setVoiceMode] = useState(true)
+  const [voiceMode, setVoiceMode] = useState(false)
   const [recognition, setRecognition] = useState<any>(null)
 
   useEffect(() => {
-    // Initialize Speech Recognition
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (SpeechRecognition) {
-      const rec = new SpeechRecognition()
-      rec.continuous = true
-      rec.interimResults = true
-      rec.lang = 'ar-SA'
-
-      rec.onresult = (event: any) => {
-        const transcript = Array.from(event.results)
-          .map((result: any) => result[0])
-          .map((result: any) => result.transcript)
-          .join('')
-        setAnswer(transcript)
-      }
-
-      rec.onerror = (event: any) => {
-        console.error('Speech recognition error', event.error)
-        setIsListening(false)
-      }
-
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (SR) {
+      const rec = new SR()
+      rec.continuous = true; rec.interimResults = true; rec.lang = 'en-US'
+      rec.onresult = (e: any) => setAnswer(Array.from(e.results).map((r: any) => r[0].transcript).join(''))
+      rec.onerror = () => setIsListening(false)
       rec.onend = () => setIsListening(false)
       setRecognition(rec)
     }
   }, [])
 
-  // Text-to-Speech Helper
-  const speak = (text: string) => {
-    if (!voiceMode || typeof window === 'undefined') return
-    window.speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.lang = /[\u0600-\u06FF]/.test(text) ? 'ar-SA' : 'en-US'
-    utterance.rate = 0.9
-    utterance.onstart = () => setIsAiSpeaking(true)
-    utterance.onend = () => setIsAiSpeaking(false)
-    window.speechSynthesis.speak(utterance)
-  }
-
-  const toggleMic = () => {
-    if (isListening) {
-      recognition?.stop()
-      setIsListening(false)
-    } else {
-      setAnswer('')
-      if (recognition && question) {
-        // Dynamic language detection based on question
-        const isArabic = /[\u0600-\u06FF]/.test(question.text)
-        recognition.lang = isArabic ? 'ar-SA' : 'en-US'
-      }
-      recognition?.start()
-      setIsListening(true)
-      const msg = recognition.lang === 'ar-SA' ? 'تحدث الآن (بالعربية)...' : 'Speak now (English)...'
-      toast.info(msg)
-    }
-  }
-
-  // Effect to speak new questions
-  useEffect(() => {
-    if (phase === 'interview' && question && !evaluation && !loading) {
-      speak(question.text)
-    }
-  }, [question, phase])
-
   useEffect(() => {
     const jdId = searchParams.get('jd_id')
-    if (jdId) {
-      setSelectedJd(jdId)
-      // If we have a JD, we can even skip fetching the list to stay minimal
-    } else {
-      apiClient.getJobDescriptions({ limit: 20 }).then(r => setJds(Array.isArray(r) ? r : r.items || []))
-    }
+    if (jdId) setSelectedJd(jdId)
+    else apiClient.getJobDescriptions({ limit: 20 }).then(r => setJds(r.items || []))
   }, [])
 
-  // Timer Effect
   useEffect(() => {
-    let interval: NodeJS.Timeout
-    if (phase === 'interview' && !evaluation && !loading) {
-      interval = setInterval(() => setTimeSeconds(s => s + 1), 1000)
-    }
-    return () => clearInterval(interval)
+    let t: NodeJS.Timeout
+    if (phase === 'interview' && !evaluation && !loading)
+      t = setInterval(() => setTimeSeconds(s => s + 1), 1000)
+    return () => clearInterval(t)
   }, [phase, evaluation, loading])
 
+  const speak = (text: string) => {
+    if (!voiceMode) return
+    window.speechSynthesis.cancel()
+    const u = new SpeechSynthesisUtterance(text)
+    u.lang = /[\u0600-\u06FF]/.test(text) ? 'ar-SA' : 'en-US'
+    window.speechSynthesis.speak(u)
+  }
+
+  useEffect(() => { if (phase === 'interview' && question && !evaluation) speak(question.text) }, [question])
+
+  const toggleMic = () => {
+    if (isListening) { recognition?.stop(); setIsListening(false) }
+    else { setAnswer(''); recognition?.start(); setIsListening(true); toast.info('Listening...') }
+  }
+
   const startInterview = async () => {
-    if (!selectedJd) {
-      toast.error('الرجاء اختيار الوصف الوظيفي للمتابعة')
-      return
-    }
+    if (!selectedJd) return toast.error('Please select a Job Description.')
     setLoading(true)
     try {
-      // Logic: Pass new parameters to startInterview
-      const res = await apiClient.startInterview(selectedJd, { difficulty, interviewType, mode })
+      const res = await apiClient.startInterview(selectedJd, { difficulty, interview_type: interviewType, mode })
       setSessionId(res.session_id)
       setQuestion({ id: res.question_id, text: res.question, type: interviewType })
-      setPhase('interview')
-      setTimeSeconds(0)
-      toast.success('تم تجهيز الوكيل الذكي بنجاح')
-    } catch (e: any) {
-      toast.error(e.response?.data?.detail || 'فشل في بدء المقابلة')
-    } finally { setLoading(false) }
+      setPhase('interview'); setTimeSeconds(0)
+    } catch (e: any) { toast.error(e?.message || 'Failed to start interview.') }
+    finally { setLoading(false) }
   }
 
   const submitAnswer = async () => {
@@ -147,13 +96,9 @@ export function InterviewSimulationView() {
     try {
       const res = await apiClient.submitInterviewAnswer(sessionId, question.id, answer)
       setEvaluation(res.evaluation)
-      if (!res.next_question) {
-        const rep = await apiClient.getInterviewReport(sessionId)
-        setReport(rep)
-      }
-    } catch (e: any) {
-      toast.error(e.response?.data?.detail || 'فشل في تقييم الإجابة')
-    } finally { setLoading(false) }
+      if (!res.next_question) { const rep = await apiClient.getInterviewReport(sessionId); setReport(rep) }
+    } catch (e: any) { toast.error(e?.message || 'Failed to submit answer.') }
+    finally { setLoading(false) }
   }
 
   const nextQuestion = async () => {
@@ -162,277 +107,264 @@ export function InterviewSimulationView() {
       const res = await apiClient.getInterviewNextQuestion(sessionId)
       if (res.question) {
         setQuestion({ id: res.id, text: res.text, type: res.type || 'adaptive' })
-        setQuestionNum(q => q + 1)
-        setAnswer('')
-        setEvaluation(null)
-        setTimeSeconds(0)
-      } else {
-        setPhase('complete')
-      }
-    } catch (e) {
-      setPhase('complete')
-    } finally { setLoading(false) }
+        setQuestionNum(q => q + 1); setAnswer(''); setEvaluation(null); setTimeSeconds(0)
+      } else setPhase('complete')
+    } catch { setPhase('complete') }
+    finally { setLoading(false) }
   }
 
-  const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`
+  const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`
 
   return (
-    <div className="min-h-screen theme-bg theme-text selection:bg-sky-500/30">
-      {/* Dynamic Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-white/5 backdrop-blur-xl border-b theme-border px-8 py-4 flex items-center justify-between">
+    <div className="max-w-5xl mx-auto space-y-6 pb-10" style={FONT}>
+
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={() => router.push('/dashboard')} className="p-2 hover:bg-white/5 rounded-full transition-colors text-sm opacity-60">← عودة</button>
-          <div className="flex items-center gap-2">
-            <span className="text-xl">🤖</span>
-            <span className="font-black tracking-tight text-lg">AI Simulation Hub</span>
+          <button onClick={() => router.push('/dashboard')}
+            className="p-2 rounded-xl border border-gray-200 dark:border-slate-700 text-gray-500 dark:text-neutral-400 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all">
+            <ChevronLeft size={18} />
+          </button>
+          <div className="w-11 h-11 rounded-2xl bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 flex items-center justify-center">
+            <Bot size={20} className="text-violet-600 dark:text-violet-400" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Mock Interview</h1>
+            <p className="text-xs text-gray-500 dark:text-neutral-400 mt-0.5">AI-powered interview simulation</p>
           </div>
         </div>
-        
+
         {phase === 'interview' && (
-          <div className="flex items-center gap-8">
-            <button 
-              onClick={() => {
-                setVoiceMode(!voiceMode)
-                if (voiceMode) window.speechSynthesis.cancel()
-              }}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${voiceMode ? 'bg-sky-500/10 border-sky-500/50 text-sky-400' : 'bg-white/5 border-white/10 opacity-40'}`}
-            >
-              <span className="text-xs">{voiceMode ? '🔊 Voice ON' : '🔇 Voice OFF'}</span>
+          <div className="flex items-center gap-4 px-5 py-2.5 bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] rounded-xl shadow-sm">
+            <button onClick={() => { setVoiceMode(v => !v); if (voiceMode) window.speechSynthesis.cancel() }}
+              className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${voiceMode ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-neutral-500'}`}>
+              {voiceMode ? <Volume2 size={14} /> : <VolumeX size={14} />}
+              {voiceMode ? 'Voice On' : 'Voice Off'}
             </button>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] uppercase tracking-widest opacity-40">Timer</span>
-              <span className="font-mono text-sky-400 font-bold">{formatTime(timeSeconds)}</span>
+            <div className="w-px h-4 bg-gray-200 dark:bg-slate-700" />
+            <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-neutral-300">
+              <Clock size={13} className="text-gray-400" />
+              <span className="font-mono w-10">{fmt(timeSeconds)}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] uppercase tracking-widest opacity-40">Progress</span>
-              <span className="font-bold">{questionNum}/5</span>
+            <div className="w-px h-4 bg-gray-200 dark:bg-slate-700" />
+            <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-neutral-300">
+              <Activity size={13} className="text-emerald-500" />
+              Q{questionNum} / 5
             </div>
           </div>
         )}
-      </header>
+      </div>
 
-      <main className="pt-32 pb-20 px-4 max-w-5xl mx-auto">
-        <AnimatePresence mode="wait">
-          
-          {/* Phase 1: Setup Interface */}
-          {phase === 'setup' && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-12">
-              <div className="text-center max-w-2xl mx-auto">
-                <h1 className="text-4xl font-black mb-4 tracking-tight">إعداد بيئة المحاكاة الذكية</h1>
-                <p className="theme-text-tertiary leading-relaxed">قم بتخصيص سياق المقابلة لضمان حصولك على تجربة تعليمية مخصصة بناءً على معايير الأرغونوميا العالمية.</p>
+      <AnimatePresence mode="wait">
+
+        {/* ── SETUP ── */}
+        {phase === 'setup' && (
+          <motion.div key="setup" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
+            <div className="bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] rounded-2xl p-8 shadow-sm">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-xl bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 flex items-center justify-center">
+                  <Settings2 size={18} className="text-violet-600 dark:text-violet-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">Configure Interview</h2>
+                  <p className="text-sm text-gray-500 dark:text-neutral-400">Set up your simulation parameters</p>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {/* Job Selection - Hidden if already provided via URL */}
+              <div className="space-y-6">
+                {/* JD Selection */}
                 {!searchParams.get('jd_id') && (
-                  <div className="md:col-span-3 space-y-4">
-                    <label className="text-[10px] uppercase tracking-[0.3em] font-bold opacity-50">1. الوصف الوظيفي المستهدف</label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-gray-600 dark:text-neutral-300 tracking-wide">
+                      <Target size={13} className="text-blue-500" /> Target Job Description
+                    </label>
                     <select value={selectedJd} onChange={e => setSelectedJd(e.target.value)}
-                      className="w-full bg-white/5 border theme-border rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-sky-500/50 transition-all appearance-none cursor-pointer hover:bg-white/10">
-                      <option value="" className="bg-slate-900">-- اختر الوظيفة لتحليل الفجوات --</option>
-                      {jds.map(jd => <option key={jd.id} value={jd.id} className="bg-slate-900">{jd.title}</option>)}
+                      className="w-full bg-white dark:bg-slate-800/50 border border-gray-300 dark:border-slate-700 rounded-xl px-4 py-3 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 appearance-none cursor-pointer">
+                      <option value="">-- Select a job description --</option>
+                      {jds.map(jd => <option key={jd.id} value={jd.id}>{jd.title} @ {jd.company || 'Unknown'}</option>)}
                     </select>
                   </div>
                 )}
 
-                {/* Difficulty */}
-                <div className="space-y-4">
-                  <label className="text-[10px] uppercase tracking-[0.3em] font-bold opacity-50">2. مستوى الصعوبة</label>
-                  <div className="grid grid-cols-1 gap-2">
-                    {['junior', 'mid', 'senior'].map(d => (
-                      <button key={d} onClick={() => setDifficulty(d as any)}
-                        className={`px-4 py-3 rounded-xl border text-sm font-bold transition-all ${difficulty === d ? 'bg-sky-600 border-sky-400 shadow-lg' : 'theme-card theme-border opacity-50'}`}>
-                        {d.toUpperCase()}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Type */}
-                <div className="space-y-4">
-                  <label className="text-[10px] uppercase tracking-[0.3em] font-bold opacity-50">3. نوع المقابلة</label>
-                  <div className="grid grid-cols-1 gap-2">
-                    {['technical', 'behavioral', 'mixed'].map(t => (
-                      <button key={t} onClick={() => setInterviewType(t as any)}
-                        className={`px-4 py-3 rounded-xl border text-sm font-bold transition-all ${interviewType === t ? 'bg-purple-600 border-purple-400 shadow-lg' : 'theme-card theme-border opacity-50'}`}>
-                        {t.toUpperCase()}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Mode */}
-                <div className="space-y-4">
-                  <label className="text-[10px] uppercase tracking-[0.3em] font-bold opacity-50">4. وضعية التشغيل</label>
-                  <div className="grid grid-cols-1 gap-2">
-                    {['training', 'test'].map(m => (
-                      <button key={m} onClick={() => setMode(m as any)}
-                        className={`px-4 py-3 rounded-xl border text-sm font-bold transition-all ${mode === m ? 'bg-emerald-600 border-emerald-400 shadow-lg' : 'theme-card theme-border opacity-50'}`}>
-                        {m.toUpperCase()}
-                        <span className="block text-[8px] opacity-60 font-normal mt-1">{m === 'training' ? 'نصائح فورية' : 'تقييم نهائي'}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-8 border-t theme-border">
-                <button onClick={startInterview} disabled={!selectedJd || loading}
-                  className="w-full py-5 bg-gradient-to-r from-sky-600 to-blue-700 rounded-2xl font-black text-lg shadow-2xl shadow-sky-600/20 disabled:opacity-30 hover:scale-[1.02] active:scale-[0.98] transition-all">
-                  {loading ? 'جاري تجهيز الوكلاء...' : 'بدء المحاكاة الآن 🚀'}
-                </button>
-                <p className="text-center text-[10px] theme-text-tertiary mt-4 uppercase tracking-widest">Powered by RAG & Multi-Agent Orchestration</p>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Phase 2: Active Simulation */}
-          {phase === 'interview' && question && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="max-w-3xl mx-auto space-y-12">
-              
-              {/* Pulsing AI Agent Avatar */}
-              <div className="flex flex-col items-center justify-center py-12">
-                <div className="relative">
-                  <motion.div 
-                    animate={{ 
-                      scale: isAiSpeaking ? [1, 1.3, 1] : [1, 1.1, 1], 
-                      opacity: isAiSpeaking ? [0.2, 0.5, 0.2] : [0.1, 0.2, 0.1] 
-                    }}
-                    transition={{ duration: isAiSpeaking ? 0.5 : 3, repeat: Infinity }}
-                    className={`absolute inset-0 rounded-full blur-3xl ${isAiSpeaking ? 'bg-sky-400' : 'bg-sky-500'}`}
-                  />
-                  <div className={`relative w-32 h-32 rounded-full theme-card border flex items-center justify-center text-5xl shadow-2xl z-10 transition-all ${isAiSpeaking ? 'border-sky-400 shadow-sky-400/20' : 'theme-border'}`}>
-                    <span className={isAiSpeaking || loading ? 'animate-bounce' : ''}>🤖</span>
-                  </div>
-                  {loading && (
-                    <div className="absolute inset-0 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
-                  )}
-                </div>
-                <div className="mt-6 text-center">
-                  <span className="text-[10px] uppercase tracking-[0.4em] theme-text-tertiary">AI Interviewer is speaking...</span>
-                </div>
-              </div>
-
-              {/* Question Card */}
-              <div className="theme-card rounded-[32px] p-10 border theme-border shadow-2xl relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-2 h-full bg-sky-500" />
-                <div className="flex items-center gap-3 mb-6">
-                  <span className="px-3 py-1 bg-sky-500/10 text-sky-400 text-[10px] font-black uppercase rounded-full">Question {questionNum}</span>
-                  <span className="px-3 py-1 bg-white/5 text-white/40 text-[10px] font-black uppercase rounded-full">{question.type}</span>
-                </div>
-                <p className="text-2xl font-medium leading-relaxed theme-text">{question.text}</p>
-              </div>
-
-              {/* Interaction Zone */}
-              <AnimatePresence mode="wait">
-                {evaluation ? (
-                  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-                    <div className="theme-card border-emerald-500/30 rounded-3xl p-8 bg-emerald-500/5">
-                      <div className="flex items-center justify-between mb-8">
-                        <h3 className="text-xl font-black text-emerald-400 flex items-center gap-2">
-                          <span>✨</span> تحليل الإجابة (Mode: {mode.toUpperCase()})
-                        </h3>
-                        <div className="flex gap-4">
-                          {Object.entries(evaluation.scores).map(([k, v]) => (
-                            <div key={k} className="text-center">
-                              <div className="text-lg font-black text-emerald-500">{Math.round(v * 100)}%</div>
-                              <div className="text-[8px] uppercase tracking-tighter opacity-40">{k}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <p className="theme-text leading-relaxed text-sm">{evaluation.feedback}</p>
-                    </div>
-                    <button onClick={nextQuestion} disabled={loading}
-                      className="w-full py-5 bg-sky-600 hover:bg-sky-700 rounded-2xl font-black transition-all shadow-xl shadow-sky-600/20">
-                      {loading ? 'جاري التحليل...' : 'السؤال التالي ⮕'}
-                    </button>
-                  </motion.div>
-                ) : (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-                    <div className="relative group">
-                      <textarea value={answer} onChange={e => setAnswer(e.target.value)}
-                        placeholder="اكتب إجابتك هنا أو استخدم الميكروفون للتحدث..."
-                        rows={6}
-                        className="w-full bg-white/5 border theme-border rounded-2xl px-8 py-6 theme-text placeholder:opacity-20 focus:outline-none focus:border-sky-500/50 resize-none text-lg transition-all"
-                      />
-                      <div className="absolute bottom-6 right-6 flex items-center gap-4">
-                        {isListening && (
-                          <div className="flex gap-1">
-                            {[1, 2, 3, 4].map(i => (
-                              <motion.div key={i}
-                                animate={{ height: [8, 20, 8] }}
-                                transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.1 }}
-                                className="w-1 bg-sky-500 rounded-full"
-                              />
-                            ))}
-                          </div>
-                        )}
-                        <button onClick={toggleMic}
-                          className={`w-14 h-14 rounded-full flex items-center justify-center transition-all shadow-xl ${isListening ? 'bg-red-500 shadow-red-500/40 scale-110' : 'bg-sky-600 hover:bg-sky-500 shadow-sky-600/20'}`}>
-                          <span className="text-xl">{isListening ? '⏹️' : '🎤'}</span>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Difficulty */}
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-gray-600 dark:text-neutral-300 tracking-wide">
+                      <Activity size={13} className="text-violet-500" /> Difficulty Level
+                    </label>
+                    <div className="flex flex-col gap-2">
+                      {(['junior','mid','senior'] as const).map(d => (
+                        <button key={d} onClick={() => setDifficulty(d)}
+                          className={`px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${difficulty === d ? 'bg-violet-50 dark:bg-violet-500/10 border-violet-400 dark:border-violet-500/50 text-violet-700 dark:text-violet-300' : 'bg-white dark:bg-slate-800/50 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-neutral-400 hover:border-gray-300'}`}>
+                          {d.charAt(0).toUpperCase() + d.slice(1)} Level
                         </button>
-                      </div>
-                    </div>
-                    <div className="flex gap-4">
-                      <button onClick={submitAnswer} disabled={!answer.trim() || loading || isListening}
-                        className="flex-1 py-5 bg-white theme-text-inverse rounded-2xl font-black hover:opacity-90 disabled:opacity-20 transition-all">
-                        {loading ? 'جاري التقييم...' : 'إرسال الإجابة ✅'}
-                      </button>
-                      <button onClick={() => setAnswer('')} disabled={loading || isListening}
-                        className="px-8 py-5 theme-card border theme-border rounded-2xl font-bold hover:bg-red-500/10 hover:border-red-500/20 transition-all text-sm">
-                        🔄 إعادة
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-          )}
-
-          {/* Phase 3: Detailed Report Interface */}
-          {phase === 'complete' && report && (
-            <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="space-y-10">
-              <div className="text-center">
-                <div className="text-6xl mb-6">🎓</div>
-                <h1 className="text-4xl font-black mb-2">تم اكتمال المحاكاة بنجاح</h1>
-                <p className="theme-text-tertiary">تحليل شامل لأدائك بناءً على متطلبات الوظيفة ومعايير ISIL</p>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2 theme-card rounded-[32px] p-10 border theme-border space-y-8">
-                  <div className="flex items-center justify-between border-b theme-border pb-6">
-                    <h3 className="text-2xl font-black">تقرير الأداء التفصيلي</h3>
-                    <div className="px-4 py-2 bg-sky-500/10 rounded-xl text-sky-400 font-black text-xl">
-                      {Math.round((report.overall_score || 0.75) * 100)}%
-                    </div>
-                  </div>
-                  <div className="prose prose-invert max-w-none">
-                    <p className="theme-text-secondary leading-relaxed whitespace-pre-wrap">{report.report}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-6">
-                  <div className="theme-card rounded-3xl p-6 border theme-border">
-                    <h4 className="text-[10px] uppercase tracking-[0.3em] font-bold opacity-40 mb-4">AI Recommendations</h4>
-                    <ul className="space-y-3">
-                      {['تحسين الدقة التقنية', 'اختصار الإجابات السلوكية', 'استخدام مصطلحات الـ JD'].map(tip => (
-                        <li key={tip} className="flex items-center gap-3 text-sm">
-                          <span className="text-emerald-500">✓</span>
-                          <span className="theme-text-secondary">{tip}</span>
-                        </li>
                       ))}
-                    </ul>
+                    </div>
                   </div>
-                  <button onClick={() => setPhase('setup')} className="w-full py-4 bg-sky-600 rounded-2xl font-bold shadow-lg shadow-sky-600/20">جولة أخرى 🔄</button>
-                  <button onClick={() => router.push('/dashboard')} className="w-full py-4 theme-card border theme-border rounded-2xl font-bold">العودة للوحة التحكم</button>
+
+                  {/* Type */}
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-gray-600 dark:text-neutral-300 tracking-wide">
+                      <BrainCircuit size={13} className="text-blue-500" /> Interview Type
+                    </label>
+                    <div className="flex flex-col gap-2">
+                      {(['technical','behavioral','mixed'] as const).map(t => (
+                        <button key={t} onClick={() => setInterviewType(t)}
+                          className={`px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${interviewType === t ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-400 dark:border-blue-500/50 text-blue-700 dark:text-blue-300' : 'bg-white dark:bg-slate-800/50 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-neutral-400 hover:border-gray-300'}`}>
+                          {t.charAt(0).toUpperCase() + t.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Mode */}
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-gray-600 dark:text-neutral-300 tracking-wide">
+                      <Award size={13} className="text-emerald-500" /> Mode
+                    </label>
+                    <div className="flex flex-col gap-2">
+                      {(['training','test'] as const).map(m => (
+                        <button key={m} onClick={() => setMode(m)}
+                          className={`px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${mode === m ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-400 dark:border-emerald-500/50 text-emerald-700 dark:text-emerald-300' : 'bg-white dark:bg-slate-800/50 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-neutral-400 hover:border-gray-300'}`}>
+                          {m.charAt(0).toUpperCase() + m.slice(1)} Mode
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </motion.div>
-          )}
+            </div>
 
-        </AnimatePresence>
-      </main>
+            <div className="flex justify-center">
+              <button onClick={startInterview} disabled={!selectedJd || loading}
+                className="flex items-center gap-2.5 px-8 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-lg shadow-blue-500/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                {loading ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Starting...</> : <>Start Interview <ChevronRight size={16} /></>}
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── INTERVIEW ── */}
+        {phase === 'interview' && question && (
+          <motion.div key="interview" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-5">
+
+            {/* Question card */}
+            <div className="bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] rounded-2xl p-7 shadow-sm">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">Question {questionNum}</span>
+                <span className="text-xs font-medium px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-neutral-400 border border-gray-200 dark:border-slate-700">{question.type}</span>
+              </div>
+              <p className="text-xl font-semibold text-gray-900 dark:text-white leading-relaxed">{question.text}</p>
+            </div>
+
+            {/* Answer / Evaluation */}
+            <AnimatePresence mode="wait">
+              {evaluation ? (
+                <motion.div key="eval" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                  className="bg-white dark:bg-[#0f0f11] border border-emerald-200 dark:border-emerald-500/20 rounded-2xl p-7 shadow-sm space-y-5">
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 size={18} className="text-emerald-500" />
+                      <h3 className="font-bold text-gray-900 dark:text-white">Evaluation</h3>
+                    </div>
+                    <div className="flex gap-5">
+                      {Object.entries(evaluation.scores).map(([k, v]) => (
+                        <div key={k} className="text-center">
+                          <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{Math.round(v * 100)}%</div>
+                          <div className="text-[10px] text-gray-400 dark:text-neutral-500 capitalize">{k}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-700 dark:text-neutral-300 leading-relaxed">{evaluation.feedback}</p>
+                  <div className="flex justify-end">
+                    <button onClick={nextQuestion} disabled={loading}
+                      className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-md shadow-blue-500/20 transition-all disabled:opacity-50">
+                      {loading ? 'Loading...' : <>Next Question <ChevronRight size={15} /></>}
+                    </button>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div key="answer" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                  className="bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] rounded-2xl p-7 shadow-sm space-y-4">
+                  <div className="relative">
+                    <textarea value={answer} onChange={e => setAnswer(e.target.value)}
+                      placeholder="Type your answer here or use the microphone..."
+                      rows={5}
+                      className="w-full bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none transition-all" />
+                    {isListening && (
+                      <div className="absolute bottom-4 left-4 flex items-center gap-1">
+                        {[0,0.1,0.2,0.3].map((d,i) => (
+                          <motion.div key={i} animate={{ height: [6,18,6] }} transition={{ duration: 0.5, repeat: Infinity, delay: d }}
+                            className="w-1 bg-red-500 rounded-full" />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button onClick={submitAnswer} disabled={!answer.trim() || loading || isListening}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-md shadow-blue-500/20 transition-all disabled:opacity-40">
+                      {loading ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Processing...</> : <><Send size={15} /> Submit Answer</>}
+                    </button>
+                    <button onClick={toggleMic}
+                      className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all border ${isListening ? 'bg-red-500 border-red-600 text-white shadow-lg shadow-red-500/20' : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-500 dark:text-neutral-400 hover:border-gray-300'}`}>
+                      {isListening ? <Square size={16} className="fill-current" /> : <Mic size={16} />}
+                    </button>
+                    <button onClick={() => setAnswer('')} disabled={!answer.trim() || loading}
+                      className="w-12 h-12 rounded-xl flex items-center justify-center bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-500 dark:text-neutral-400 hover:border-gray-300 transition-all disabled:opacity-30">
+                      <RefreshCcw size={15} />
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
+
+        {/* ── COMPLETE ── */}
+        {phase === 'complete' && report && (
+          <motion.div key="complete" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+
+            {/* Score banner */}
+            <div className="bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] rounded-2xl p-8 shadow-sm">
+              <div className="flex flex-col sm:flex-row items-center gap-6">
+                <div className="w-24 h-24 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 flex flex-col items-center justify-center shrink-0">
+                  <span className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{Math.round((report.overall_score || 0.75) * 100)}%</span>
+                  <span className="text-[10px] text-emerald-500 font-medium mt-0.5">Score</span>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Award size={18} className="text-emerald-500" />
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">Interview Complete!</h2>
+                  </div>
+                  <p className="text-sm text-gray-500 dark:text-neutral-400">Here's your performance summary based on your answers.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Report */}
+            <div className="bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] rounded-2xl p-7 shadow-sm">
+              <h3 className="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <Activity size={16} className="text-blue-500" /> Executive Summary
+              </h3>
+              <p className="text-sm text-gray-700 dark:text-neutral-300 leading-relaxed whitespace-pre-wrap">{report.report}</p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+              <button onClick={() => { setPhase('setup'); setReport(null); setQuestionNum(1); setAnswer(''); setEvaluation(null) }}
+                className="flex items-center justify-center gap-2 px-7 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-lg shadow-blue-500/20 transition-all">
+                <RefreshCcw size={15} /> New Interview
+              </button>
+              <button onClick={() => router.push('/dashboard')}
+                className="flex items-center justify-center gap-2 px-7 py-3 bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] text-gray-700 dark:text-neutral-300 font-semibold rounded-xl text-sm hover:bg-gray-50 dark:hover:bg-[#151518] transition-all shadow-sm">
+                <ChevronLeft size={15} /> Back to Dashboard
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+      </AnimatePresence>
     </div>
   )
 }
