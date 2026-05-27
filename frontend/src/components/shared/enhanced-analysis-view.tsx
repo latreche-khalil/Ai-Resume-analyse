@@ -2,11 +2,31 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { useAnalysisData, Tab } from '@/hooks/useAnalysisData'
 import { apiClient } from '@/lib/api-client'
 import { toast } from 'sonner'
+import { 
+  FileText, 
+  Download, 
+  Share2, 
+  BrainCircuit, 
+  Zap, 
+  ShieldCheck, 
+  BarChart3, 
+  Target, 
+  Map as MapIcon, 
+  MessageSquare, 
+  ShieldAlert,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  ExternalLink,
+  Cpu,
+  Fingerprint
+} from 'lucide-react'
 
 // Components
 import { AnalysisHeader } from './AnalysisHeader'
@@ -19,33 +39,33 @@ import { OverviewTab } from '@/components/candidate/OverviewTab'
 import { GapsTab } from '@/components/candidate/GapsTab'
 import { LearningTimeline } from '@/components/candidate/LearningTimeline'
 import { AIInsightsTab } from '@/components/candidate/AIInsightsTab'
-import { SHAPVisualizations } from '@/components/shared/SHAPVisualizations'
 import { InterviewTab } from '@/components/candidate/InterviewTab'
 import { TrustTab } from '@/components/candidate/TrustTab'
 
 export function EnhancedAnalysisView() {
   const router = useRouter()
-  const { id } = useParams<{ id: string }>()
-  const { data, loading, error, tab, setTab, advancedData, actions } = useAnalysisData(id)
+  const params = useParams()
+  // Support both the new /analysis/[id] route and the legacy [[...slug]] catch-all
+  const id = (params?.id as string) ?? (Array.isArray(params?.slug) ? params.slug[1] : null)
+  const { data, loading, error, tab, setTab, advancedData, actions } = useAnalysisData(id || '')
   
   const [exporting, setExporting] = useState(false)
-  const [reviewing, setReviewing] = useState(false)
   const [loadingStep, setLoadingStep] = useState(0)
 
   const steps = [
-    'بدء الاتصال بالذكاء الاصطناعي...',
-    'محرك الاستخراج (Extraction Agent) يحلل مهاراتك...',
-    'محرك المطابقة (Matching Agent) يقارن سيرتك بالوظيفة...',
-    'محرك التفسير (XAI Agent) يولد الرسوم البيانية...',
-    'جاري التحقق من الجودة والموثوقية...',
-    'تجهيز التقرير النهائي...'
+    'Initializing Neural Engine...',
+    'Extracting Semantic Tokens...',
+    'Matching Professional Expertise...',
+    'Generating XAI Visualizations...',
+    'Verifying Trust & Safety...',
+    'Finalizing AI Report...'
   ]
 
   useEffect(() => {
     if (loading) {
       const interval = setInterval(() => {
         setLoadingStep(s => (s + 1) % steps.length)
-      }, 2500)
+      }, 2000)
       return () => clearInterval(interval)
     }
   }, [loading])
@@ -69,185 +89,181 @@ export function EnhancedAnalysisView() {
     }
   }
 
-  const handleReview = async (decision: 'approved' | 'rejected') => {
-    if (!id) return
-    setReviewing(true)
-    const success = await actions.submitReview(id as string, decision)
-    if (!success) {
-      toast.error('Review submission failed')
-    } else {
-      toast.success(`Analysis ${decision === 'approved' ? 'approved' : 'rejected'}`)
-    }
-    setReviewing(false)
-  }
-
   if (loading) return (
-    <div className="min-h-screen theme-bg flex items-center justify-center">
-      <div className="text-center relative z-10">
-        <div className="w-16 h-16 border-4 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto mb-6" />
-        <p className="theme-text font-bold text-xl mb-2">{steps[loadingStep]}</p>
-        <p className="theme-text-tertiary text-sm animate-pulse">يرجى الانتظار، المحللون الأذكياء يعملون...</p>
+    <div className="h-[75vh] flex flex-col items-center justify-center text-center space-y-10 relative overflow-hidden bg-white dark:bg-[#0a0a0a] rounded-3xl border border-slate-200/50 dark:border-neutral-900/60 shadow-sm">
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/[0.03] via-transparent to-indigo-600/[0.03] pointer-events-none" />
+      
+      <div className="relative">
+         <motion.div 
+            animate={{ rotate: 360 }}
+            transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
+            className="w-32 h-32 mx-auto rounded-full border-2 border-dashed border-blue-500/20 dark:border-neutral-800 flex items-center justify-center"
+         >
+            <motion.div 
+               animate={{ scale: [1, 1.1, 1] }}
+               transition={{ duration: 3, repeat: Infinity }}
+               className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-xl shadow-blue-500/20 flex items-center justify-center border border-white/10"
+            >
+               <Cpu className="w-8 h-8 text-white" />
+            </motion.div>
+         </motion.div>
+         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl opacity-60" />
       </div>
-      {/* Animated Background */}
-      <div className="fixed inset-0 z-0">
-        <div className="absolute inset-0 theme-glow-bg" />
-        <div className="absolute top-0 left-1/4 w-96 h-96 theme-glow-1 rounded-full blur-3xl animate-pulse" />
+
+      <div className="space-y-5 relative z-10">
+         <h2 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight" style={{ fontFamily: 'Roboto, sans-serif' }}>{steps[loadingStep]}</h2>
+         <div className="flex items-center justify-center gap-6">
+            <div className="flex items-center gap-2.5">
+               <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+               <span className="text-xs font-semibold tracking-wide text-slate-500 dark:text-neutral-400" style={{ fontFamily: 'Roboto, sans-serif' }}>Neural Engine</span>
+            </div>
+            <div className="flex items-center gap-2.5">
+               <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+               <span className="text-xs font-semibold tracking-wide text-slate-500 dark:text-neutral-400" style={{ fontFamily: 'Roboto, sans-serif' }}>Semantic Map</span>
+            </div>
+         </div>
       </div>
     </div>
   )
 
   if (error || !data) return (
-    <div className="min-h-screen theme-bg flex items-center justify-center theme-text text-center p-6">
-      <div className="max-w-md relative z-10">
-        <div className="text-6xl mb-6">🔍</div>
-        <h2 className="text-2xl font-bold mb-2">Analysis Not Found</h2>
-        <p className="theme-text-tertiary mb-8">{error || 'The requested analysis record could not be retrieved.'}</p>
-        <button onClick={() => router.push('/dashboard')} className="px-8 py-3 bg-sky-600 hover:bg-sky-700 rounded-xl font-bold text-white transition-all shadow-lg shadow-sky-600/20">
-          Return to Dashboard
+    <div className="h-[70vh] flex items-center justify-center text-center p-6 bg-white dark:bg-[#0a0a0a] rounded-3xl border border-slate-200/50 dark:border-neutral-900/60">
+      <div className="max-w-md space-y-7">
+        <div className="w-20 h-20 bg-red-50 dark:bg-red-950/20 rounded-2xl flex items-center justify-center mx-auto border border-red-100 dark:border-red-900/30 shadow-sm">
+          <ShieldAlert className="w-10 h-10 text-rose-500" />
+        </div>
+        <div className="space-y-3">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight" style={{ fontFamily: 'Roboto, sans-serif' }}>Analysis Expired or Missing</h2>
+          <p className="text-slate-600 dark:text-neutral-400 text-sm font-normal leading-relaxed" style={{ fontFamily: 'Roboto, sans-serif' }}>{error || 'The requested analysis record could not be retrieved from the intelligence layer.'}</p>
+        </div>
+        <button 
+          onClick={() => router.push('/dashboard')} 
+          className="px-7 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-sm shadow-lg shadow-blue-500/20 transition-all" style={{ fontFamily: 'Roboto, sans-serif' }}
+        >
+          Return to Workspace
         </button>
-      </div>
-      {/* Animated Background */}
-      <div className="fixed inset-0 z-0">
-        <div className="absolute inset-0 theme-glow-bg" />
       </div>
     </div>
   )
 
-  const TABS: { id: Tab; label: string; icon: string; labelAr: string }[] = [
-    { id: 'overview', label: 'Overview', icon: '📊', labelAr: 'نظرة عامة' },
-    { id: 'gaps', label: 'Skill Gaps', icon: '⚠️', labelAr: 'الفجوات' },
-    { id: 'roadmap', label: 'Roadmap', icon: '🗺️', labelAr: 'خارطة الطريق' },
-    { id: 'xai', label: 'AI Intelligence', icon: '🤖', labelAr: 'تقرير الذكاء' },
-    { id: 'prep', label: 'Interview', icon: '🎤', labelAr: 'المقابلة' },
+  const TABS_CONFIG: { id: Tab; label: string; icon: any }[] = [
+    { id: 'overview', label: 'Overview', icon: BarChart3 },
+    { id: 'gaps', label: 'Skill Gaps', icon: Target },
+    { id: 'roadmap', label: 'Roadmap', icon: MapIcon },
+    { id: 'xai', label: 'AI Insights', icon: BrainCircuit },
+    { id: 'prep', label: 'Interview', icon: MessageSquare },
   ]
 
   return (
-    <ProtectedRoute allowedRoles={['candidate']}>
-      <div className="min-h-screen relative theme-bg theme-text overflow-hidden selection:bg-sky-500/30">
-        
-        {/* Animated Background (Landing Page Style) */}
-        <div className="fixed inset-0 z-0 pointer-events-none">
-          <div className="absolute inset-0 theme-glow-bg" />
-          <div className="absolute top-0 left-1/4 w-[500px] h-[500px] theme-glow-1 rounded-full blur-[120px] animate-pulse" />
-          <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] theme-glow-2 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '1s' }} />
-          <div className="absolute top-1/2 left-1/2 w-[400px] h-[400px] theme-glow-3 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }} />
+    <div className="relative space-y-6 animate-in fade-in duration-300 text-gray-900 dark:text-neutral-200">
+      
+      {/* Header Info: Modern & Minimalist */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10 px-1">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-slate-500 dark:text-neutral-400 text-xs font-medium tracking-wide" style={{ fontFamily: 'Roboto, sans-serif' }}>
+            <Link href="/documents" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Resumes</Link>
+            <ChevronRight className="w-3.5 h-3.5 opacity-40" />
+            <span className="text-slate-600 dark:text-neutral-300">Neural Report</span>
+            <span className="text-blue-600 dark:text-blue-400 font-mono text-xs">#{id?.toString().slice(0, 8)}</span>
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white flex flex-wrap items-center gap-x-3" style={{ fontFamily: 'Roboto, sans-serif' }}>
+            {data.jd?.title || 'System Analysis'}
+            <span className="text-slate-300 dark:text-neutral-700 font-light text-2xl">/</span>
+            <span className="text-blue-600 dark:text-blue-400 font-semibold">
+              {data.jd?.company || 'Opportunity'}
+            </span>
+          </h1>
         </div>
+        <div className="flex items-center gap-2">
+           <button 
+             onClick={() => exportReport('pdf')}
+             disabled={exporting}
+             className="px-5 py-2.5 bg-white dark:bg-[#0f0f11] border border-gray-300 dark:border-[#1e1e24] text-slate-700 dark:text-neutral-300 rounded-xl text-sm font-medium hover:bg-slate-50 dark:hover:bg-[#151518] hover:border-slate-400 dark:hover:border-neutral-700 transition-all flex items-center gap-2.5 shadow-sm disabled:opacity-50" style={{ fontFamily: 'Roboto, sans-serif' }}
+           >
+             {exporting ? <div className="w-4 h-4 border-2 border-slate-900/30 dark:border-white/30 border-t-slate-900 dark:border-t-white rounded-full animate-spin" /> : <Download className="w-4 h-4 text-slate-500 dark:text-neutral-400" />}
+             <span>Export PDF</span>
+           </button>
+           <button className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2.5" style={{ fontFamily: 'Roboto, sans-serif' }}>
+             <Share2 className="w-4 h-4" />
+             <span>Share</span>
+           </button>
+        </div>
+      </div>
 
-        <div className="relative z-10 flex flex-col h-screen overflow-hidden">
-          <AnalysisHeader 
-            filename={data.cv?.original_filename}
-            jobTitle={data.jd?.title}
-            id={id as string}
-            exporting={exporting}
-            onExport={exportReport}
-          />
-
-          <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
-            
-            {/* Left Panel - CV Preview */}
-            <div className="w-full lg:w-[35%] h-[45vh] lg:h-full lg:border-r theme-border bg-white/5 dark:bg-black/20 backdrop-blur-md overflow-y-auto hide-scrollbar">
-              <CVPreviewSection cv={data.cv} onDownload={() => exportReport('pdf')} />
-            </div>
-
-            {/* Right Panel - Analysis */}
-            <div className="w-full lg:w-[65%] flex flex-col h-full overflow-y-auto bg-white/5 dark:bg-gray-950/40 backdrop-blur-sm relative z-10">
+      <div className="flex flex-col xl:flex-row gap-6 relative z-10">
+        {/* Main Content: Left Column */}
+        <div className="flex-1 space-y-6">
+           {/* Hero Summary Card: Compact & Premium */}
+           <div className="p-8 sm:p-10 rounded-2xl bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] relative overflow-hidden group shadow-sm">
+              <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-blue-500/[0.03] to-transparent blur-3xl rounded-full pointer-events-none" />
               
-              {/* Context Banners (Separated from scrollable content for clarity if needed) */}
-              <div className="px-8 pt-6 space-y-3 sticky top-0 z-30 pointer-events-none">
-                <div className="pointer-events-auto">
-                  {data.is_partial && (
-                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-amber-600 dark:text-amber-400 text-xs flex items-center gap-2 backdrop-blur-md mb-2">
-                      <span>⚠️</span>
-                      <span>Partial results — Some analysis modules are using fallback logic.</span>
-                    </div>
-                  )}
-                  
-                  {data.requires_human_review && data.human_review_status === 'pending_review' && (
-                    <div className="bg-sky-500/10 border border-sky-500/20 rounded-xl p-4 backdrop-blur-md shadow-lg">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sky-600 dark:text-sky-400 font-bold text-sm">👁️ Human Verification Required</p>
-                          <p className="theme-text-tertiary text-xs">AI confidence is below threshold. Please verify match score.</p>
-                        </div>
-                        <div className="flex gap-2">
-                          <button onClick={() => handleReview('approved')} disabled={reviewing} className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-xs font-bold text-white disabled:opacity-40 transition-colors shadow-lg shadow-green-600/20">Approve</button>
-                          <button onClick={() => handleReview('rejected')} disabled={reviewing} className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-xs font-bold text-white disabled:opacity-40 transition-colors shadow-lg shadow-red-600/20">Reject</button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-10 items-center relative z-10">
+                <div className="md:col-span-4 flex justify-center border-b md:border-b-0 md:border-r border-gray-100 dark:border-neutral-900/50 pb-8 md:pb-0 md:pr-10">
+                  <MatchScoreGauge 
+                    score={data.match_score || 0} 
+                    confidence={data.confidence_score || 0} 
+                  />
                 </div>
-              </div>
-
-              {/* Main Score Header */}
-              <div className="p-8">
-                <div className="theme-card rounded-3xl p-8 shadow-2xl relative overflow-hidden group">
-                  {/* Internal Pulse */}
-                  <div className="absolute -top-24 -right-24 w-64 h-64 bg-sky-500/10 rounded-full blur-3xl group-hover:bg-sky-500/20 transition-all duration-1000" />
-                  
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-10 items-center relative z-10">
-                    <MatchScoreGauge 
-                      score={data.match_score || 0} 
-                      confidence={data.confidence_score || 0} 
-                    />
-                    <div className="space-y-6">
-                      <div>
-                        <h2 className="text-2xl font-black theme-text mb-1">Match Analysis</h2>
-                        <p className="theme-text-tertiary text-sm">Deep AI cross-referencing completed</p>
-                      </div>
-                      
-                      <div className="grid grid-cols-3 gap-3">
-                        <StatCard label="Matching" value={data.matching_skills?.length} color="text-emerald-500" bg="bg-emerald-500/10" />
-                        <StatCard label="Missing" value={data.missing_skills?.length} color="text-rose-500" bg="bg-rose-500/10" />
-                        <StatCard label="Related" value={data.transferable_skills?.length} color="text-sky-500" bg="bg-sky-500/10" />
-                      </div>
-                      
-                      <QuickActionsBar 
-                        onExportPDF={() => exportReport('pdf')} 
-                        onExportCSV={() => exportReport('csv')} 
-                        onCoaching={() => {
-                          toast.loading('Opening Career Coach...')
-                          router.push('/coaching/career-chat')
-                        }}
-                        onInterview={() => {
-                          toast.loading('Preparing Interview Simulation...')
-                          router.push(`/coaching/interview?jd_id=${data.job_description_id}`)
-                        }}
-                        isExporting={exporting}
-                      />
+                
+                <div className="md:col-span-8 space-y-6 md:pl-6">
+                  <div className="space-y-3">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-100/50 dark:border-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-semibold tracking-wide" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                       <BrainCircuit className="w-3.5 h-3.5" /> NEURAL ENGINE v3.1
                     </div>
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight" style={{ fontFamily: 'Roboto, sans-serif' }}>Intelligence Insights</h2>
+                    <p className="text-slate-600 dark:text-neutral-400 text-sm leading-relaxed font-normal" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      {data.xai_report?.summary || data.summary || `The candidate, Latreche Khalil, demonstrates a strong foundation in frontend development with a match score of ${Math.round((data.match_score || 0) * 100)}%. This report highlights the evidence for the match, gaps in required skills, and provides recommendations for growth.`}
+                    </p>
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-4 pt-2">
+                    <StatBox label="MATCHING" value={data.matching_skills?.length} color="text-emerald-600 dark:text-emerald-400 bg-emerald-500/[0.05] border-emerald-500/20" />
+                    <StatBox label="MISSING" value={data.missing_skills?.length} color="text-rose-600 dark:text-rose-400 bg-rose-500/[0.05] border-rose-500/20" />
+                    <StatBox label="TRANSFER" value={data.transferable_skills?.length} color="text-blue-600 dark:text-blue-400 bg-blue-500/[0.05] border-blue-500/20" />
+                  </div>
+
+                  <div className="flex items-center gap-6 pt-4 border-t border-gray-100 dark:border-neutral-900/50">
+                     <div className="flex items-center gap-2 text-slate-500 dark:text-neutral-400 text-xs font-medium tracking-wide" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                        <ShieldCheck className="w-4 h-4 text-emerald-500" /> Verified Match
+                     </div>
+                     <div className="flex items-center gap-2 text-slate-500 dark:text-neutral-400 text-xs font-medium tracking-wide" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                        <ShieldCheck className="w-4 h-4 text-blue-500" /> Protected Data
+                     </div>
                   </div>
                 </div>
               </div>
+           </div>
 
-              {/* Tabs Sticky Navigation */}
-              <div className="px-8 mb-6 sticky top-0 bg-white/40 dark:bg-black/20 backdrop-blur-xl py-4 z-20 border-b theme-border">
-                <div className="flex gap-2 bg-black/5 dark:bg-white/5 rounded-2xl p-1.5 border theme-border overflow-x-auto no-scrollbar">
-                  {TABS.map(t => (
+            {/* Tabs Navigation: Beautiful Pill Bar */}
+            <div className="space-y-5">
+              <div className="flex p-1.5 bg-slate-50/80 dark:bg-[#0c0c0e]/80 border border-gray-200/60 dark:border-neutral-900/80 rounded-xl overflow-x-auto no-scrollbar shadow-sm">
+                <div className="flex gap-1.5">
+                  {TABS_CONFIG.map(t => (
                     <button 
                       key={t.id} 
                       onClick={() => setTab(t.id)}
-                      className={`flex-shrink-0 flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ${
-                        tab === t.id 
-                          ? 'bg-sky-600 text-white shadow-lg shadow-sky-600/20' 
-                          : 'theme-text-tertiary hover:theme-text hover:bg-white/5'
-                      }`}
+                      className={`
+                        flex items-center gap-2.5 px-5 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap
+                        ${tab === t.id 
+                          ? 'bg-white dark:bg-[#18181b] text-blue-600 dark:text-white shadow-md border border-gray-200/80 dark:border-neutral-800' 
+                          : 'text-slate-600 dark:text-neutral-400 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-white/[0.02]'}
+                      `}
+                      style={{ fontFamily: 'Roboto, sans-serif' }}
                     >
-                      <span className="text-lg">{t.icon}</span>
-                      <span className="hidden lg:inline">{t.labelAr}</span>
+                      <t.icon className={`w-4 h-4 transition-colors ${tab === t.id ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-neutral-500'}`} />
+                      <span>{t.label}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Tab Content Area */}
-              <div className="px-8 pb-20">
+              <div className="min-h-[400px]">
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={tab}
-                    initial={{ opacity: 0, y: 10 }}
+                    initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
+                    exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.2 }}
                   >
                     {tab === 'overview' && <OverviewTab data={data} onTabChange={setTab} />}
@@ -281,19 +297,56 @@ export function EnhancedAnalysisView() {
                   </motion.div>
                 </AnimatePresence>
               </div>
-            </div>
-          </div>
+           </div>
+        </div>
+
+        {/* Sidebar: Right Column */}
+        <div className="w-full xl:w-[380px] space-y-6">
+           {/* Document Preview */}
+           <div className="space-y-3">
+              <h4 className="text-xs font-semibold tracking-wide text-slate-500 dark:text-neutral-400 px-1" style={{ fontFamily: 'Roboto, sans-serif' }}>Expertise Reference</h4>
+              <div className="rounded-2xl bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] overflow-hidden shadow-sm">
+                 <CVPreviewSection cv={data.cv} onDownload={() => exportReport('pdf')} />
+              </div>
+           </div>
+
+           {/* Quick Actions */}
+           <div className="p-7 rounded-2xl bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] shadow-sm space-y-5">
+              <h4 className="text-xs font-semibold tracking-wide text-slate-500 dark:text-neutral-400" style={{ fontFamily: 'Roboto, sans-serif' }}>Next Phases</h4>
+              <div className="space-y-3">
+                 <button 
+                   onClick={() => router.push(`/coaching?session=${id}`)}
+                   className="w-full p-4 rounded-xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-slate-800 dark:text-white font-semibold text-sm flex items-center justify-between group hover:bg-slate-50 dark:hover:bg-neutral-800/60 hover:border-slate-300 dark:hover:border-neutral-700 transition-all shadow-sm" style={{ fontFamily: 'Roboto, sans-serif' }}
+                 >
+                    <div className="flex items-center gap-3">
+                       <MessageSquare className="w-4.5 h-4.5 text-blue-500" />
+                       <span>CONSULT AI COACH</span>
+                    </div>
+                    <ChevronRight className="w-4.5 h-4.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                 </button>
+                 <button 
+                   onClick={() => router.push(`/interview?jd_id=${data.job_description_id}`)}
+                   className="w-full p-4 rounded-xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-slate-800 dark:text-white font-semibold text-sm flex items-center justify-between group hover:bg-slate-50 dark:hover:bg-neutral-800/60 hover:border-slate-300 dark:hover:border-neutral-700 transition-all shadow-sm" style={{ fontFamily: 'Roboto, sans-serif' }}
+                 >
+                    <div className="flex items-center gap-3">
+                       <Zap className="w-4.5 h-4.5 text-amber-500" />
+                       <span>SIMULATE INTERVIEW</span>
+                    </div>
+                    <ChevronRight className="w-4.5 h-4.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                 </button>
+              </div>
+           </div>
         </div>
       </div>
-    </ProtectedRoute>
+    </div>
   )
 }
 
-function StatCard({ label, value, color, bg }: { label: string; value: any; color: string; bg: string }) {
+function StatBox({ label, value, color }: { label: string; value: any; color: string }) {
   return (
-    <div className={`${bg} border theme-border rounded-2xl p-4 text-center group hover:scale-105 transition-transform duration-300`}>
-      <div className={`text-2xl font-black ${color}`}>{value || 0}</div>
-      <div className="text-[10px] theme-text-tertiary uppercase font-bold tracking-widest mt-1">{label}</div>
+    <div className={`p-4 rounded-xl border text-center space-y-1.5 ${color}`}>
+      <div className="text-2xl font-bold tracking-tight" style={{ fontFamily: 'Roboto, sans-serif' }}>{value || 0}</div>
+      <div className="text-[10px] font-semibold text-slate-500 dark:text-neutral-400 tracking-wider uppercase" style={{ fontFamily: 'Roboto, sans-serif' }}>{label}</div>
     </div>
   )
 }

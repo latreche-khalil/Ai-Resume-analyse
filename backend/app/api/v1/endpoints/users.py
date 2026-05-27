@@ -99,25 +99,31 @@ async def get_user_stats(
             total_analyses = analysis_count_result.scalar() or 0
 
             if total_analyses > 0:
-                # Average score
+                # Average score — only completed/partial analyses, convert decimal to percentage
                 avg_result = await db.execute(
                     select(func.avg(AnalysisRecord.match_score))
                     .where(
                         AnalysisRecord.cv_document_id.in_(cv_ids),
-                        AnalysisRecord.match_score.isnot(None)
+                        AnalysisRecord.match_score.isnot(None),
+                        AnalysisRecord.match_score > 0,
+                        AnalysisRecord.processing_status.in_(['completed', 'partial_done'])
                     )
                 )
-                avg_match_score = float(avg_result.scalar() or 0.0)
+                raw_avg = float(avg_result.scalar() or 0.0)
+                # Convert from decimal (0-1) to percentage (0-100) if needed
+                avg_match_score = round(raw_avg * 100, 1) if raw_avg <= 1.0 else round(raw_avg, 1)
 
                 # Best score
                 best_result = await db.execute(
                     select(func.max(AnalysisRecord.match_score))
                     .where(
                         AnalysisRecord.cv_document_id.in_(cv_ids),
-                        AnalysisRecord.match_score.isnot(None)
+                        AnalysisRecord.match_score.isnot(None),
+                        AnalysisRecord.processing_status.in_(['completed', 'partial_done'])
                     )
                 )
-                best_match_score = float(best_result.scalar() or 0.0)
+                raw_best = float(best_result.scalar() or 0.0)
+                best_match_score = round(raw_best * 100, 1) if raw_best <= 1.0 else round(raw_best, 1)
 
                 # Recent 3 analyses
                 recent_result = await db.execute(
@@ -139,7 +145,7 @@ async def get_user_stats(
         top_skills = []
         skills_count = 0
         experience_months = 0
-        top_industry = ''  # Empty by default, not 'Software Engineering'
+        top_industry = ''
 
         latest_cv_result = await db.execute(
             select(CVDocument)
@@ -161,11 +167,30 @@ async def get_user_stats(
 
             if skill_report:
                 skills_list = skill_report.skills if isinstance(skill_report.skills, list) else []
+                # If skill_report has no skills, fall back to matching_skills from analyses
+                if not skills_list and cv_ids:
+                    from collections import Counter
+                    all_matching = []
+                    ms_result = await db.execute(
+                        select(AnalysisRecord.matching_skills)
+                        .where(
+                            AnalysisRecord.cv_document_id.in_(cv_ids),
+                            AnalysisRecord.matching_skills.isnot(None),
+                            AnalysisRecord.processing_status.in_(['completed', 'partial_done'])
+                        )
+                    )
+                    for row in ms_result.all():
+                        if row[0]:
+                            skills_list_raw = row[0] if isinstance(row[0], list) else []
+                            all_matching.extend(skills_list_raw)
+                    # Deduplicate preserving order by frequency
+                    skill_freq = Counter(all_matching)
+                    skills_list = [s for s, _ in skill_freq.most_common(20)]
+
                 top_skills = skills_list[:10]
                 skills_count = len(skills_list)
                 experience_months = skill_report.total_experience_months or 0
 
-                # Derive top_industry from job_titles
                 job_titles = skill_report.job_titles or []
                 if job_titles:
                     title_lower = ' '.join(str(t) for t in job_titles).lower()
@@ -181,6 +206,27 @@ async def get_user_stats(
                         top_industry = 'Backend Development'
                     else:
                         top_industry = 'Full-Stack Development'
+            else:
+                # No skill report — extract skills from analyses directly
+                if cv_ids:
+                    from collections import Counter
+                    all_matching = []
+                    ms_result = await db.execute(
+                        select(AnalysisRecord.matching_skills)
+                        .where(
+                            AnalysisRecord.cv_document_id.in_(cv_ids),
+                            AnalysisRecord.matching_skills.isnot(None),
+                            AnalysisRecord.processing_status.in_(['completed', 'partial_done'])
+                        )
+                    )
+                    for row in ms_result.all():
+                        if row[0]:
+                            skills_list_raw = row[0] if isinstance(row[0], list) else []
+                            all_matching.extend(skills_list_raw)
+                    skill_freq = Counter(all_matching)
+                    skills_list = [s for s, _ in skill_freq.most_common(20)]
+                    top_skills = skills_list[:10]
+                    skills_count = len(skills_list)
 
         # ── Recommended Skills (Dynamic from Gaps) ────────────────────────
         recommended_skills = []
@@ -233,8 +279,9 @@ async def get_user_stats(
         # Weighted: 60% avg_match + 20% skills coverage + 20% experience
         skill_score = min(100, skills_count * 5)          # 20 skills = 100
         exp_score   = min(100, experience_months / 1.2)   # 120 months = 100
+        # avg_match_score is already in percentage (0-100)
         employability_score = round(
-            avg_match_score * 100 * 0.6 + skill_score * 0.2 + exp_score * 0.2, 1
+            avg_match_score * 0.6 + skill_score * 0.2 + exp_score * 0.2, 1
         )
 
         logger.info(
