@@ -74,18 +74,27 @@ function AnalysisDrawer({ doc, onClose }: { doc: CVDocument; onClose: () => void
           (a: any) => a.cv_document_id === doc.id
         )
         setAnalyses(cvAnalyses)
-      } catch { toast.error('Failed to load analyses') }
-      finally { setLoading(false) }
+      } catch (error) {
+        console.log('Failed to load analyses:', error)
+        toast.error('Failed to load analyses')
+      } finally {
+        setLoading(false)
+      }
     }
     load()
     
     // Poll for updates if there are pending/processing analyses
     const interval = setInterval(() => {
-      load()
-    }, 3000)
+      if (analyses.some((a: any) => {
+        const status = a.processing_status || a.analysis_status
+        return status === 'processing' || status === 'pending'
+      })) {
+        load()
+      }
+    }, 5000)
     
     return () => clearInterval(interval)
-  }, [doc.id])
+  }, [doc.id, analyses])
 
   const name = doc.original_filename || doc.filename
 
@@ -417,10 +426,13 @@ export function DocumentsView() {
           }
         })
         setAnalyzingCVs(analyzing)
-      } catch {}
+      } catch (error) {
+        // Silently fail - don't show error to user for background polling
+        console.log('Failed to check analyzing status:', error)
+      }
     }
     checkAnalyzing()
-    const interval = setInterval(checkAnalyzing, 3000)
+    const interval = setInterval(checkAnalyzing, 5000) // Increased to 5s to reduce load
     return () => clearInterval(interval)
   }, [])
 
@@ -538,60 +550,55 @@ export function DocumentsView() {
       </div>
 
       {/* Content */}
-      <AnimatePresence mode="wait">
-        {loading && documents.length === 0 ? (
-          <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className={viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4' : 'space-y-2'}>
-            {viewMode === 'grid'
-              ? Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="h-[290px] bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] rounded-2xl animate-pulse overflow-hidden flex flex-col">
-                    <div className="h-[150px] bg-gray-100 dark:bg-neutral-900/40" />
-                    <div className="p-4 space-y-2 flex-1">
-                      <div className="h-4 w-3/4 bg-gray-200 dark:bg-neutral-800 rounded" />
-                      <div className="h-3 w-1/2 bg-gray-100 dark:bg-neutral-800/60 rounded" />
-                    </div>
-                    <div className="h-12 bg-gray-50 dark:bg-[#0c0c0e]/30 border-t border-gray-100 dark:border-neutral-900/50" />
+      {loading && documents.length === 0 ? (
+        <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          className={viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4' : 'space-y-2'}>
+          {viewMode === 'grid'
+            ? Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-[290px] bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] rounded-2xl animate-pulse overflow-hidden flex flex-col">
+                  <div className="h-[150px] bg-gray-100 dark:bg-neutral-900/40" />
+                  <div className="p-4 space-y-2 flex-1">
+                    <div className="h-4 w-3/4 bg-gray-200 dark:bg-neutral-800 rounded" />
+                    <div className="h-3 w-1/2 bg-gray-100 dark:bg-neutral-800/60 rounded" />
                   </div>
-                ))
-              : Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="h-14 bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] rounded-xl animate-pulse" />
-                ))
-            }
-          </motion.div>
-        ) : filtered.length === 0 ? (
-          <motion.div key="empty" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-            className="py-20 flex flex-col items-center justify-center text-center gap-4 bg-white dark:bg-[#0f0f11] rounded-2xl border border-dashed border-gray-300 dark:border-slate-700">
-            <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-950/20 flex items-center justify-center border border-blue-100 dark:border-blue-900/20">
-              <FileText className="w-7 h-7 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div className="space-y-1 max-w-xs">
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">
-                {search ? `No results for "${search}"` : 'No resumes uploaded yet'}
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-neutral-400">
-                {search ? 'Try a different filename or clear the search.' : 'Upload your first resume to start getting AI match scores.'}
-              </p>
-            </div>
-            {!search && (
-              <Link href="/upload">
-                <button className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-lg shadow-blue-500/20 transition-all">
-                  <FileUp size={14} /> Upload Resume
-                </button>
-              </Link>
-            )}
-          </motion.div>
-        ) : viewMode === 'grid' ? (
-          <motion.div key="grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <AnimatePresence mode="popLayout">
-              {filtered.map((doc, i) => (
-                <CVCard key={doc.id} doc={doc} index={i} onDelete={handleDelete} isDeleting={deletingIds.has(doc.id)} onClick={() => setSelectedDoc(doc)} isAnalyzing={analyzingCVs.has(doc.id)} />
-              ))}
-            </AnimatePresence>
-          </motion.div>
+                  <div className="h-12 bg-gray-50 dark:bg-[#0c0c0e]/30 border-t border-gray-100 dark:border-neutral-900/50" />
+                </div>
+              ))
+            : Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-14 bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] rounded-xl animate-pulse" />
+              ))
+          }
+        </motion.div>
+      ) : filtered.length === 0 ? (
+        <motion.div key="empty" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}
+          className="py-20 flex flex-col items-center justify-center text-center gap-4 bg-white dark:bg-[#0f0f11] rounded-2xl border border-dashed border-gray-300 dark:border-slate-700">
+          <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-950/20 flex items-center justify-center border border-blue-100 dark:border-blue-900/20">
+            <FileText className="w-7 h-7 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div className="space-y-1 max-w-xs">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+              {search ? `No results for "${search}"` : 'No resumes uploaded yet'}
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-neutral-400">
+              {search ? 'Try a different filename or clear the search.' : 'Upload your first resume to start getting AI match scores.'}
+            </p>
+          </div>
+          {!search && (
+            <Link href="/upload">
+              <button className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-lg shadow-blue-500/20 transition-all">
+                <FileUp size={14} /> Upload Resume
+              </button>
+            </Link>
+          )}
+        </motion.div>
+      ) : viewMode === 'grid' ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {filtered.map((doc, i) => (
+            <CVCard key={doc.id} doc={doc} index={i} onDelete={handleDelete} isDeleting={deletingIds.has(doc.id)} onClick={() => setSelectedDoc(doc)} isAnalyzing={analyzingCVs.has(doc.id)} />
+          ))}
+          </div>
         ) : (
-          <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            className="bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] rounded-2xl overflow-hidden shadow-sm">
+          <div className="bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] rounded-2xl overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
@@ -673,9 +680,8 @@ export function DocumentsView() {
                 </tbody>
               </table>
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
 
       {/* Pagination */}
       {totalPages > 1 && (

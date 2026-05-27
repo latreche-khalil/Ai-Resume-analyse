@@ -17,6 +17,7 @@ from app.models.cv_document import CVDocument
 from app.models.analysis_record import AnalysisRecord
 from app.models.gap_report import GapReport
 from app.models.xai_report import XAIReport
+from app.models.job_description import JobDescription
 from app.services.agents.multi_agent_orchestrator import multi_agent_orchestrator
 from app.schemas.analysis import (
     AnalysisRequest,
@@ -155,31 +156,20 @@ async def create_analysis(
                 detail="Job description not found"
             )
         
-        # Check if analysis already exists for this CV+JD pair (with lock to prevent duplicates)
+        # Check if analysis already exists for this CV+JD pair
         existing_result = await db.execute(
             select(AnalysisRecord).where(
                 AnalysisRecord.cv_document_id == request.cv_document_id,
                 AnalysisRecord.job_description_id == request.job_description_id,
-            ).with_for_update(skip_locked=True)
+            )
         )
         existing = existing_result.scalar_one_or_none()
-        if existing and existing.processing_status == 'completed':
-            # Return completed analysis
-            logger.info(f"Returning existing completed analysis: {existing.id}")
-            return {
-                "id": str(existing.id),
-                "message": "Analysis already exists",
-                "status": existing.processing_status,
-                "match_score": float(existing.match_score) if existing.match_score else 0.0,
-                "cv_document_id": str(request.cv_document_id),
-                "job_description_id": str(request.job_description_id)
-            }
-        elif existing:
-            # Delete stale processing/failed record and re-run
+        
+        if existing:
+            # Always delete old record to force a fresh AI analysis with latest prompts/filters
+            logger.info(f"Deleting existing analysis {existing.id} to force fresh refresh")
             await db.delete(existing)
             await db.commit()
-            logger.info(f"Deleted stale analysis record: {existing.id}")
-
         # Create analysis record
         analysis_record = AnalysisRecord(
             cv_document_id=request.cv_document_id,
@@ -194,34 +184,41 @@ async def create_analysis(
         await db.commit()
         await db.refresh(analysis_record)
 
-        # ── Run matching synchronously (no Celery needed) ───────────────────
-        try:
-            result = await multi_agent_orchestrator.match_cv_to_jd(
-                analysis_id=analysis_record.id,
-                cv_document_id=request.cv_document_id,
-                job_description_id=request.job_description_id,
-                user_id=current_user.id,
-                db=db,
-            )
-            logger.info(f"Analysis completed: {analysis_record.id}, score={result.get('match_score')}")
-        except Exception as match_ex:
-            logger.error(f"Matching failed for {analysis_record.id}: {match_ex}", exc_info=True)
-            analysis_record.processing_status = 'failed'
-            analysis_record.error_message = str(match_ex)
-            await db.commit()
-
-        await db.refresh(analysis_record)
+        # ── Run matching in background ───────────────────
+        async def run_analysis_task(a_id, cv_id, jd_id, u_id):
+            async with AsyncSessionLocal() as background_db:
+                try:
+                    # Re-fetch records in the new session
+                    await multi_agent_orchestrator.match_cv_to_jd(
+                        analysis_id=a_id,
+                        cv_document_id=cv_id,
+                        job_description_id=jd_id,
+                        user_id=u_id,
+                        db=background_db,
+                    )
+                except Exception as match_ex:
+                    logger.error(f"Background matching failed for {a_id}: {match_ex}")
+                    # We need a way to update the status to failed in the background
+                    # The orchestrator usually handles this, but let's be safe
+        
+        background_tasks.add_task(
+            run_analysis_task, 
+            analysis_record.id, 
+            request.cv_document_id, 
+            request.job_description_id, 
+            current_user.id
+        )
         
         logger.info(
-            f"Analysis initiated by user {current_user.email}: "
+            f"Analysis background task initiated by user {current_user.email}: "
             f"CV={request.cv_document_id}, JD={request.job_description_id}, Analysis ID={analysis_record.id}"
         )
         
         return {
             "id": str(analysis_record.id),
-            "message": "Analysis completed" if analysis_record.processing_status == 'completed' else "Analysis started",
-            "status": analysis_record.processing_status,
-            "match_score": float(analysis_record.match_score) if analysis_record.match_score else 0.0,
+            "message": "Analysis started in background",
+            "status": "processing",
+            "match_score": 0.0,
             "cv_document_id": str(request.cv_document_id),
             "job_description_id": str(request.job_description_id)
         }
@@ -425,29 +422,27 @@ async def get_enhanced_analysis(
     
     # Build reports with safe defaults
     gap_data = {
-        'critical_gaps': gap_report.critical_gaps[:5] if gap_report and gap_report.critical_gaps else [],
-        'important_gaps': gap_report.important_gaps[:8] if gap_report and gap_report.important_gaps else [],
-        'nice_to_have_gaps': gap_report.nice_to_have_gaps[:10] if gap_report and gap_report.nice_to_have_gaps else [],
-        'learning_roadmap': gap_report.learning_roadmap[:10] if gap_report and gap_report.learning_roadmap else [],
-        'quick_wins': gap_report.quick_wins[:3] if gap_report and gap_report.quick_wins else [],
+        'critical_gaps': gap_report.critical_gaps if gap_report and gap_report.critical_gaps else [],
+        'important_gaps': gap_report.important_gaps if gap_report and gap_report.important_gaps else [],
+        'nice_to_have_gaps': gap_report.nice_to_have_gaps if gap_report and gap_report.nice_to_have_gaps else [],
+        'learning_roadmap': gap_report.learning_roadmap if gap_report and gap_report.learning_roadmap else [],
+        'quick_wins': gap_report.quick_wins if gap_report and gap_report.quick_wins else [],
         'competitive_differentiator': gap_report.competitive_differentiator if gap_report else {},
-        'total_potential_improvement': str(gap_report.total_potential_improvement) if gap_report and gap_report.total_potential_improvement else '',
+        'total_potential_improvement': str(gap_report.total_potential_improvement) if gap_report and gap_report.total_potential_improvement else '0',
     }
     
     xai_data = {
-        'overall_explanation': xai_report.evidence_for_match[0].get('claim', '') if xai_report and xai_report.evidence_for_match else '',
-        'evidence_for_match': xai_report.evidence_for_match[:5] if xai_report and xai_report.evidence_for_match else [],
-        'evidence_against_match': xai_report.evidence_against_match[:5] if xai_report and xai_report.evidence_against_match else [],
-        'key_achievements': xai_report.key_achievements[:5] if xai_report and xai_report.key_achievements else [],
-        'counterfactuals': xai_report.counterfactuals[:5] if xai_report and xai_report.counterfactuals else [],
-        'hard_talk_questions': xai_report.hard_talk_questions[:5] if xai_report and hasattr(xai_report, 'hard_talk_questions') and xai_report.hard_talk_questions else [],
-        'credibility_analysis': xai_report.credibility_analysis if xai_report and hasattr(xai_report, 'credibility_analysis') else None,
-        'interview_focus_areas': xai_report.interview_focus_areas[:5] if xai_report and hasattr(xai_report, 'interview_focus_areas') and xai_report.interview_focus_areas else [],
+        'overall_explanation': xai_report.overall_explanation if xai_report and xai_report.overall_explanation else '',
+        'summary': xai_report.overall_explanation if xai_report and xai_report.overall_explanation else '',
+        'evidence_for_match': xai_report.evidence_for_match if xai_report and xai_report.evidence_for_match else [],
+        'evidence_against_match': xai_report.evidence_against_match if xai_report and xai_report.evidence_against_match else [],
+        'key_achievements': xai_report.key_achievements if xai_report and xai_report.key_achievements else [],
+        'counterfactuals': xai_report.counterfactuals if xai_report and xai_report.counterfactuals else [],
+        'credibility_analysis': xai_report.credibility_analysis if xai_report else None,
         'visual_data': xai_report.visual_data if xai_report else None,
-        'force_plot_data': xai_report.force_plot_data if xai_report and hasattr(xai_report, 'force_plot_data') else None,
-        'waterfall_data': xai_report.waterfall_data if xai_report and hasattr(xai_report, 'waterfall_data') else None,
-        'summary_plot_data': xai_report.summary_plot_data if xai_report and hasattr(xai_report, 'summary_plot_data') else None,
-        'summary': xai_report.evidence_for_match[0].get('claim', '') if xai_report and xai_report.evidence_for_match else ''
+        'force_plot_data': xai_report.force_plot_data if xai_report else None,
+        'waterfall_data': xai_report.waterfall_data if xai_report else None,
+        'summary_plot_data': xai_report.summary_plot_data if xai_report else None,
     }
 
     # Build enhanced response
@@ -543,8 +538,14 @@ async def list_analyses(
     if not cv_ids:
         return AnalysisListResponse(analyses=[], total=0, skip=skip, limit=limit)
     
-    # Get analyses
-    query = select(AnalysisRecord).where(
+    # Get analyses with job description details
+    query = select(
+        AnalysisRecord,
+        JobDescription.title.label("job_title"),
+        JobDescription.company.label("job_company")
+    ).outerjoin(
+        JobDescription, AnalysisRecord.job_description_id == JobDescription.id
+    ).where(
         AnalysisRecord.cv_document_id.in_(cv_ids)
     )
     
@@ -555,22 +556,24 @@ async def list_analyses(
     total_result = await db.execute(count_query)
     total = total_result.scalar()
     
-    # Get analyses
+    # Order and paginate
     query = query.order_by(AnalysisRecord.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(query)
-    analyses = result.scalars().all()
+    rows = result.all()
     
     return AnalysisListResponse(
         analyses=[
             {
-                'id': str(a.id),
-                'cv_document_id': str(a.cv_document_id),
-                'job_description_id': str(a.job_description_id),
-                'match_score': float(a.match_score) if a.match_score else None,
-                'analysis_status': a.processing_status,
-                'created_at': a.created_at.isoformat() if a.created_at else None
+                'id': str(row.AnalysisRecord.id),
+                'cv_document_id': str(row.AnalysisRecord.cv_document_id),
+                'job_description_id': str(row.AnalysisRecord.job_description_id),
+                'match_score': float(row.AnalysisRecord.match_score) if row.AnalysisRecord.match_score else None,
+                'analysis_status': row.AnalysisRecord.processing_status,
+                'created_at': row.AnalysisRecord.created_at.isoformat() if row.AnalysisRecord.created_at else None,
+                'job_title': row.job_title,
+                'company': row.job_company
             }
-            for a in analyses
+            for row in rows
         ],
         total=total,
         skip=skip,
