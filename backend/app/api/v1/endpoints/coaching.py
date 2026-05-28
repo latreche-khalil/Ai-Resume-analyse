@@ -515,7 +515,9 @@ async def get_interview_report(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get interview report. Requirements: 13.6"""
+    """Get interview report with questions and answers. Requirements: 13.6"""
+    from app.models.interview import InterviewAnswer
+    
     result = await db.execute(
         select(InterviewSession).where(InterviewSession.id == session_id)
     )
@@ -531,9 +533,117 @@ async def get_interview_report(
             detail="You do not have access to this interview session"
         )
     
+    # Get all questions and answers for this session
+    questions_result = await db.execute(
+        select(InterviewQuestion)
+        .where(InterviewQuestion.session_id == session_id)
+        .order_by(InterviewQuestion.sequence_number)
+    )
+    questions = questions_result.scalars().all()
+    
+    # Build Q&A list
+    qa_list = []
+    total_scores = []
+    
+    for q in questions:
+        answer_result = await db.execute(
+            select(InterviewAnswer).where(InterviewAnswer.question_id == q.id)
+        )
+        answer = answer_result.scalar_one_or_none()
+        
+        qa_list.append({
+            "question_id": str(q.id),
+            "question_text": q.question_text,
+            "question_type": q.question_type,
+            "sequence_number": q.sequence_number,
+            "answer_text": answer.answer_text if answer else None,
+            "relevance_score": float(answer.relevance_score) if answer and answer.relevance_score else None,
+            "completeness_score": float(answer.completeness_score) if answer and answer.completeness_score else None,
+            "clarity_score": float(answer.clarity_score) if answer and answer.clarity_score else None,
+            "feedback": answer.feedback if answer else None
+        })
+        
+        # Collect scores for average calculation
+        if answer and answer.relevance_score and answer.completeness_score and answer.clarity_score:
+            avg = (float(answer.relevance_score) + float(answer.completeness_score) + float(answer.clarity_score)) / 3
+            total_scores.append(avg)
+    
+    # Calculate overall average score
+    avg_score = sum(total_scores) / len(total_scores) if total_scores else 0.75
+    
+    # Update session overall_score if not set
+    if not session.overall_score:
+        session.overall_score = avg_score
+        await db.commit()
+    
+    import json
+    context_dict = json.loads(session.context_data) if session.context_data else {}
+    
     return {
         "session_id": str(session_id),
-        "overall_score": session.overall_score or 0.8,
+        "overall_score": float(session.overall_score or avg_score),
         "status": session.status,
-        "report": "Interview completed successfully."
+        "started_at": session.started_at.isoformat() if session.started_at else None,
+        "completed_at": session.completed_at.isoformat() if session.completed_at else None,
+        "difficulty": context_dict.get("difficulty", "mid"),
+        "interview_type": context_dict.get("interview_type", "mixed"),
+        "mode": context_dict.get("mode", "training"),
+        "questions_answers": qa_list,
+        "report": "Interview completed successfully. Review your answers below to identify areas for improvement."
     }
+
+
+@router.get("/interview/sessions")
+async def get_interview_sessions(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    limit: int = 10,
+    offset: int = 0
+):
+    """Get user's interview session history."""
+    from app.models.job_description import JobDescription
+    
+    result = await db.execute(
+        select(InterviewSession)
+        .where(InterviewSession.user_id == current_user.id)
+        .order_by(InterviewSession.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    sessions = result.scalars().all()
+    
+    items = []
+    for session in sessions:
+        # Get JD title if available
+        jd_title = None
+        if session.job_description_id:
+            jd_result = await db.execute(
+                select(JobDescription).where(JobDescription.id == session.job_description_id)
+            )
+            jd = jd_result.scalar_one_or_none()
+            if jd:
+                jd_title = jd.title
+        
+        # Get question count
+        q_count_result = await db.execute(
+            select(func.count(InterviewQuestion.id))
+            .where(InterviewQuestion.session_id == session.id)
+        )
+        question_count = q_count_result.scalar_one()
+        
+        import json
+        context_dict = json.loads(session.context_data) if session.context_data else {}
+        
+        items.append({
+            "id": str(session.id),
+            "status": session.status,
+            "overall_score": float(session.overall_score) if session.overall_score else None,
+            "started_at": session.started_at.isoformat() if session.started_at else None,
+            "completed_at": session.completed_at.isoformat() if session.completed_at else None,
+            "job_title": jd_title,
+            "difficulty": context_dict.get("difficulty", "mid"),
+            "interview_type": context_dict.get("interview_type", "mixed"),
+            "question_count": question_count
+        })
+    
+    return {"items": items, "total": len(items)}
