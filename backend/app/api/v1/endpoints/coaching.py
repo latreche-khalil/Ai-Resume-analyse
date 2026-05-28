@@ -76,6 +76,8 @@ async def send_chat_message(
 ):
     """Send message and get AI response using RAG context. Requirements: 12.2, 12.3"""
     message = body.message
+    logger.info(f"=== CHAT MESSAGE RECEIVED === Session: {session_id}, User: {current_user.id}, Message: {message[:50]}...")
+    
     from app.models.cv_document import CVDocument
     from sqlalchemy import select
 
@@ -87,6 +89,7 @@ async def send_chat_message(
     )
     session = result.scalar_one_or_none()
     if not session:
+        logger.error(f"Chat session not found: {session_id}")
         raise HTTPException(status_code=404, detail="Session not found")
 
     # ── RAG: retrieve relevant CV chunks for context ───────────────────────
@@ -182,14 +185,20 @@ INSTRUCTIONS:
 
     try:
         from app.services.nlp.llm_client import llm_client
+        logger.info("Calling LLM client for chat response...")
         ai_response = await llm_client.generate(
             prompt=prompt,
-            task_type="general",
+            task_type="fast",
             temperature=0.7,
             max_tokens=1024
         )
+        
+        logger.info(f"LLM response received: {ai_response[:100] if ai_response else 'None'}...")
+        
         if not ai_response:
-            ai_response = "I'm here to help with your career journey. Could you tell me more about what you're looking for?"
+            # Fallback response when AI service is unavailable
+            ai_response = "I apologize, but I'm having trouble connecting to the AI service right now. Please try again in a moment. In the meantime, you can review your analysis results or explore other features."
+            logger.warning("AI service returned empty response, using fallback message")
 
         ai_msg = ChatMessage(session_id=session_id, role="assistant", content=ai_response)
         db.add(ai_msg)
@@ -198,8 +207,16 @@ INSTRUCTIONS:
 
         return {"message": ai_response}
     except Exception as e:
-        logger.error(f"Chat error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to generate response")
+        logger.error(f"Chat error: {str(e)}", exc_info=True)
+        
+        # Save a fallback message instead of raising exception
+        fallback_msg = "I'm experiencing technical difficulties at the moment. Please try again shortly. If the issue persists, you can still access your CV analysis and other features."
+        ai_msg = ChatMessage(session_id=session_id, role="assistant", content=fallback_msg)
+        db.add(ai_msg)
+        session.message_count = (session.message_count or 0) + 2
+        await db.commit()
+        
+        return {"message": fallback_msg}
 
 
 @router.get("/chat/sessions/{session_id}/messages")

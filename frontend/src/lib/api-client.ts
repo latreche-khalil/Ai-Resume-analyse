@@ -348,14 +348,7 @@ class ApiClient {
     await this.request('POST', `/analysis/${id}/review?decision=${decision}`)
   }
 
-  // Chat methods
-  async createChatSession(): Promise<{ session_id: string }> {
-    return this.request('POST', '/coaching/chat/session')
-  }
-
-  async sendChatMessage(sessionId: string, message: string): Promise<{ message: string }> {
-    return this.request('POST', `/coaching/chat/${sessionId}/message`, { message })
-  }
+  // Chat methods (removed duplicate - see Chat/Coaching methods below)
 
   // Additional document methods
   async getSkillReport(documentId: string): Promise<any> {
@@ -497,6 +490,19 @@ class ApiClient {
 
   async deleteInterviewSession(sessionId: string): Promise<{ message: string }> {
     return this.request('DELETE', `/coaching/interview/sessions/${sessionId}`)
+  }
+
+  // Chat/Coaching methods
+  async createChatSession(): Promise<{ session_id: string; created_at: string }> {
+    return this.request('POST', '/coaching/chat/sessions')
+  }
+
+  async sendChatMessage(sessionId: string, message: string): Promise<{ message: string }> {
+    return this.request('POST', `/coaching/chat/sessions/${sessionId}/messages`, { message })
+  }
+
+  async getChatHistory(sessionId: string): Promise<{ messages: Array<{ role: string; content: string }> }> {
+    return this.request('GET', `/coaching/chat/sessions/${sessionId}/messages`)
   }
 }
 
