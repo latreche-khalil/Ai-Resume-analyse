@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import {
   Bot, Mic, Square, RefreshCcw, Send, Settings2, Target,
   BrainCircuit, Award, Clock, Volume2, VolumeX,
-  ChevronLeft, ChevronRight, Activity, CheckCircle2
+  ChevronLeft, ChevronRight, Activity, CheckCircle2, Trash2
 } from 'lucide-react'
 
 type Phase = 'setup' | 'interview' | 'complete' | 'history'
@@ -51,6 +51,7 @@ export function InterviewSimulationView() {
   const [sessions, setSessions] = useState<InterviewSession[]>([])
   const [selectedSession, setSelectedSession] = useState<any>(null)
   const [loadingHistory, setLoadingHistory] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null) // session ID to delete
 
   useEffect(() => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
@@ -92,6 +93,24 @@ export function InterviewSimulationView() {
       toast.error('Failed to load session details')
     } finally {
       setLoadingHistory(false)
+    }
+  }
+
+  const deleteSession = async (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation() // Prevent card click
+    setDeleteConfirm(sessionId)
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return
+    
+    try {
+      await apiClient.deleteInterviewSession(deleteConfirm)
+      toast.success('Interview session deleted')
+      setDeleteConfirm(null)
+      loadInterviewHistory() // Reload the list
+    } catch (e: any) {
+      toast.error('Failed to delete session')
     }
   }
 
@@ -536,7 +555,7 @@ export function InterviewSimulationView() {
               <div className="grid grid-cols-1 gap-4">
                 {sessions.map((session, i) => (
                   <motion.div key={session.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-                    className="bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] rounded-xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer"
+                    className="bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] rounded-xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer group"
                     onClick={() => viewSessionDetails(session.id)}>
                     
                     <div className="flex items-start justify-between gap-4">
@@ -598,7 +617,15 @@ export function InterviewSimulationView() {
                         </div>
                       </div>
                       
-                      <ChevronRight size={18} className="text-gray-400 mt-4" />
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => deleteSession(session.id, e)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                          title="Delete interview">
+                          <Trash2 size={16} />
+                        </button>
+                        <ChevronRight size={18} className="text-gray-400" />
+                      </div>
                     </div>
                   </motion.div>
                 ))}
@@ -734,6 +761,54 @@ export function InterviewSimulationView() {
           </motion.div>
         )}
 
+      </AnimatePresence>
+
+      {/* ── DELETE CONFIRMATION DIALOG ── */}
+      <AnimatePresence>
+        {deleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setDeleteConfirm(null)}>
+            
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] rounded-2xl p-6 max-w-md w-full shadow-2xl">
+              
+              <div className="flex items-start gap-4 mb-5">
+                <div className="w-12 h-12 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 flex items-center justify-center shrink-0">
+                  <Trash2 size={20} className="text-red-600 dark:text-red-400" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-extrabold text-slate-900 dark:text-white mb-2">
+                    Delete Interview Session?
+                  </h3>
+                  <p className="text-sm font-medium text-slate-600 dark:text-neutral-400 leading-relaxed">
+                    Are you sure you want to delete this interview session? This action cannot be undone and all questions and answers will be permanently removed.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeleteConfirm(null)}
+                  className="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-slate-700 dark:text-neutral-300 font-bold rounded-xl text-sm transition-all">
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm shadow-lg shadow-red-500/20 transition-all">
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
   )

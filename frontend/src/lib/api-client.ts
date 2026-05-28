@@ -494,6 +494,10 @@ class ApiClient {
   async getInterviewSessions(params?: { limit?: number; offset?: number }): Promise<{ items: any[]; total: number }> {
     return this.request('GET', '/coaching/interview/sessions', undefined, params)
   }
+
+  async deleteInterviewSession(sessionId: string): Promise<{ message: string }> {
+    return this.request('DELETE', `/coaching/interview/sessions/${sessionId}`)
+  }
 }
 
 export const apiClient = new ApiClient()

@@ -647,3 +647,32 @@ async def get_interview_sessions(
         })
     
     return {"items": items, "total": len(items)}
+
+
+@router.delete("/interview/sessions/{session_id}")
+async def delete_interview_session(
+    session_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete an interview session and all associated data."""
+    result = await db.execute(
+        select(InterviewSession).where(InterviewSession.id == session_id)
+    )
+    session = result.scalar_one_or_none()
+    
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    # Ownership check
+    if session.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this interview session"
+        )
+    
+    # Delete session (cascade will delete questions and answers)
+    await db.delete(session)
+    await db.commit()
+    
+    return {"message": "Interview session deleted successfully"}
