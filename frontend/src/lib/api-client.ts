@@ -1,4 +1,4 @@
-const rawBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const rawBaseUrl = 'http://localhost:8000' // Direct URL instead of env variable
 const API_BASE_URL = rawBaseUrl.endsWith('/api/v1') ? rawBaseUrl : `${rawBaseUrl.replace(/\/$/, '')}/api/v1`
 
 interface ApiResponse<T = any> {

@@ -5,7 +5,7 @@ This module defines ChatSession and ChatMessage models.
 """
 from sqlalchemy import (
     Column, String, ForeignKey, Text, Boolean, Integer,
-    CheckConstraint, Index, JSON
+    CheckConstraint, Index
 )
 from app.models.base import UUIDType
 from sqlalchemy.orm import relationship
@@ -44,9 +44,9 @@ class ChatSession(Base, UUIDMixin, TimestampMixin):
     )
     
     context_data = Column(
-        JSON,
+        Text,
         nullable=True,
-        comment="Context data: skill_report_id, gap_report_id, etc."
+        comment="Context data: skill_report_id, gap_report_id, etc. (JSON as text for SQLite)"
     )
     
     message_count = Column(
@@ -135,9 +135,9 @@ class ChatMessage(Base, UUIDMixin, TimestampMixin):
     )
     
     message_metadata = Column(
-        JSON,
+        Text,
         nullable=True,
-        comment="Additional message metadata"
+        comment="Additional message metadata (JSON as text for SQLite)"
     )
     
     # Relationships

@@ -35,6 +35,7 @@ async def create_chat_session(
 ):
     """Create new chat session. Requirements: 12.1"""
     from app.models.cv_document import CVDocument
+    import json
 
     # Check CV exists (diagram: No CV Found → 400)
     cv_result = await db.execute(
@@ -53,7 +54,7 @@ async def create_chat_session(
 
     session = ChatSession(
         user_id=current_user.id,
-        context_data={"cv_document_id": str(cv.id)}
+        context_data=json.dumps({"cv_document_id": str(cv.id)})  # Store as JSON string
     )
     db.add(session)
     await db.commit()
@@ -94,7 +95,8 @@ async def send_chat_message(
 
     # ── RAG: retrieve relevant CV chunks for context ───────────────────────
     rag_context = ""
-    cv_document_id = (session.context_data or {}).get("cv_document_id")
+    context_dict = json.loads(session.context_data) if session.context_data else {}
+    cv_document_id = context_dict.get("cv_document_id")
     if cv_document_id:
         try:
             from app.services.nlp.rag_pipeline import rag_pipeline

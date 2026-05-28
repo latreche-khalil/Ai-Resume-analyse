@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
+import { useAuth } from '@/contexts/auth-context'
 import {
   Bot, Send, Sparkles, Lightbulb, Briefcase,
   Target, User, RefreshCw, MessageSquare
@@ -21,6 +22,7 @@ const SUGGESTIONS = [
 ]
 
 export function CareerChatView() {
+  const { user, loading: authLoading } = useAuth()
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
@@ -37,14 +39,22 @@ export function CareerChatView() {
   const initSession = async () => {
     setInitError(false)
     try {
+      console.log('Creating chat session...')
       const s = await apiClient.createChatSession()
+      console.log('Chat session created:', s.session_id)
       setSessionId(s.session_id)
-    } catch {
+    } catch (err) {
+      console.error('Failed to create chat session:', err)
       setInitError(true)
     }
   }
 
-  useEffect(() => { initSession() }, [])
+  useEffect(() => {
+    // Only initialize session after user is authenticated
+    if (!authLoading && user) {
+      initSession()
+    }
+  }, [authLoading, user])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
