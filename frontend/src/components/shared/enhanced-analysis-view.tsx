@@ -151,37 +151,37 @@ export function EnhancedAnalysisView() {
 
       {/* ── Page Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 px-1">
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           {/* Breadcrumb */}
-          <div className="flex items-center gap-1.5 text-xs font-medium text-gray-400 dark:text-neutral-500">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
             <Link href="/documents" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Resumes</Link>
-            <ChevronRight className="w-3 h-3 opacity-50" />
-            <span className="text-gray-600 dark:text-neutral-300">Neural Report</span>
-            <span className="text-blue-600 dark:text-blue-400 font-mono">#{id?.toString().slice(0, 8)}</span>
+            <ChevronRight className="w-3.5 h-3.5 opacity-40" />
+            <span className="text-slate-700 dark:text-slate-300">Neural Report</span>
+            <span className="text-blue-600 dark:text-blue-400 font-mono text-[11px]">#{id?.toString().slice(0, 8)}</span>
           </div>
           {/* Title */}
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-white flex flex-wrap items-center gap-x-2">
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white flex flex-wrap items-center gap-x-3">
             {data.jd?.title || 'System Analysis'}
-            <span className="text-gray-300 dark:text-neutral-700 font-light">/</span>
-            <span className="text-blue-600 dark:text-blue-400 font-semibold">
+            <span className="text-slate-300 dark:text-slate-700 font-light text-2xl">/</span>
+            <span className="text-blue-600 dark:text-blue-400">
               {data.jd?.company || 'Opportunity'}
             </span>
           </h1>
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0">
           <button 
             onClick={() => exportReport('pdf')}
             disabled={exporting}
-            className="px-4 py-2.5 bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] text-gray-700 dark:text-neutral-300 rounded-xl text-sm font-medium hover:bg-gray-50 dark:hover:bg-[#151518] transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
+            className="px-5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
           >
             {exporting 
-              ? <div className="w-4 h-4 border-2 border-gray-400 border-t-gray-700 dark:border-t-white rounded-full animate-spin" /> 
-              : <Download className="w-4 h-4 text-gray-500 dark:text-neutral-400" />}
+              ? <div className="w-4 h-4 border-2 border-slate-400 border-t-slate-700 dark:border-t-white rounded-full animate-spin" /> 
+              : <Download className="w-4 h-4 text-slate-500 dark:text-slate-400" />}
             Export PDF
           </button>
-          <button className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2">
+          <button className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold shadow-lg shadow-blue-500/25 transition-all flex items-center gap-2">
             <Share2 className="w-4 h-4" />
             Share
           </button>
@@ -195,12 +195,12 @@ export function EnhancedAnalysisView() {
         <div className="flex-1 space-y-5">
 
           {/* Hero Card */}
-          <div className="p-7 sm:p-8 rounded-2xl bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-72 h-72 bg-gradient-to-bl from-blue-500/[0.04] to-transparent blur-3xl rounded-full pointer-events-none" />
+          <div className="p-8 sm:p-10 rounded-3xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-blue-500/5 to-transparent blur-3xl rounded-full pointer-events-none" />
 
             <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center relative z-10">
               {/* Score */}
-              <div className="md:col-span-4 flex justify-center border-b md:border-b-0 md:border-r border-gray-100 dark:border-neutral-900/60 pb-6 md:pb-0 md:pr-8">
+              <div className="md:col-span-4 flex justify-center border-b md:border-b-0 md:border-r border-slate-100 dark:border-slate-800 pb-6 md:pb-0 md:pr-8">
                 <MatchScoreGauge 
                   score={data.match_score || 0} 
                   confidence={data.confidence_score || 0} 
@@ -208,13 +208,13 @@ export function EnhancedAnalysisView() {
               </div>
 
               {/* Info */}
-              <div className="md:col-span-8 space-y-5 md:pl-4">
-                <div className="space-y-2">
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-semibold tracking-wide">
-                    <BrainCircuit className="w-3.5 h-3.5" /> NEURAL ENGINE v3.1
+              <div className="md:col-span-8 space-y-6 md:pl-4">
+                <div className="space-y-3">
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-bold tracking-wide">
+                    <BrainCircuit className="w-4 h-4" /> NEURAL ENGINE v3.1
                   </div>
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Intelligence Insights</h2>
-                  <p className="text-gray-500 dark:text-neutral-400 text-sm leading-relaxed">
+                  <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">Intelligence Insights</h2>
+                  <p className="text-slate-600 dark:text-slate-300 text-base leading-relaxed font-medium">
                     {data.xai_report?.summary || data.summary || `Match score of ${Math.round((data.match_score || 0) * 100)}%. This report highlights evidence for the match, skill gaps, and growth recommendations.`}
                   </p>
                 </div>
@@ -227,12 +227,12 @@ export function EnhancedAnalysisView() {
                 </div>
 
                 {/* Trust badges */}
-                <div className="flex items-center gap-5 pt-3 border-t border-gray-100 dark:border-neutral-900/60">
-                  <div className="flex items-center gap-1.5 text-gray-500 dark:text-neutral-400 text-xs font-medium">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" /> Verified Match
+                <div className="flex items-center gap-6 pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 text-sm font-semibold">
+                    <ShieldCheck className="w-4 h-4 text-emerald-500" /> Verified Match
                   </div>
-                  <div className="flex items-center gap-1.5 text-gray-500 dark:text-neutral-400 text-xs font-medium">
-                    <ShieldCheck className="w-3.5 h-3.5 text-blue-500" /> Protected Data
+                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 text-sm font-semibold">
+                    <ShieldCheck className="w-4 h-4 text-blue-500" /> Protected Data
                   </div>
                 </div>
               </div>
@@ -242,20 +242,20 @@ export function EnhancedAnalysisView() {
           {/* Tabs */}
           <div className="space-y-4">
             {/* Tab Bar */}
-            <div className="flex p-1 bg-gray-50 dark:bg-[#0c0c0e] border border-gray-200 dark:border-neutral-900 rounded-xl overflow-x-auto no-scrollbar shadow-sm">
-              <div className="flex gap-1">
+            <div className="flex p-1.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto no-scrollbar shadow-sm">
+              <div className="flex gap-1.5">
                 {TABS_CONFIG.map(t => (
                   <button 
                     key={t.id} 
                     onClick={() => setTab(t.id)}
                     className={`
-                      flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap
+                      flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all whitespace-nowrap
                       ${tab === t.id 
-                        ? 'bg-white dark:bg-[#18181b] text-blue-600 dark:text-white shadow-sm border border-gray-200 dark:border-neutral-800' 
-                        : 'text-gray-500 dark:text-neutral-400 hover:text-gray-800 dark:hover:text-white hover:bg-white/60 dark:hover:bg-white/[0.03]'}
+                        ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-white shadow-md border border-slate-200 dark:border-slate-700' 
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/50'}
                     `}
                   >
-                    <t.icon className={`w-4 h-4 ${tab === t.id ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-neutral-500'}`} />
+                    <t.icon className={`w-4 h-4 ${tab === t.id ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'}`} />
                     {t.label}
                   </button>
                 ))}
@@ -358,9 +358,9 @@ const colorMap: Record<string, string> = {
 
 function StatBox({ label, value, color }: { label: string; value: any; color: string }) {
   return (
-    <div className={`p-3.5 rounded-xl border text-center space-y-1 ${colorMap[color]}`} style={{ fontFamily: 'Roboto, sans-serif' }}>
-      <div className="text-2xl font-bold tracking-tight">{value ?? 0}</div>
-      <div className="text-[10px] font-semibold text-gray-400 dark:text-neutral-500 tracking-widest uppercase">{label}</div>
+    <div className={`p-4 rounded-xl border text-center space-y-1.5 ${colorMap[color]}`} style={{ fontFamily: 'Roboto, sans-serif' }}>
+      <div className="text-3xl font-black tracking-tight">{value ?? 0}</div>
+      <div className="text-[9px] font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase">{label}</div>
     </div>
   )
 }

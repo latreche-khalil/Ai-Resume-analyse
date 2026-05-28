@@ -436,12 +436,23 @@ export function DocumentsView() {
         setAnalyzingCVs(analyzing)
       } catch (error) {
         // Silently fail - don't show error to user for background polling
-        console.log('Failed to check analyzing status:', error)
+        // Only log in development
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Background polling: checking analyzing status')
+        }
       }
     }
-    checkAnalyzing()
-    const interval = setInterval(checkAnalyzing, 5000) // Increased to 5s to reduce load
-    return () => clearInterval(interval)
+    
+    // Initial check with a small delay to avoid race condition on first load
+    const initialTimeout = setTimeout(checkAnalyzing, 500)
+    
+    // Then poll every 5 seconds
+    const interval = setInterval(checkAnalyzing, 5000)
+    
+    return () => {
+      clearTimeout(initialTimeout)
+      clearInterval(interval)
+    }
   }, [])
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {

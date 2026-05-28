@@ -148,21 +148,21 @@ export function GapsTab({ gapReport, missingSkills = [] }: GapsTabProps) {
 
       {/* Quick Wins */}
       {gapReport.quick_wins?.length > 0 && (
-        <div className="p-8 rounded-2xl bg-gray-900 dark:bg-[#0a0a0a] text-white overflow-hidden relative">
-          <div className="absolute top-0 right-0 w-56 h-56 bg-emerald-500/10 blur-[80px] rounded-full pointer-events-none" />
+        <div className="p-8 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 dark:bg-gradient-to-br dark:from-gray-900 dark:to-[#0a0a0a] overflow-hidden relative border border-emerald-100 dark:border-emerald-900/20 shadow-sm">
+          <div className="absolute top-0 right-0 w-56 h-56 bg-emerald-500/10 dark:bg-emerald-500/5 blur-[80px] rounded-full pointer-events-none" />
 
           <div className="relative z-10 space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/20 flex items-center justify-center border border-emerald-200 dark:border-emerald-500/20">
+                <div className="w-10 h-10 rounded-xl bg-white dark:bg-emerald-500/20 flex items-center justify-center border border-emerald-200 dark:border-emerald-500/20 shadow-sm">
                   <Zap className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-gray-900 dark:text-white">Accelerated Wins</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Immediate actions to boost your match score</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">Immediate actions to boost your match score</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-white/5 border border-emerald-200 dark:border-white/10">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white dark:bg-white/5 border border-emerald-200 dark:border-white/10 shadow-sm">
                 <TrendingUp className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                 <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Estimated Boost: +12%</span>
               </div>
@@ -172,18 +172,18 @@ export function GapsTab({ gapReport, missingSkills = [] }: GapsTabProps) {
               {gapReport.quick_wins.map((qw: any, i: number) => (
                 <div
                   key={i}
-                  className="p-5 rounded-xl bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/15 transition-all group/win shadow-sm"
+                  className="p-5 rounded-xl bg-white dark:bg-white/5 border border-emerald-200 dark:border-white/10 hover:border-emerald-300 dark:hover:border-white/15 transition-all group/win shadow-sm hover:shadow-md"
                 >
                   <div className="flex justify-between items-start mb-3">
-                    <span className="px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 text-[10px] font-semibold uppercase tracking-wide">
+                    <span className="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 text-[10px] font-semibold uppercase tracking-wide">
                       {qw.timeline || 'Fast Track'}
                     </span>
-                    <ArrowUpRight className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 group-hover/win:text-emerald-500 dark:group-hover/win:text-emerald-400 transition-colors" />
+                    <ArrowUpRight className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 group-hover/win:text-emerald-600 dark:group-hover/win:text-emerald-400 transition-colors" />
                   </div>
                   <p className="text-sm font-medium text-gray-900 dark:text-gray-100 leading-relaxed mb-3">{qw.action}</p>
                   <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                    <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-500 group-hover/win:text-gray-700 dark:group-hover/win:text-gray-300 transition-colors">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-500" />
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-600 dark:text-gray-500 group-hover/win:text-gray-800 dark:group-hover/win:text-gray-300 transition-colors">
                       Immediate ROI
                     </span>
                   </div>

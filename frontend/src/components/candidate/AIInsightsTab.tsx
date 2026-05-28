@@ -39,8 +39,8 @@ export function AIInsightsTab({ xaiReport, matchScore, trustData }: AIInsightsTa
           <BrainCircuit className="w-8 h-8 text-blue-600 dark:text-blue-400" />
         </div>
         <div className="space-y-2">
-          <h3 className="text-sm font-bold text-gray-900 dark:text-white">Neural Engine Processing</h3>
-          <p className="text-xs text-slate-500 dark:text-neutral-400 max-w-xs mx-auto leading-relaxed">Deep semantic analysis is generating explainability layers for your match score...</p>
+          <h3 className="text-base font-extrabold text-gray-900 dark:text-white">Neural Engine Processing</h3>
+          <p className="text-sm text-slate-600 dark:text-neutral-400 max-w-xs mx-auto leading-relaxed font-medium">Deep semantic analysis is generating explainability layers for your match score...</p>
         </div>
       </div>
     )
@@ -73,7 +73,7 @@ export function AIInsightsTab({ xaiReport, matchScore, trustData }: AIInsightsTa
       <div className="space-y-4">
         <div className="flex items-center gap-2 px-1">
           <span className="w-1 h-3 rounded bg-blue-500" />
-          <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">Executive Interpretation</h4>
+          <h4 className="text-sm font-extrabold uppercase tracking-wider text-slate-700 dark:text-neutral-400">Executive Interpretation</h4>
         </div>
         
         {/* Dynamic Explanation Hero */}
@@ -85,17 +85,17 @@ export function AIInsightsTab({ xaiReport, matchScore, trustData }: AIInsightsTa
               </div>
               <div className="space-y-3 flex-1 min-w-0">
                 <div className="flex items-center gap-3">
-                  <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[8px] font-black uppercase tracking-wider border border-blue-500/10">
+                  <span className="px-2.5 py-1 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[9px] font-black uppercase tracking-wider border border-blue-500/10">
                     Neural Interpretation
                   </span>
                   <div className="flex gap-1">
                     {[1,2,3].map(i => <div key={i} className="w-1 h-1 rounded-full bg-blue-500/40 animate-pulse" style={{ animationDelay: `${i * 0.2}s` }} />)}
                   </div>
                 </div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white tracking-tight leading-snug">
+                <h3 className="text-xl font-extrabold text-gray-900 dark:text-white tracking-tight leading-snug">
                   Why did you get this <span className="text-blue-600 dark:text-blue-400">Match Score</span>?
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-neutral-400 leading-relaxed font-medium whitespace-pre-wrap max-w-none">
+                <p className="text-sm text-slate-600 dark:text-neutral-300 leading-relaxed font-semibold whitespace-pre-wrap max-w-none">
                   {xaiReport.overall_explanation || xaiReport.summary || "Our AI neural engine analyzed your professional DNA against the job architecture. Here's the strategic reasoning behind your assessment."}
                 </p>
               </div>
@@ -108,7 +108,7 @@ export function AIInsightsTab({ xaiReport, matchScore, trustData }: AIInsightsTa
       <div className="border-t border-slate-200/60 dark:border-neutral-900/60 pt-6 space-y-4">
         <div className="flex items-center gap-2 px-1">
           <span className="w-1 h-3 rounded bg-emerald-500" />
-          <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">Trust & Alignment Auditing</h4>
+          <h4 className="text-sm font-extrabold uppercase tracking-wider text-slate-700 dark:text-neutral-400">Trust & Alignment Auditing</h4>
         </div>
         
         <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -145,8 +145,8 @@ export function AIInsightsTab({ xaiReport, matchScore, trustData }: AIInsightsTa
                <Trophy className="w-5 h-5 text-amber-500" />
             </div>
             <div className="space-y-0.5">
-              <h4 className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">Competitive Advantage</h4>
-              <p className="text-xs font-bold text-gray-900 dark:text-white leading-normal">
+              <h4 className="text-xs font-extrabold uppercase tracking-wider text-amber-600 dark:text-amber-400">Competitive Advantage</h4>
+              <p className="text-sm font-bold text-gray-900 dark:text-white leading-normal">
                 {xaiReport.competitive_advantage}
               </p>
             </div>
@@ -158,7 +158,7 @@ export function AIInsightsTab({ xaiReport, matchScore, trustData }: AIInsightsTa
       <div className="border-t border-slate-200/60 dark:border-neutral-900/60 pt-6 space-y-4">
         <div className="flex items-center gap-2 px-1">
           <span className="w-1 h-3 rounded bg-indigo-500" />
-          <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">Semantic Evidence Mapping</h4>
+          <h4 className="text-sm font-extrabold uppercase tracking-wider text-slate-700 dark:text-neutral-400">Semantic Evidence Mapping</h4>
         </div>
         
         <motion.div variants={item} className="w-full">
@@ -173,7 +173,7 @@ export function AIInsightsTab({ xaiReport, matchScore, trustData }: AIInsightsTa
       <div className="border-t border-slate-200/60 dark:border-neutral-900/60 pt-6 space-y-4">
         <div className="flex items-center gap-2 px-1">
           <span className="w-1 h-3 rounded bg-purple-500" />
-          <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">Explainability Analytics</h4>
+          <h4 className="text-sm font-extrabold uppercase tracking-wider text-slate-700 dark:text-neutral-400">Explainability Analytics</h4>
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start font-sans">
@@ -184,9 +184,9 @@ export function AIInsightsTab({ xaiReport, matchScore, trustData }: AIInsightsTa
                   <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-100/50 dark:border-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
                     <Activity className="w-4 h-4" />
                   </div>
-                  <h4 className="text-xs font-bold text-gray-900 dark:text-white">SHAP Feature Impact</h4>
+                  <h4 className="text-sm font-extrabold text-gray-900 dark:text-white">SHAP Feature Impact</h4>
                </div>
-               <span className="text-[9px] font-bold text-slate-400 dark:text-neutral-500 uppercase tracking-wider">v3.3.0 Engine</span>
+               <span className="text-[10px] font-extrabold text-slate-500 dark:text-neutral-400 uppercase tracking-wider">v3.3.0 Engine</span>
              </div>
              
              <SHAPVisualizations
@@ -202,7 +202,7 @@ export function AIInsightsTab({ xaiReport, matchScore, trustData }: AIInsightsTa
             {/* Key Achievements: Micro-Cards */}
             {xaiReport.key_achievements?.length > 0 && (
               <div className="space-y-4">
-                 <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500 px-1">Performance Highlights</h4>
+                 <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-neutral-400 px-1">Performance Highlights</h4>
                  <div className="space-y-2.5">
                    {xaiReport.key_achievements.slice(0, 4).map((achievement: any, i: number) => (
                      <div 
@@ -212,7 +212,7 @@ export function AIInsightsTab({ xaiReport, matchScore, trustData }: AIInsightsTa
                        <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0 border border-amber-500/10">
                          <Trophy className="w-3.5 h-3.5 text-amber-500" />
                        </div>
-                       <span className="text-[11px] font-semibold text-slate-700 dark:text-neutral-300 leading-normal">
+                       <span className="text-xs font-bold text-slate-700 dark:text-neutral-300 leading-normal">
                          {achievement.achievement || achievement}
                        </span>
                      </div>
@@ -224,7 +224,7 @@ export function AIInsightsTab({ xaiReport, matchScore, trustData }: AIInsightsTa
             {/* Red Flag Alerts */}
             {trustData?.redFlags?.flags && Array.isArray(trustData.redFlags.flags) && trustData.redFlags.flags.length > 0 && (
               <div className="space-y-4 pt-1">
-                <h4 className="text-[10px] font-bold uppercase tracking-wider text-rose-500 px-1">Neural Alerts</h4>
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-rose-600 dark:text-rose-400 px-1">Neural Alerts</h4>
                 <div className="space-y-2.5">
                   {trustData.redFlags.flags.map((flag: any, i: number) => (
                     <div 
@@ -234,7 +234,7 @@ export function AIInsightsTab({ xaiReport, matchScore, trustData }: AIInsightsTa
                       <div className="w-7 h-7 rounded-lg bg-rose-500/10 flex items-center justify-center shrink-0 border border-rose-500/10">
                         <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
                       </div>
-                      <span className="text-[11px] font-semibold text-slate-700 dark:text-rose-300 leading-normal">
+                      <span className="text-xs font-bold text-slate-700 dark:text-rose-300 leading-normal">
                         {flag.description}
                       </span>
                     </div>
@@ -251,7 +251,7 @@ export function AIInsightsTab({ xaiReport, matchScore, trustData }: AIInsightsTa
         <div className="border-t border-slate-200/60 dark:border-neutral-900/60 pt-6 space-y-4">
           <div className="flex items-center gap-2 px-1">
             <span className="w-1 h-3 rounded bg-amber-500" />
-            <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">Predictive Intelligence</h4>
+            <h4 className="text-sm font-extrabold uppercase tracking-wider text-slate-700 dark:text-neutral-400">Predictive Intelligence</h4>
           </div>
           
           <motion.div variants={item} className="space-y-4">
@@ -280,12 +280,12 @@ function TrustCard({ label, value, icon: Icon, status, description }: any) {
       </div>
       <div className="flex-1 space-y-1.5 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-[10px] font-bold text-slate-400 dark:text-neutral-500 uppercase tracking-wider">{label}</div>
-          <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold border tracking-wider uppercase shrink-0 ${config.bg} ${config.color}`}>
+          <div className="text-xs font-extrabold text-slate-700 dark:text-neutral-400 uppercase tracking-wider">{label}</div>
+          <span className={`px-2.5 py-1 rounded-md text-[10px] font-black border tracking-wider uppercase shrink-0 ${config.bg} ${config.color}`}>
             {value}
           </span>
         </div>
-        <p className="text-[11px] text-slate-500 dark:text-neutral-400 font-medium leading-normal">{description}</p>
+        <p className="text-xs text-slate-600 dark:text-neutral-300 font-bold leading-normal">{description}</p>
       </div>
     </div>
   )

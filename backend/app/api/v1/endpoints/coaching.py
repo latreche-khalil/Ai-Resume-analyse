@@ -225,106 +225,128 @@ async def start_interview(
     db: AsyncSession = Depends(get_db)
 ):
     """Start interview simulation using context from CV and Gaps. Requirements: 13.1"""
+    logger.info(f"=== INTERVIEW START ENDPOINT CALLED ===")
+    logger.info(f"User: {current_user.id if current_user else 'None'}")
+    logger.info(f"Data: {data}")
+    
     from app.models.cv_document import CVDocument
     from app.models.job_description import JobDescription
     
-    # Get latest CV for user
-    cv_res = await db.execute(
-        select(CVDocument).where(CVDocument.user_id == current_user.id).order_by(CVDocument.created_at.desc()).limit(1)
-    )
-    cv = cv_res.scalar_one_or_none()
-    
-    # Get JD
-    jd_res = await db.execute(select(JobDescription).where(JobDescription.id == data.job_description_id))
-    jd = jd_res.scalar_one_or_none()
-    
-    if not jd:
-        raise HTTPException(status_code=404, detail="Job Description not found")
-
-    # Fetch context: Analysis & Gaps
-    analysis_context = ""
-    if cv:
-        analysis_stmt = select(AnalysisRecord).where(
-            AnalysisRecord.cv_document_id == cv.id,
-            AnalysisRecord.job_description_id == jd.id
-        ).order_by(AnalysisRecord.created_at.desc()).limit(1)
-        analysis_res = await db.execute(analysis_stmt)
-        analysis = analysis_res.scalar_one_or_none()
-        
-        if analysis:
-            gap_res = await db.execute(select(GapReport).where(GapReport.analysis_record_id == analysis.id))
-            gap = gap_res.scalar_one_or_none()
-            if gap:
-                gaps_text = ", ".join([g.get('skill', '') for g in (gap.critical_gaps or [])])
-                analysis_context = f"Identified Skill Gaps for this candidate: {gaps_text}"
-
-    # Capture user_id before any logic
-    current_user_id = current_user.id
-
-    # TEMP HACK: Ensure context_data column exists using a separate connection
-    # to avoid polluting the current session.
-    from sqlalchemy.ext.asyncio import create_async_engine
-    from app.core.config import settings
-    
-    temp_engine = create_async_engine(settings.DATABASE_URL.replace("sqlite:///", "sqlite+aiosqlite:///", 1) if "aiosqlite" not in settings.DATABASE_URL else settings.DATABASE_URL)
     try:
-        async with temp_engine.begin() as conn:
-            from sqlalchemy import text
-            await conn.execute(text("ALTER TABLE interview_sessions ADD COLUMN context_data TEXT"))
-    except Exception:
-        pass
-    finally:
-        await temp_engine.dispose()
+        logger.info(f"Starting interview for user {current_user.id} with JD {data.job_description_id}")
+        
+        # Get latest CV for user
+        cv_res = await db.execute(
+            select(CVDocument).where(
+                CVDocument.user_id == current_user.id,
+                CVDocument.deleted_at.is_(None)
+            ).order_by(CVDocument.created_at.desc()).limit(1)
+        )
+        cv = cv_res.scalar_one_or_none()
+        logger.info(f"Found CV: {cv.id if cv else 'None'}")
+        
+        # Get JD
+        jd_res = await db.execute(select(JobDescription).where(JobDescription.id == data.job_description_id))
+        jd = jd_res.scalar_one_or_none()
+        logger.info(f"Found JD: {jd.id if jd else 'None'}")
+        
+        if not jd:
+            raise HTTPException(status_code=404, detail="Job Description not found")
 
-    session = InterviewSession(
-        user_id=current_user_id,
-        job_description_id=data.job_description_id,
-        status="in_progress",
-        context_data={
-            "difficulty": data.difficulty,
-            "interview_type": data.interview_type,
-            "mode": data.mode,
+        # Fetch context: Analysis & Gaps
+        analysis_context = ""
+        if cv:
+            analysis_stmt = select(AnalysisRecord).where(
+                AnalysisRecord.cv_document_id == cv.id,
+                AnalysisRecord.job_description_id == jd.id
+            ).order_by(AnalysisRecord.created_at.desc()).limit(1)
+            analysis_res = await db.execute(analysis_stmt)
+            analysis = analysis_res.scalar_one_or_none()
+            
+            if analysis:
+                gap_res = await db.execute(select(GapReport).where(GapReport.analysis_record_id == analysis.id))
+                gap = gap_res.scalar_one_or_none()
+                if gap:
+                    gaps_text = ", ".join([g.get('skill', '') for g in (gap.critical_gaps or [])])
+                    analysis_context = f"Identified Skill Gaps for this candidate: {gaps_text}"
+
+        # Capture user_id before any logic
+        current_user_id = current_user.id
+        
+        logger.info(f"Creating interview session...")
+        
+        import json
+        context_data_dict = {
+            "difficulty": data.difficulty or "mid",
+            "interview_type": data.interview_type or "mixed",
+            "mode": data.mode or "training",
             "analysis_context": analysis_context
         }
-    )
-    db.add(session)
-    await db.commit()
-    await db.refresh(session)
 
-    # Generate specialized first question using LLM
-    first_q_text = f"Welcome. Can you explain your experience as a {jd.title} and how you've handled tasks related to {jd.title}?"
-    try:
-        from app.services.nlp.llm_client import llm_client
-        prompt = f"""You are a professional interviewer for the position: {jd.title}.
+        session = InterviewSession(
+            user_id=current_user_id,
+            job_description_id=data.job_description_id,
+            status="in_progress",
+            context_data=json.dumps(context_data_dict)  # Convert to JSON string
+        )
+        db.add(session)
+        await db.commit()
+        await db.refresh(session)
+        
+        logger.info(f"Session created: {session.id}")
+
+        # Generate specialized first question using LLM
+        first_q_text = f"Welcome. Can you explain your experience as a {jd.title} and how you've handled tasks related to {jd.title}?"
+        try:
+            from app.services.nlp.llm_client import llm_client
+            prompt = f"""You are a professional interviewer for the position: {jd.title}.
 CONTEXT: {analysis_context}
-DIFFICULTY: {data.difficulty}
-TYPE: {data.interview_type}
+DIFFICULTY: {data.difficulty or 'mid'}
+TYPE: {data.interview_type or 'mixed'}
 
 TASK: Generate the FIRST interview question. 
 If there are skill gaps, try to probe them gently.
 Return ONLY the question text. Keep it professional and concise."""
-        
-        q = await llm_client.generate(prompt=prompt, task_type="fast", temperature=0.7)
-        if q:
-            first_q_text = q.strip()
-    except Exception as e:
-        logger.warning(f"Failed to generate first question: {e}")
+            
+            q = await llm_client.generate(prompt=prompt, task_type="fast", temperature=0.7)
+            if q:
+                first_q_text = q.strip()
+        except Exception as e:
+            logger.warning(f"Failed to generate first question: {e}")
 
-    question = InterviewQuestion(
-        session_id=session.id,
-        question_text=first_q_text,
-        question_type=data.interview_type or "behavioral",
-        difficulty_level=1,
-        sequence_number=1,
-    )
-    db.add(question)
-    await db.commit()
-    
-    return {
-        "session_id": str(session.id),
-        "question_id": str(question.id),
-        "question": question.question_text
-    }
+        # Map interview_type to valid question_type
+        question_type_map = {
+            "technical": "technical",
+            "behavioral": "behavioral",
+            "mixed": "behavioral"  # Start with behavioral for mixed interviews
+        }
+        question_type = question_type_map.get(data.interview_type, "behavioral")
+        
+        question = InterviewQuestion(
+            session_id=session.id,
+            question_text=first_q_text,
+            question_type=question_type,
+            difficulty_level=1,
+            sequence_number=1,
+        )
+        db.add(question)
+        await db.commit()
+        
+        logger.info(f"Question created: {question.id}")
+        
+        return {
+            "session_id": str(session.id),
+            "question_id": str(question.id),
+            "question": question.question_text
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Interview start error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to start interview: {str(e)}"
+        )
 
 @router.post("/interview/sessions/{session_id}/answer")
 async def submit_answer(
@@ -447,9 +469,11 @@ async def get_interview_next_question(
         jd_res = await db.execute(select(JobDescription).where(JobDescription.id == session.job_description_id))
         jd = jd_res.scalar_one()
         
-        ctx = (session.context_data or {}).get("analysis_context", "")
-        diff = (session.context_data or {}).get("difficulty", "mid")
-        itype = (session.context_data or {}).get("interview_type", "mixed")
+        import json
+        context_dict = json.loads(session.context_data) if session.context_data else {}
+        ctx = context_dict.get("analysis_context", "")
+        diff = context_dict.get("difficulty", "mid")
+        itype = context_dict.get("interview_type", "mixed")
 
         prompt = f"""You are a professional interviewer for: {jd.title}.
 CONTEXT: {ctx}

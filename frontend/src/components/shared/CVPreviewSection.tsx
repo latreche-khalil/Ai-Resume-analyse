@@ -90,13 +90,15 @@ export function CVPreviewSection({ cv, onDownload }: CVPreviewSectionProps) {
               
               {/* Modern action overlay on hover */}
               <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover/frame:opacity-100 transition-opacity duration-200 flex items-center justify-center backdrop-blur-[1px] p-4">
-                <button 
-                  onClick={onDownload}
+                <a 
+                  href={previewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="px-4 py-2 bg-white text-gray-900 font-semibold text-xs rounded-lg shadow-md hover:scale-105 transition-all flex items-center gap-1.5 border border-gray-100"
                 >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download PDF</span>
-                </button>
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>View</span>
+                </a>
               </div>
             </motion.div>
           ) : (

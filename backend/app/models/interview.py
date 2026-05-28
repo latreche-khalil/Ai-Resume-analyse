@@ -75,9 +75,9 @@ class InterviewSession(Base, UUIDMixin, TimestampMixin):
 
     # Context storage (for AI adaptive logic)
     context_data = Column(
-        JSON,
+        Text,
         nullable=True,
-        comment="Session settings: difficulty, type, mode, and analysis context"
+        comment="Session settings: difficulty, type, mode, and analysis context (JSON string)"
     )
     
     # Relationships
@@ -255,17 +255,15 @@ class InterviewAnswer(Base, UUIDMixin, TimestampMixin):
     )
     
     strengths = Column(
-        JSON,
-        nullable=False,
-        default=list,
-        comment="List of strengths identified"
+        Text,
+        nullable=True,
+        comment="List of strengths identified (JSON string)"
     )
     
     improvements = Column(
-        JSON,
-        nullable=False,
-        default=list,
-        comment="List of improvement suggestions"
+        Text,
+        nullable=True,
+        comment="List of improvement suggestions (JSON string)"
     )
     
     # Relationships
