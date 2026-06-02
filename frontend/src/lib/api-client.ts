@@ -322,6 +322,10 @@ class ApiClient {
     return this.request('GET', `/coaching/interview/sessions/${sessionId}/report`)
   }
 
+  async getRecruiterDashboardStats(): Promise<any> {
+    return this.request('GET', '/recruiter/dashboard-stats')
+  }
+
   // Talent Pool methods
   async listTalentPools(): Promise<any[]> {
     return this.request('GET', '/talent-pools')
