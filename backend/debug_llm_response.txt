@@ -206,3 +206,289 @@
 }
 ```
 ---------------------------
+
+--- ANALYSIS 3f98e5cc-fb67-4baf-a19c-aa6804c04c52 ---
+```json
+{
+  "match_score": 0.82,
+  "matching_skills": ["LangGraph", "PhiData", "AutoGen", "Hugging Face Transformers", "PyTorch", "MLOps", "LLMOps", "AWS", "GCP", "Pinecone", "Vector Databases"],
+  "missing_skills": ["Decentralized AI", "Quantum Machine Learning (QML)", "Neuro-Evolutionary Algorithms", "Adversarial AI Defense"],
+  "transferable_skills": ["Generative AI", "Autonomous AI Systems", "RAG (Retrieval-Augmented Generation)", "LangChain"],
+  "summary": "The candidate demonstrates a strong background in Generative AI, Autonomous AI Systems, and MLOps, with expertise in LangGraph, PhiData, and AutoGen. However, the candidate lacks experience in Decentralized AI, Quantum Machine Learning (QML), Neuro-Evolutionary Algorithms, and Adversarial AI Defense, which are critical requirements for the role. The candidate's experience in leading cross-functional teams and driving business ROI through AI is a significant asset.",
+  "recommendation": "shortlist",
+  "confidence": "high",
+  "seniority_alignment": {
+    "cv_level": "Senior",
+    "jd_level": "Staff",
+    "match": "matched",
+    "explanation": "The candidate's years of experience and leadership roles align with the seniority required for the position."
+  },
+  "red_flags": ["Lack of experience in Decentralized AI, Quantum Machine Learning (QML), Neuro-Evolutionary Algorithms, and Adversarial AI Defense"],
+  "hiring_urgency": "medium"
+}
+```
+---------------------------
+
+--- ANALYSIS 35eeb903-6856-42bf-8cd2-923a64a5c49b ---
+```json
+{
+  "match_score": 0.21,
+  "matching_skills": ["Python", "Docker", "Kubernetes", "MLOps pipelines"],
+  "missing_skills": ["LangGraph", "PhiData", "AutoGen", "Hugging Face Transformers", "PyTorch", "MLflow", "ZenML", "LangSmith", "Decentralized AI", "Quantum Machine Learning (QML)", "Neuro-Evolutionary Algorithms", "Adversarial AI Defense"],
+  "transferable_skills": ["Computer Vision", "Deep Learning"],
+  "summary": "The candidate lacks critical skills in autonomous agentic systems, LLMOps & MLOps lifecycle, and advanced/niche skills required for the Staff GenAI & Autonomous Systems Architect role. Although they have experience in MLOps pipelines and programming languages, the depth and breadth of their skills do not align with the job requirements. The candidate's experience is mainly in computer vision and medical AI development, which is not directly applicable to the role.",
+  "recommendation": "reject",
+  "confidence": "high",
+  "seniority_alignment": {
+    "cv_level": "Mid-level",
+    "jd_level": "Senior/Staff",
+    "match": "underqualified",
+    "explanation": "The candidate's experience and skills are not sufficient to meet the seniority requirements of the role, which demands a high level of expertise in autonomous agentic systems, advanced AI research, and leadership."
+  },
+  "red_flags": ["Lack of experience in autonomous agentic systems", "No evidence of decentralized AI, QML, or neuro-evolutionary algorithms", "Insufficient seniority and leadership experience"],
+  "hiring_urgency": "low"
+}
+```
+---------------------------
+
+--- ANALYSIS 3f98e5cc-fb67-4baf-a19c-aa6804c04c52 ---
+```
+{
+  "match_score": 0.82,
+  "matching_skills": ["LangGraph", "PhiData", "AutoGen", "Hugging Face Transformers", "PyTorch", "MLflow", "ZenML", "Pinecone", "AWS", "GCP", "Kubernetes", "GitHub Actions", "LLMOps", "MLOps"],
+  "missing_skills": ["Decentralized AI", "Quantum Machine Learning (QML)", "Neuro-Evolutionary Algorithms", "Adversarial AI Defense"],
+  "transferable_skills": ["Generative AI", "Autonomous AI Systems", "RAG (Retrieval-Augmented Generation)", "LangChain", "Natural Language Processing (NLP)"],
+  "summary": "The candidate demonstrates a strong background in Generative AI, Autonomous AI Systems, and LLMOps, with expertise in LangGraph, PhiData, and AutoGen. However, gaps exist in Decentralized AI, Quantum Machine Learning (QML), Neuro-Evolutionary Algorithms, and Adversarial AI Defense. The candidate's experience in leading cross-functional teams and driving business ROI through AI is notable, but the lack of direct experience in some critical areas prevents a perfect match.",
+  "recommendation": "shortlist",
+  "confidence": "high",
+  "seniority_alignment": {
+    "cv_level": "Senior",
+    "jd_level": "Staff",
+    "match": "matched",
+    "explanation": "The candidate's years of experience and leadership roles align with the seniority required for the position."
+  },
+  "red_flags": ["Lack of experience in Decentralized AI, Quantum Machine Learning (QML), Neuro-Evolutionary Algorithms, and Adversarial AI Defense"],
+  "hiring_urgency": "medium"
+}
+```
+---------------------------
+
+--- ANALYSIS 35eeb903-6856-42bf-8cd2-923a64a5c49b ---
+```
+{
+  "match_score": 0.21,
+  "matching_skills": ["Python", "Docker", "Kubernetes", "MLOps pipelines"],
+  "missing_skills": ["LangGraph", "PhiData", "AutoGen", "Hugging Face Transformers", "PyTorch", "MLflow", "ZenML", "LangSmith", "Decentralized AI", "Quantum Machine Learning (QML)", "Neuro-Evolutionary Algorithms", "Adversarial AI Defense"],
+  "transferable_skills": ["Computer Vision", "Machine Learning"],
+  "summary": "The candidate lacks critical skills in autonomous agentic systems, LLMOps & MLOps lifecycle, and advanced/niche skills required for the Staff GenAI & Autonomous Systems Architect role. Although they have experience in MLOps pipelines and machine learning, the depth and breadth of their skills do not align with the job requirements. The candidate's experience is mainly in computer vision and medical AI, which is not directly applicable to the role.",
+  "recommendation": "reject",
+  "confidence": "high",
+  "seniority_alignment": {
+    "cv_level": "mid-level",
+    "jd_level": "senior",
+    "match": "underqualified",
+    "explanation": "The candidate's experience and skills are not sufficient to meet the senior-level requirements of the role."
+  },
+  "red_flags": ["Lack of experience in autonomous agentic systems", "No evidence of decentralized AI, QML, or neuro-evolutionary algorithms"],
+  "hiring_urgency": "low"
+}
+```
+---------------------------
+
+--- ANALYSIS 35eeb903-6856-42bf-8cd2-923a64a5c49b ---
+```json
+{
+  "match_score": 0.21,
+  "matching_skills": ["Python", "Docker", "Kubernetes", "MLOps pipelines"],
+  "missing_skills": ["Autonomous Agentic Systems", "LangGraph", "PhiData", "AutoGen", "Decentralized AI", "Quantum Machine Learning (QML)", "Neuro-Evolutionary Algorithms", "Adversarial AI Defense"],
+  "transferable_skills": ["Computer Vision", "ML models", "Deep learning techniques"],
+  "summary": "The candidate lacks critical skills in Autonomous Agentic Systems, Decentralized AI, Quantum Machine Learning, and Neuro-Evolutionary Algorithms, which are essential for the Staff GenAI & Autonomous Systems Architect role. Although they have experience in MLOps pipelines and Computer Vision, the depth of expertise required for this position is not evident in their CV. The match score is 0.21 due to the significant gaps in required skills.",
+  "recommendation": "reject",
+  "confidence": "high",
+  "seniority_alignment": {
+    "cv_level": "Mid-level",
+    "jd_level": "Senior-level",
+    "match": "underqualified",
+    "explanation": "The candidate's experience and skills do not align with the seniority level required for this role, which demands a high level of expertise and leadership experience."
+  },
+  "red_flags": ["Lack of experience in Autonomous Agentic Systems, Decentralized AI, and Quantum Machine Learning"],
+  "hiring_urgency": "low"
+}
+```
+---------------------------
+
+--- ANALYSIS 3f98e5cc-fb67-4baf-a19c-aa6804c04c52 ---
+```json
+{
+  "match_score": 0.82,
+  "matching_skills": ["LangGraph", "PhiData", "AutoGen", "Hugging Face Transformers", "PyTorch", "MLflow", "ZenML", "Pinecone", "AWS", "GCP", "Kubernetes", "GitHub Actions", "MLOps", "LLMOps"],
+  "missing_skills": ["Decentralized AI with Blockchain", "Quantum Machine Learning (QML)", "Neuro-Evolutionary Algorithms", "Adversarial AI Defense"],
+  "transferable_skills": ["Generative AI", "Autonomous AI Systems", "RAG (Retrieval-Augmented Generation)", "LangChain", "Natural Language Processing (NLP)"],
+  "summary": "The candidate demonstrates a strong background in Generative AI, Autonomous AI Systems, and MLOps, with expertise in LangGraph, PhiData, and AutoGen. However, gaps exist in Decentralized AI, Quantum Machine Learning, Neuro-Evolutionary Algorithms, and Adversarial AI Defense. The candidate's experience in driving business ROI through AI and contributions to global AI communities are notable. The match score is 0.82 due to the candidate's impressive technical skills and experience, but missing critical skills required for the role.",
+  "recommendation": "shortlist",
+  "confidence": "high",
+  "seniority_alignment": {
+    "cv_level": "Senior",
+    "jd_level": "Staff",
+    "match": "matched",
+    "explanation": "The candidate's 2+ years of experience in senior roles and achievements in driving business ROI through AI align with the required seniority level."
+  },
+  "red_flags": ["Lack of experience in Decentralized AI, Quantum Machine Learning, and Adversarial AI Defense"],
+  "hiring_urgency": "medium"
+}
+```
+---------------------------
+
+--- ANALYSIS 3f00d94e-c857-4b80-80a0-79e63f66c367 ---
+```json
+{
+  "match_score": 0.21,
+  "matching_skills": ["Python", "PyTorch", "Machine Learning", "Deep Learning"],
+  "missing_skills": ["LangGraph", "PhiData", "AutoGen", "Hugging Face Transformers", "MLflow", "ZenML", "LangSmith", "Decentralized AI", "Quantum Machine Learning", "Neuro-Evolutionary Algorithms", "Adversarial AI Defense"],
+  "transferable_skills": ["Data Analysis", "Numerical Computations", "Computer Vision", "Natural Language Processing"],
+  "summary": "The candidate's CV lacks critical skills and experience required for the Staff GenAI & Autonomous Systems Architect role. Although the candidate has a strong background in machine learning and deep learning, the absence of expertise in autonomous agentic systems, LLMOps & MLOps lifecycle, and enterprise RAG infrastructure is a significant gap. The candidate's experience in developing and deploying machine learning models is notable, but it does not align with the job's requirements for advanced fine-tuning pipelines, production-grade model monitoring, and automated lifecycle management.",
+  "recommendation": "reject",
+  "confidence": "high",
+  "seniority_alignment": {
+    "cv_level": "Mid-level",
+    "jd_level": "Senior-level",
+    "match": "underqualified",
+    "explanation": "The candidate's 5+ years of experience in machine learning engineering is notable, but it does not meet the seniority expectations of the job description, which requires a visionary technical leader with expertise in autonomous agentic systems and advanced Generative AI research."
+  },
+  "red_flags": ["Lack of experience in autonomous agentic systems", "No mention of decentralized AI, quantum machine learning, or neuro-evolutionary algorithms", "Insufficient evidence of leadership and innovation"],
+  "hiring_urgency": "low"
+}
+```
+---------------------------
+
+--- ANALYSIS 3f98e5cc-fb67-4baf-a19c-aa6804c04c52 ---
+```
+{
+  "match_score": 0.82,
+  "matching_skills": ["LangGraph", "PhiData", "AutoGen", "Hugging Face Transformers", "PyTorch", "MLflow", "ZenML", "Pinecone", "AWS", "GCP", "Kubernetes", "GitHub Actions"],
+  "missing_skills": ["Decentralized AI", "Quantum Machine Learning (QML)", "Neuro-Evolutionary Algorithms", "Adversarial AI Defense"],
+  "transferable_skills": ["Machine Learning", "Deep Learning", "Generative AI", "Natural Language Processing (NLP)"],
+  "summary": "The candidate demonstrates strong expertise in Generative AI, LLMs, and Autonomous AI Systems, with a proven track record of driving business ROI through AI. However, there are critical gaps in Decentralized AI, Quantum Machine Learning, and Adversarial AI Defense. The candidate's experience in leading cross-functional teams and contributing to global AI communities is a significant strength.",
+  "recommendation": "shortlist",
+  "confidence": "high",
+  "seniority_alignment": {
+    "cv_level": "Senior",
+    "jd_level": "Staff",
+    "match": "matched",
+    "explanation": "The candidate's depth of experience and years of experience align with the requirements of the role."
+  },
+  "red_flags": ["Lack of experience in Decentralized AI and Quantum Machine Learning"],
+  "hiring_urgency": "medium"
+}
+```
+---------------------------
+
+--- ANALYSIS 3f00d94e-c857-4b80-80a0-79e63f66c367 ---
+```
+{
+  "match_score": 0.32,
+  "matching_skills": ["Python", "PyTorch", "Machine Learning", "Deep Learning"],
+  "missing_skills": ["LangGraph", "PhiData", "AutoGen", "Hugging Face Transformers", "Decentralized AI", "Quantum Machine Learning", "Neuro-Evolutionary Algorithms", "Adversarial AI Defense"],
+  "transferable_skills": ["Data Analysis", "Predictive Modeling", "Clustering Models"],
+  "summary": "Rahul Khanna demonstrates strong machine learning and deep learning skills, with experience in developing and deploying models using PyTorch and Python. However, he lacks critical expertise in autonomous agentic systems, decentralized AI, and quantum machine learning, which are essential for this role. His experience in machine learning engineering and data analysis can be valuable, but significant gaps in required skills need to be addressed.",
+  "recommendation": "reject",
+  "confidence": "medium",
+  "seniority_alignment": {
+    "cv_level": "mid-level",
+    "jd_level": "senior-level",
+    "match": "underqualified",
+    "explanation": "Rahul's 5+ years of experience is notable, but the depth of expertise and specific skills required for this senior role are not adequately demonstrated in his CV."
+  },
+  "red_flags": ["Lack of experience in autonomous agentic systems, decentralized AI, and quantum machine learning", "Insufficient evidence of leadership and innovation in AI"],
+  "hiring_urgency": "low"
+}
+```
+---------------------------
+
+--- ANALYSIS 35eeb903-6856-42bf-8cd2-923a64a5c49b ---
+```json
+{
+  "match_score": 0.21,
+  "matching_skills": ["Python", "Docker", "Kubernetes", "MLOps pipelines"],
+  "missing_skills": ["LangGraph", "PhiData", "AutoGen", "Hugging Face Transformers", "PyTorch", "Decentralized AI", "Quantum Machine Learning (QML)", "Neuro-Evolutionary Algorithms", "Adversarial AI Defense"],
+  "transferable_skills": ["Computer Vision", "ML models", "Deep learning techniques"],
+  "summary": "The candidate has experience in developing and enhancing ML models, and has worked on various projects involving computer vision and autonomous systems. However, they lack critical skills in areas such as autonomous agentic systems, LLMOps & MLOps lifecycle, and advanced/niche skills required for the role. The candidate's experience in MLOps pipelines and programming languages is a positive aspect, but it is not enough to meet the requirements of the job.",
+  "recommendation": "reject",
+  "confidence": "high",
+  "seniority_alignment": {
+    "cv_level": "Mid-level",
+    "jd_level": "Senior-level",
+    "match": "underqualified",
+    "explanation": "The candidate's experience and skills do not align with the senior-level requirements of the job, which demands expertise in advanced areas such as decentralized AI, QML, and neuro-evolutionary algorithms."
+  },
+  "red_flags": ["Lack of experience in autonomous agentic systems", "Missing skills in LLMOps & MLOps lifecycle", "No evidence of working with blockchain or quantum machine learning"],
+  "hiring_urgency": "low"
+}
+```
+---------------------------
+
+--- ANALYSIS 35eeb903-6856-42bf-8cd2-923a64a5c49b ---
+```json
+{
+  "match_score": 0.21,
+  "matching_skills": ["Python", "Docker", "Kubernetes", "MLOps pipelines"],
+  "missing_skills": ["LangGraph", "PhiData", "AutoGen", "Hugging Face Transformers", "PyTorch", "MLflow", "ZenML", "LangSmith", "Decentralized AI", "Quantum Machine Learning", "Neuro-Evolutionary Algorithms", "Adversarial AI Defense"],
+  "transferable_skills": ["Computer Vision", "Machine Learning"],
+  "summary": "The candidate has experience in developing and enhancing Computer Vision ML models and implementing MLOps pipelines, which demonstrates some transferable skills. However, the candidate lacks critical skills in autonomous agentic systems, advanced Generative AI research, and decentralized AI, which are essential for this role. The candidate's background in medical AI development and research may not be directly applicable to this position.",
+  "recommendation": "reject",
+  "confidence": "high",
+  "seniority_alignment": {
+    "cv_level": "mid-level",
+    "jd_level": "senior-level",
+    "match": "underqualified",
+    "explanation": "The candidate's experience and skills do not align with the senior-level requirements of the job description, which demands expertise in autonomous agentic systems, advanced Generative AI research, and decentralized AI."
+  },
+  "red_flags": ["Lack of experience in autonomous agentic systems", "No mention of decentralized AI or Quantum Machine Learning"],
+  "hiring_urgency": "low"
+}
+```
+---------------------------
+
+--- ANALYSIS 3f98e5cc-fb67-4baf-a19c-aa6804c04c52 ---
+```
+{
+  "match_score": 0.82,
+  "matching_skills": ["LangGraph", "PhiData", "AutoGen", "Hugging Face Transformers", "PyTorch", "MLOps", "LLMOps", "AWS", "GCP", "Vector Databases", "Pinecone", "Chroma DB"],
+  "missing_skills": ["Decentralized AI", "Quantum Machine Learning", "Neuro-Evolutionary Algorithms", "Adversarial AI Defense"],
+  "transferable_skills": ["Machine Learning", "Deep Learning", "Generative AI", "Natural Language Processing", "Time Series Analysis"],
+  "summary": "The candidate demonstrates exceptional expertise in Generative AI, LLMs, and Autonomous AI Systems, with a strong background in MLOps and LLMOps. However, there are critical gaps in Decentralized AI, Quantum Machine Learning, and Adversarial AI Defense, which are essential for this role.",
+  "recommendation": "shortlist",
+  "confidence": "high",
+  "seniority_alignment": {
+    "cv_level": "Senior",
+    "jd_level": "Staff",
+    "match": "matched",
+    "explanation": "The candidate's depth of experience and years of service align with the requirements of the role."
+  },
+  "red_flags": ["Lack of experience in Decentralized AI and Quantum Machine Learning"],
+  "hiring_urgency": "medium"
+}
+```
+---------------------------
+
+--- ANALYSIS 3f00d94e-c857-4b80-80a0-79e63f66c367 ---
+```
+{
+  "match_score": 0.32,
+  "matching_skills": ["Python", "PyTorch", "Machine Learning", "Deep Learning", "Data Analysis"],
+  "missing_skills": ["LangGraph", "PhiData", "AutoGen", "Hugging Face Transformers", "Decentralized AI", "Quantum Machine Learning", "Neuro-Evolutionary Algorithms", "Adversarial AI Defense"],
+  "transferable_skills": ["Data Structures", "Predictive Modeling", "Clustering Models"],
+  "summary": "Rahul Khanna demonstrates strong machine learning and deep learning skills, with experience in developing and deploying models using PyTorch and Python. However, he lacks critical expertise in areas such as autonomous agentic systems, decentralized AI, and quantum machine learning, which are essential for the Staff GenAI & Autonomous Systems Architect role.",
+  "recommendation": "reject",
+  "confidence": "medium",
+  "seniority_alignment": {
+    "cv_level": "Mid-level",
+    "jd_level": "Senior-level",
+    "match": "underqualified",
+    "explanation": "Rahul's 5+ years of experience is notable, but the role requires a more senior-level candidate with deeper expertise in specific areas."
+  },
+  "red_flags": ["Lack of experience in autonomous agentic systems", "No mention of decentralized AI or quantum machine learning", "Insufficient seniority level"],
+  "hiring_urgency": "low"
+}
+```
+---------------------------

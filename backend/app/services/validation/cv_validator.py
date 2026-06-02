@@ -92,6 +92,16 @@ class CVValidatorService:
         Requirements: 3.1, 3.2
         """
         try:
+            if file_format in ["jpg", "jpeg", "png"]:
+                logger.info(
+                    f"Image CV validation bypassed for {filename}; "
+                    "OCR runs during document processing"
+                )
+                return True, None, {
+                    "confidence": 0.5,
+                    "reason": "Image accepted by format; OCR deferred to processing",
+                }
+
             # Extract text from document
             text = await self._extract_text(file_content, file_format)
             

@@ -237,6 +237,78 @@ async def get_chat_history(
     return {"messages": [{"role": m.role, "content": m.content} for m in messages]}
 
 
+@router.get("/chat/sessions")
+async def get_chat_sessions(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    limit: int = 20,
+    offset: int = 0
+):
+    """Get user's chat session history."""
+    import json
+    
+    result = await db.execute(
+        select(ChatSession)
+        .where(ChatSession.user_id == current_user.id)
+        .order_by(ChatSession.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    sessions = result.scalars().all()
+    
+    items = []
+    for session in sessions:
+        # Get first user message as preview
+        first_msg_result = await db.execute(
+            select(ChatMessage)
+            .where(ChatMessage.session_id == session.id, ChatMessage.role == 'user')
+            .order_by(ChatMessage.created_at)
+            .limit(1)
+        )
+        first_msg = first_msg_result.scalar_one_or_none()
+        preview = first_msg.content[:60] + "..." if first_msg and len(first_msg.content) > 60 else (first_msg.content if first_msg else "New conversation")
+        
+        items.append({
+            "id": str(session.id),
+            "title": session.title or preview,
+            "message_count": session.message_count or 0,
+            "is_active": session.is_active,
+            "created_at": session.created_at.isoformat() if session.created_at else None,
+            "updated_at": session.updated_at.isoformat() if session.updated_at else None,
+        })
+    
+    return {"items": items, "total": len(items)}
+
+
+@router.delete("/chat/sessions/{session_id}")
+async def delete_chat_session(
+    session_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete a chat session and all associated messages."""
+    result = await db.execute(
+        select(ChatSession).where(ChatSession.id == session_id)
+    )
+    session = result.scalar_one_or_none()
+    
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    # Ownership check
+    if session.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this chat session"
+        )
+    
+    # Delete session (cascade will delete messages)
+    await db.delete(session)
+    await db.commit()
+    
+    return {"message": "Chat session deleted successfully"}
+
+
 @router.post("/interview/start")
 async def start_interview(
     data: InterviewSimulationStart,

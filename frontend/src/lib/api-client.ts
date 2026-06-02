@@ -1,4 +1,4 @@
-const rawBaseUrl = 'http://localhost:8000' // Direct URL instead of env variable
+const rawBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 const API_BASE_URL = rawBaseUrl.endsWith('/api/v1') ? rawBaseUrl : `${rawBaseUrl.replace(/\/$/, '')}/api/v1`
 
 interface ApiResponse<T = any> {
@@ -231,6 +231,10 @@ class ApiClient {
     return this.request('POST', '/job-descriptions', data)
   }
 
+  async updateJobDescription(id: string, data: Partial<any>): Promise<any> {
+    return this.request('PATCH', `/job-descriptions/${id}`, data)
+  }
+
   async deleteJobDescription(id: string): Promise<void> {
     await this.request('DELETE', `/job-descriptions/${id}`)
   }
@@ -258,6 +262,18 @@ class ApiClient {
     if (params.offset) query.append('offset', params.offset.toString())
     
     return this.request('GET', `/analysis?${query.toString()}`)
+  }
+
+  async batchRankUploadedCandidates(
+    cvDocumentIds: string[],
+    jobDescriptionId: string,
+    rankingCriteria?: Record<string, number>
+  ): Promise<any> {
+    return this.request('POST', '/analysis/batch-rank', {
+      cv_document_ids: cvDocumentIds,
+      job_description_id: jobDescriptionId,
+      ranking_criteria: rankingCriteria,
+    })
   }
 
   async deleteAnalysis(id: string): Promise<void> {
@@ -319,20 +335,22 @@ class ApiClient {
     return this.request('GET', `/talent-pools/${id}`)
   }
 
-  async batchRankCandidates(poolId: string, jdId: string): Promise<void> {
-    await this.request('POST', `/talent-pools/${poolId}/rank`, { job_description_id: jdId })
+  async batchRankCandidates(poolId: string, jdId: string): Promise<any> {
+    return this.request('POST', `/talent-pools/${poolId}/batch-rank`, { job_description_id: jdId })
   }
 
   async updateCandidateStatus(poolId: string, cvId: string, status: string): Promise<void> {
-    await this.request('PATCH', `/talent-pools/${poolId}/candidates/${cvId}`, { status })
+    // Backend expects query param: PATCH /talent-pools/{pool_id}/candidates/{cv_id}/status?candidate_status=...
+    await this.request('PATCH', `/talent-pools/${poolId}/candidates/${cvId}/status?candidate_status=${status}`)
   }
 
   async revealCandidateIdentity(cvId: string): Promise<{ identity: any }> {
-    return this.request('POST', `/candidates/${cvId}/reveal`)
+    return this.request('POST', `/recruiter/candidates/${cvId}/reveal`)
   }
 
   async addCandidateToPool(poolId: string, cvId: string): Promise<void> {
-    await this.request('POST', `/talent-pools/${poolId}/candidates`, { cv_document_id: cvId })
+    // Backend expects path param: POST /talent-pools/{pool_id}/candidates/{cv_id}
+    await this.request('POST', `/talent-pools/${poolId}/candidates/${cvId}`)
   }
 
   async removeCandidateFromPool(poolId: string, cvId: string): Promise<void> {
@@ -400,12 +418,12 @@ class ApiClient {
   }
 
   // Advanced Analysis Metrics
-  async getSkillRadarData(id: string): Promise<any> { return this.request('GET', `/analysis/${id}/radar`) }
-  async getExperienceHeatmap(id: string): Promise<any> { return this.request('GET', `/analysis/${id}/heatmap`) }
-  async getSemanticProximity(id: string): Promise<any> { return this.request('GET', `/analysis/${id}/proximity`) }
+  async getSkillRadarData(id: string): Promise<any> { return this.request('GET', `/analysis/${id}/skill-radar`) }
+  async getExperienceHeatmap(id: string): Promise<any> { return this.request('GET', `/analysis/${id}/experience-heatmap`) }
+  async getSemanticProximity(id: string): Promise<any> { return this.request('GET', `/analysis/${id}/semantic-proximity`) }
   async getRedFlags(id: string): Promise<any> { return this.request('GET', `/analysis/${id}/red-flags`) }
   async getInterviewGuide(id: string): Promise<any> { return this.request('GET', `/analysis/${id}/interview-guide`) }
-  async getAIConfidence(id: string): Promise<any> { return this.request('GET', `/analysis/${id}/confidence`) }
+  async getAIConfidence(id: string): Promise<any> { return this.request('GET', `/analysis/${id}/ai-confidence`) }
   async getBiasCheck(id: string): Promise<any> { return this.request('GET', `/analysis/${id}/bias-check`) }
   async getHallucinationGuard(id: string): Promise<any> { return this.request('GET', `/analysis/${id}/hallucination-guard`) }
 
@@ -459,33 +477,15 @@ class ApiClient {
     return this.request('GET', '/testimonials/my')
   }
 
-  // Interview Coaching methods
-  async startInterview(jobDescriptionId: string, options: { difficulty: string; interview_type: string; mode: string }): Promise<{ session_id: string; question_id: string; question: string }> {
-    return this.request('POST', '/coaching/interview/start', {
-      job_description_id: jobDescriptionId,
-      difficulty: options.difficulty,
-      interview_type: options.interview_type,
-      mode: options.mode
-    })
-  }
-
-  async submitInterviewAnswer(sessionId: string, questionId: string, answerText: string): Promise<{ evaluation: any; next_question?: any; status: string }> {
-    return this.request('POST', `/coaching/interview/sessions/${sessionId}/answer`, {
-      question_id: questionId,
-      answer_text: answerText
-    })
-  }
-
-  async getInterviewReport(sessionId: string): Promise<any> {
-    return this.request('GET', `/coaching/interview/sessions/${sessionId}/report`)
-  }
-
   async getNextInterviewQuestion(sessionId: string): Promise<{ id: string; text: string; type: string; question: string } | null> {
     return this.request('GET', `/coaching/interview/sessions/${sessionId}/next-question`)
   }
 
   async getInterviewSessions(params?: { limit?: number; offset?: number }): Promise<{ items: any[]; total: number }> {
-    return this.request('GET', '/coaching/interview/sessions', undefined, params)
+    const query = new URLSearchParams()
+    if (params?.limit) query.append('limit', params.limit.toString())
+    if (params?.offset) query.append('offset', params.offset.toString())
+    return this.request('GET', `/coaching/interview/sessions?${query.toString()}`)
   }
 
   async deleteInterviewSession(sessionId: string): Promise<{ message: string }> {
@@ -503,6 +503,17 @@ class ApiClient {
 
   async getChatHistory(sessionId: string): Promise<{ messages: Array<{ role: string; content: string }> }> {
     return this.request('GET', `/coaching/chat/sessions/${sessionId}/messages`)
+  }
+
+  async getChatSessions(params?: { limit?: number; offset?: number }): Promise<{ items: any[]; total: number }> {
+    const query = new URLSearchParams()
+    if (params?.limit) query.append('limit', params.limit.toString())
+    if (params?.offset) query.append('offset', params.offset.toString())
+    return this.request('GET', `/coaching/chat/sessions?${query.toString()}`)
+  }
+
+  async deleteChatSession(sessionId: string): Promise<{ message: string }> {
+    return this.request('DELETE', `/coaching/chat/sessions/${sessionId}`)
   }
 }
 

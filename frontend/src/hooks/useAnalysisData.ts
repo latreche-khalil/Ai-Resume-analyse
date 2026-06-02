@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { apiClient } from '@/lib/api-client'
 
 export type Tab = 'overview' | 'gaps' | 'roadmap' | 'xai' | 'visualizations' | 'prep' | 'trust'
@@ -12,21 +12,30 @@ export function useAnalysisData(id: string | undefined) {
   const [tab, setTab] = useState<Tab>('overview')
   const [advancedData, setAdvancedData] = useState<any>({})
 
-  useEffect(() => {
-    if (id) {
-      loadAllData()
-    }
-  }, [id])
+  // Track mounted state to prevent setState after unmount
+  const mountedRef = useRef(true)
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const loadAllData = async (isInitial = true) => {
-    if (isInitial) setLoading(true)
-    setError(null)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current)
+    }
+  }, [])
+
+  const loadAllData = useCallback(async (isInitial = true) => {
+    if (!id) return
+    if (isInitial && mountedRef.current) setLoading(true)
+    if (mountedRef.current) setError(null)
+
     try {
-      // 1. Fetch base analysis and enhanced reports
       const [analysis, enhanced] = await Promise.allSettled([
-        apiClient.getAnalysis(id!),
-        apiClient.getEnhancedAnalysis(id!)
+        apiClient.getAnalysis(id),
+        apiClient.getEnhancedAnalysis(id)
       ])
+
+      if (!mountedRef.current) return
 
       if (analysis.status === 'rejected') {
         throw new Error('Analysis not found')
@@ -35,11 +44,12 @@ export function useAnalysisData(id: string | undefined) {
       const baseData = analysis.value
       const enhancedData = enhanced.status === 'fulfilled' ? enhanced.value : {}
 
-      // 2. Fetch associated documents (CV and JD)
       const [cv, jd] = await Promise.allSettled([
         apiClient.getDocument(baseData.cv_document_id),
         apiClient.getJobDescription(baseData.job_description_id)
       ])
+
+      if (!mountedRef.current) return
 
       const finalData = {
         ...baseData,
@@ -50,7 +60,6 @@ export function useAnalysisData(id: string | undefined) {
 
       setData(finalData)
 
-      // 3. Extract advanced metrics from enhanced data to avoid redundant 404s
       if (enhanced.status === 'fulfilled') {
         const ed = enhanced.value
         setAdvancedData({
@@ -65,25 +74,30 @@ export function useAnalysisData(id: string | undefined) {
         })
       }
 
-      // 4. Poll if still processing
+      // Poll if still processing — clear any existing timer first
       const status = baseData.processing_status || baseData.analysis_status
       if (status === 'processing' || status === 'pending') {
-        setTimeout(() => loadAllData(false), 3000) 
+        if (pollTimerRef.current) clearTimeout(pollTimerRef.current)
+        pollTimerRef.current = setTimeout(() => {
+          if (mountedRef.current) loadAllData(false)
+        }, 3000)
       }
 
     } catch (err: any) {
-      setError(err.message || 'Failed to load analysis results')
+      if (mountedRef.current) setError(err.message || 'Failed to load analysis results')
     } finally {
-      if (isInitial) setLoading(false)
+      if (isInitial && mountedRef.current) setLoading(false)
     }
-  }
+  }, [id])
 
-
+  useEffect(() => {
+    if (id) loadAllData()
+  }, [id, loadAllData])
 
   const submitReview = async (analysisId: string, decision: 'approved' | 'rejected') => {
     try {
       await apiClient.submitHumanReview(analysisId, decision)
-      await loadAllData() // Refresh
+      await loadAllData(false)
       return true
     } catch (err) {
       console.error('Failed to submit review', err)

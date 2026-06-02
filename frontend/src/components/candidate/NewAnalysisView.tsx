@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { LanguageSelector, AnalysisLanguage } from '@/components/shared/LanguageSelector'
 import { CVDocument } from '@/types/candidate'
+import { useAuth } from '@/contexts/auth-context'
 
 interface JobDescription {
   id: string
@@ -25,7 +26,9 @@ type Step = 'select-cv' | 'select-jd' | 'analyzing'
 export function NewAnalysisView() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { user } = useAuth()
   const initialCV = searchParams.get('cv')
+  const homePath = user?.role === 'recruiter' ? '/recruiter' : '/dashboard'
 
   const [step, setStep] = useState<Step>(initialCV ? 'select-jd' : 'select-cv')
   const [cvDocuments, setCvDocuments] = useState<CVDocument[]>([])
@@ -141,7 +144,7 @@ export function NewAnalysisView() {
           </div>
         </div>
         {step !== 'analyzing' && (
-          <button onClick={() => router.back()}
+          <button onClick={() => router.push(homePath)}
             className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-neutral-400 hover:text-gray-900 dark:hover:text-white transition-colors">
             <ArrowLeft className="w-4 h-4" /> Cancel
           </button>

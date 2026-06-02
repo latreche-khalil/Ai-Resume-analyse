@@ -177,7 +177,7 @@ OUTPUT FORMAT (Strict JSON):
   "matching_skills": ["Verified Hard Skill 1", "Verified Hard Skill 2"],
   "missing_skills": ["Critical Gap 1", "Missing Tool 2"],
   "transferable_skills": ["Related Skill that helps"],
-  "summary": "Start with a critical verdict. Explain EXACTLY why the score is X/100 based on the evidence found or missing.",
+  "summary": "2-3 sentences: candidate's key strengths for this role, then the critical gaps. Do NOT mention the numeric score.",
   "recommendation": "shortlist/interview/reject",
   "confidence": "high/medium/low",
   "seniority_alignment": {{
@@ -192,6 +192,7 @@ OUTPUT FORMAT (Strict JSON):
 
 RULES:
 - Be CRITICAL. Low-quality matches must have low scores (<0.40).
+- summary must NOT contain the numeric score value.
 - Only return the JSON object."""
     
     def _parse_matching_response(self, response: str) -> Dict[str, Any]:

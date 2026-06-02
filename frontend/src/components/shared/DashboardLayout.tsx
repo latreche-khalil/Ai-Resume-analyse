@@ -9,7 +9,7 @@ import { ThemeToggle } from '@/components/theme-toggle'
 import {
   LayoutDashboard, FileText, Target, Settings, LogOut,
   ChevronLeft, Search, Bell, Users, Briefcase, Mic, Zap,
-  MessageSquare, HeartHandshake, ShieldCheck,
+  MessageSquare, HeartHandshake, ShieldCheck, Upload,
   Menu, X, ChevronRight, Plus,
 } from 'lucide-react'
 
@@ -58,9 +58,18 @@ const NAV_GROUPS = {
     {
       label: 'Recruiting',
       items: [
-        { icon: LayoutDashboard, label: 'Dashboard',    href: '/recruiter',   id: 'recruiter'   },
-        { icon: Users,           label: 'Talent Pool',  href: '/talent-pool', id: 'talent-pool' },
-        { icon: Briefcase,       label: 'Job Postings', href: '/jobs',        id: 'jobs'        },
+        { icon: LayoutDashboard, label: 'Dashboard',     href: '/recruiter',           id: 'recruiter'           },
+        { icon: Users,           label: 'Talent Pool',   href: '/talent-pool',         id: 'talent-pool'         },
+        { icon: Target,          label: 'Compare',       href: '/compare-candidates',  id: 'compare-candidates'  },
+      ],
+    },
+    {
+      label: 'Analysis',
+      items: [
+        { icon: Briefcase,       label: 'Job Descriptions', href: '/jobs',         id: 'jobs'         },
+        { icon: Upload,          label: 'Upload CVs',    href: '/upload',       id: 'upload'       },
+        { icon: Zap,             label: 'New Analysis',  href: '/analysis/new', id: 'analysis-new' },
+        { icon: FileText,        label: 'Documents',     href: '/documents',    id: 'documents'    },
       ],
     },
   ],
@@ -93,10 +102,11 @@ function Sidebar({ role, collapsed, pathname, userInitial, userName, userId, log
     if (id === 'recruiter'    && pathname === '/recruiter')    return true
     if (id === 'analysis-new' && pathname === '/analysis/new') return true
     if (id === 'analysis' && pathname?.startsWith('/analysis') && !pathname?.includes('/new')) return true
+    if (id === 'jobs' && pathname?.startsWith('/jobs')) return true
     return (
       pathname?.startsWith(href) &&
       href !== '/' &&
-      !['dashboard', 'admin', 'recruiter', 'analysis', 'analysis-new'].includes(id)
+      !['dashboard', 'admin', 'recruiter', 'analysis', 'analysis-new', 'jobs'].includes(id)
     )
   }
 
@@ -164,17 +174,19 @@ function Sidebar({ role, collapsed, pathname, userInitial, userName, userId, log
 
       {/* Bottom */}
       <div className={`shrink-0 border-t border-gray-200 dark:border-slate-600/50 pt-3 pb-4 space-y-0.5 ${collapsed ? 'px-2' : 'px-3'}`}>
-        <Link href="/settings">
-          <div
-            title={collapsed ? 'Settings' : undefined}
-            className={`flex items-center rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer
-              ${collapsed ? 'justify-center py-2.5 px-2' : 'gap-2.5 px-3 py-2.5'}
-              ${pathname === '/settings' ? 'bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400' : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}
-          >
-            <Settings size={16} className={`shrink-0 ${pathname === '/settings' ? 'text-sky-500' : 'text-gray-400 dark:text-slate-500'}`} />
-            {!collapsed && <span>Settings</span>}
-          </div>
-        </Link>
+        {role !== 'recruiter' && (
+          <Link href="/settings">
+            <div
+              title={collapsed ? 'Settings' : undefined}
+              className={`flex items-center rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer
+                ${collapsed ? 'justify-center py-2.5 px-2' : 'gap-2.5 px-3 py-2.5'}
+                ${pathname === '/settings' ? 'bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400' : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}
+            >
+              <Settings size={16} className={`shrink-0 ${pathname === '/settings' ? 'text-sky-500' : 'text-gray-400 dark:text-slate-500'}`} />
+              {!collapsed && <span>Settings</span>}
+            </div>
+          </Link>
+        )}
         <button
           onClick={logout}
           title={collapsed ? 'Sign out' : undefined}

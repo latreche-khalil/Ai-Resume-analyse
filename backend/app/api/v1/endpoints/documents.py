@@ -73,7 +73,10 @@ async def upload_cv(
         )
         
         logger.info(f"CV upload accepted: {cv_document.id}. Processing started in background.")
-        
+
+        from app.core.simple_cache import simple_cache
+        simple_cache.delete_prefix(f"docs:{current_user.id}:")
+
         return CVDocumentResponse.model_validate(cv_document)
         
     except HTTPException:
@@ -209,11 +212,13 @@ async def list_documents(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ) -> CVDocumentListResponse:
-    """
-    List user's CV documents with pagination.
-    
-    Requirements: 3.11
-    """
+    """List user's CV documents with pagination. Requirements: 3.11"""
+    from app.core.simple_cache import simple_cache
+
+    cache_key = f"docs:{current_user.id}:{skip}:{limit}:{status_filter}"
+    cached = simple_cache.get(cache_key)
+    if cached is not None:
+        return cached
     # Build query
     query = select(CVDocument).where(
         CVDocument.user_id == current_user.id,
@@ -283,13 +288,16 @@ async def list_documents(
         doc_resp.latest_analysis_id = analysis_id
         doc_resp.match_score = float(match_score) if match_score is not None else None
         docs_with_analysis.append(doc_resp)
-    
-    return CVDocumentListResponse(
+
+    result_obj = CVDocumentListResponse(
         documents=docs_with_analysis,
         total=total,
         skip=skip,
         limit=limit
     )
+    # Cache for 10 seconds to absorb burst requests from multiple components
+    simple_cache.set(cache_key, result_obj, ttl=10)
+    return result_obj
 
 
 @router.delete(
@@ -327,7 +335,9 @@ async def delete_document(
     document.deleted_at = datetime.now(timezone.utc)
     
     await db.commit()
-    
+
+    from app.core.simple_cache import simple_cache
+    simple_cache.delete_prefix(f"docs:{current_user.id}:")
     logger.info(f"Document deleted: {document_id} by user {current_user.email}")
 
 

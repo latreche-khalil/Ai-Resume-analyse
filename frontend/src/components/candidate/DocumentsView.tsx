@@ -64,45 +64,34 @@ function AnalysisDrawer({ doc, onClose }: { doc: CVDocument; onClose: () => void
   const [analyses, setAnalyses] = useState<any[]>([])
   const [loading, setLoading]   = useState(true)
 
-  useEffect(() => {
-    let retryCount = 0
-    const maxRetries = 3
-    
-    const load = async () => {
-      setLoading(true)
-      try {
-        // fetch all analyses then filter by cv_document_id client-side
-        const res = await apiClient.listAnalyses({ limit: 100 })
-        const cvAnalyses = (res.analyses || []).filter(
-          (a: any) => a.cv_document_id === doc.id
-        )
-        setAnalyses(cvAnalyses)
-        retryCount = 0 // Reset on success
-      } catch (error) {
-        // Silently log error and retry
-        console.log('Failed to load analyses:', error)
-        if (retryCount < maxRetries) {
-          retryCount++
-          setTimeout(load, 1000) // Retry after 1 second
-        }
-      } finally {
-        setLoading(false)
-      }
+  const load = useCallback(async () => {
+    try {
+      const res = await apiClient.listAnalyses({ limit: 100 })
+      const cvAnalyses = (res.analyses || []).filter(
+        (a: any) => a.cv_document_id === doc.id
+      )
+      setAnalyses(cvAnalyses)
+    } catch (error) {
+      console.log('Failed to load analyses:', error)
+    } finally {
+      setLoading(false)
     }
+  }, [doc.id])
+
+  useEffect(() => {
     load()
-    
-    // Poll for updates if there are pending/processing analyses
-    const interval = setInterval(() => {
-      if (analyses.some((a: any) => {
-        const status = a.processing_status || a.analysis_status
-        return status === 'processing' || status === 'pending'
-      })) {
-        load()
-      }
-    }, 5000)
-    
-    return () => clearInterval(interval)
-  }, [doc.id, analyses])
+  }, [load])
+
+  // Poll only when there are processing analyses — no analyses in deps to avoid infinite loop
+  useEffect(() => {
+    const hasPending = analyses.some((a: any) => {
+      const status = a.processing_status || a.analysis_status
+      return status === 'processing' || status === 'pending'
+    })
+    if (!hasPending) return
+    const t = setTimeout(load, 5000)
+    return () => clearTimeout(t)
+  }, [analyses, load])
 
   const name = doc.original_filename || doc.filename
 
@@ -423,6 +412,8 @@ export function DocumentsView() {
 
   // Check for analyzing CVs
   useEffect(() => {
+    let intervalId: ReturnType<typeof setInterval> | null = null
+
     const checkAnalyzing = async () => {
       try {
         const res = await apiClient.listAnalyses({ limit: 100 })
@@ -434,24 +425,24 @@ export function DocumentsView() {
           }
         })
         setAnalyzingCVs(analyzing)
-      } catch (error) {
-        // Silently fail - don't show error to user for background polling
-        // Only log in development
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Background polling: checking analyzing status')
+
+        // Stop polling if nothing is processing
+        if (analyzing.size === 0 && intervalId) {
+          clearInterval(intervalId)
+          intervalId = null
         }
+      } catch {
+        // Silently fail
       }
     }
-    
-    // Initial check with a small delay to avoid race condition on first load
+
     const initialTimeout = setTimeout(checkAnalyzing, 500)
-    
-    // Then poll every 5 seconds
-    const interval = setInterval(checkAnalyzing, 5000)
-    
+    // Poll every 8 seconds (reduced from 5)
+    intervalId = setInterval(checkAnalyzing, 8000)
+
     return () => {
       clearTimeout(initialTimeout)
-      clearInterval(interval)
+      if (intervalId) clearInterval(intervalId)
     }
   }, [])
 

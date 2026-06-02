@@ -131,6 +131,10 @@ async def lifespan(app: FastAPI):
                 ensure_col('cv_documents', 'deleted_at', 'DATETIME')
                 ensure_col('cv_documents', 'updated_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP')
 
+            # Repair Job Descriptions
+            if 'job_descriptions' in tables:
+                ensure_col('job_descriptions', 'company', 'VARCHAR(255)')
+
             conn.commit()
             logger.info("Database Deep Safety Sync completed")
             
