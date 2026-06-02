@@ -1,149 +1,327 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
-import { CardHoverEffect } from '@/components/ui/card-hover-effect'
 import { formatDateTime } from '@/lib/utils'
+import { toast } from 'sonner'
+import {
+  Briefcase, Plus, Search, Trash2, Edit3, ChevronRight,
+  Loader2, Star, Clock, Filter, AlertTriangle, X
+} from 'lucide-react'
 
+interface JobDescription {
+  id: string
+  title: string
+  company?: string
+  description: string
+  required_skills: string[]
+  preferred_skills: string[]
+  experience_level?: string
+  work_arrangement?: string
+  created_at: string
+}
+
+// ── Confirm Delete Modal ───────────────────────────────────────────────────────
+function ConfirmDeleteModal({
+  title,
+  onConfirm,
+  onCancel,
+  loading,
+}: {
+  title: string
+  onConfirm: () => void
+  onCancel: () => void
+  loading: boolean
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      onClick={onCancel}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 8 }}
+        onClick={e => e.stopPropagation()}
+        className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-sm p-6"
+      >
+        {/* Icon */}
+        <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-50 dark:bg-red-500/10 mx-auto mb-4">
+          <AlertTriangle size={22} className="text-red-500" />
+        </div>
+
+        {/* Text */}
+        <h3 className="text-lg font-bold text-slate-900 dark:text-white text-center mb-1">
+          Delete Job Description?
+        </h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400 text-center mb-6">
+          <span className="font-semibold text-slate-700 dark:text-slate-300">"{title}"</span>
+          <br />
+          This action cannot be undone.
+        </p>
+
+        {/* Actions */}
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            disabled={loading}
+            className="flex-1 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="flex-1 py-2.5 text-sm font-semibold text-white bg-red-500 rounded-xl hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {loading ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+            Delete
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  )
+}
+
+// ── JD Card ────────────────────────────────────────────────────────────────────
+function JDCard({
+  jd, onRequestDelete
+}: {
+  jd: JobDescription
+  onRequestDelete: (jd: JobDescription) => void
+}) {
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      className="group bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-md transition-all flex flex-col"
+    >
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 flex items-center justify-center shrink-0 mt-0.5">
+            <Briefcase size={18} className="text-blue-600 dark:text-blue-400" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="font-bold text-slate-900 dark:text-white truncate">{jd.title}</h3>
+            {jd.company && (
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{jd.company}</p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Link href={`/jobs/${jd.id}/edit`}>
+            <button className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors">
+              <Edit3 size={15} />
+            </button>
+          </Link>
+          <button
+            onClick={() => onRequestDelete(jd)}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+          >
+            <Trash2 size={15} />
+          </button>
+        </div>
+      </div>
+
+      {/* Description */}
+      <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-2 mb-4 flex-1">
+        {jd.description}
+      </p>
+
+      {/* Badges */}
+      <div className="flex flex-wrap gap-1.5 mb-4">
+        {jd.experience_level && (
+          <span className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg text-xs font-medium">
+            <Star size={10} /> {jd.experience_level}
+          </span>
+        )}
+        {jd.work_arrangement && (
+          <span className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg text-xs font-medium">
+            {jd.work_arrangement}
+          </span>
+        )}
+      </div>
+
+      {/* Required Skills */}
+      {jd.required_skills?.length > 0 && (
+        <div className="mb-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">Required</p>
+          <div className="flex flex-wrap gap-1">
+            {jd.required_skills.slice(0, 4).map((skill, i) => (
+              <span key={i} className="px-2 py-0.5 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20 rounded-md text-xs font-medium">
+                {skill}
+              </span>
+            ))}
+            {jd.required_skills.length > 4 && (
+              <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-md text-xs">
+                +{jd.required_skills.length - 4}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-700 mt-auto">
+        <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
+          <Clock size={11} /> {formatDateTime(jd.created_at)}
+        </span>
+        <Link href={`/jobs/${jd.id}/edit`}
+          className="flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 opacity-0 group-hover:opacity-100 transition-opacity">
+          Edit <ChevronRight size={12} />
+        </Link>
+      </div>
+    </motion.div>
+  )
+}
+
+// ── Main View ──────────────────────────────────────────────────────────────────
 export function JobDescriptionsView() {
-  const router = useRouter()
-  const [jobDescriptions, setJobDescriptions] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('active')
+  const [jds, setJds]           = useState<JobDescription[]>([])
+  const [loading, setLoading]   = useState(true)
+  const [search, setSearch]     = useState('')
+  const [filter, setFilter]     = useState<'all' | 'remote' | 'hybrid' | 'on-site'>('all')
+  const [pendingDelete, setPendingDelete] = useState<JobDescription | null>(null)
+  const [deleting, setDeleting]           = useState(false)
 
   useEffect(() => {
-    loadJobDescriptions()
-  }, [filter])
+    apiClient.getJobDescriptions({ limit: 100 })
+      .then(res => setJds(res.items || []))
+      .catch(() => toast.error('Failed to load job descriptions'))
+      .finally(() => setLoading(false))
+  }, [])
 
-  const loadJobDescriptions = async () => {
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete) return
+    setDeleting(true)
     try {
-      const response = await apiClient.getJobDescriptions({ limit: 100 })
-      setJobDescriptions(response.items || [])
-    } catch (error) {
-      console.error('Failed to load job descriptions:', error)
+      await apiClient.deleteJobDescription(pendingDelete.id)
+      setJds(prev => prev.filter(j => j.id !== pendingDelete.id))
+      toast.success('Job description deleted')
+      setPendingDelete(null)
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete')
     } finally {
-      setLoading(false)
+      setDeleting(false)
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this job description?')) return
-    
-    // Optimistic update
-    const previousJDs = [...jobDescriptions]
-    setJobDescriptions(prev => prev.filter(jd => jd.id !== id))
-    
-    try {
-      await apiClient.deleteJobDescription(id)
-      // Optional: reload in background to sync
-      loadJobDescriptions()
-    } catch (error) {
-      console.error('Failed to delete job description:', error)
-      // Rollback on error
-      setJobDescriptions(previousJDs)
-    }
-  }
-
-  const filteredJDs = jobDescriptions.filter((jd) => {
-    if (filter === 'active') return jd.status === 'active'
-    if (filter === 'archived') return jd.status === 'archived'
-    return true
+  const filtered = jds.filter(jd => {
+    const matchSearch = !search ||
+      jd.title.toLowerCase().includes(search.toLowerCase()) ||
+      jd.description.toLowerCase().includes(search.toLowerCase()) ||
+      jd.required_skills?.some(s => s.toLowerCase().includes(search.toLowerCase()))
+    const matchFilter = filter === 'all' ||
+      (jd.work_arrangement?.toLowerCase() ?? '') === filter.toLowerCase()
+    return matchSearch && matchFilter
   })
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-blue-50">
-      <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-white/20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-sky-600 to-blue-600 bg-clip-text text-transparent">
-              Job Descriptions
-            </h1>
-            <Link href="/job-descriptions/new">
-              <motion.button
-                className="px-6 py-3 bg-gradient-to-r from-sky-600 to-blue-600 text-white rounded-xl font-medium shadow-lg"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                Create New JD
-              </motion.button>
-            </Link>
-          </div>
-        </div>
-      </header>
+    <div className="max-w-[1400px] mx-auto space-y-6 pb-10" style={{ fontFamily: 'Roboto, sans-serif' }}>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
-          <div className="flex gap-2 bg-white/80 backdrop-blur-lg rounded-xl p-2 shadow-lg">
-            {['all', 'active', 'archived'].map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
-                  filter === f ? 'bg-gradient-to-r from-sky-600 to-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                {f.charAt(0).toUpperCase() + f.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
+      {/* Confirm Delete Modal — rendered at top level so it's never inside an exiting card */}
+      <AnimatePresence>
+        {pendingDelete && (
+          <ConfirmDeleteModal
+            title={pendingDelete.title}
+            onConfirm={handleConfirmDelete}
+            onCancel={() => setPendingDelete(null)}
+            loading={deleting}
+          />
+        )}
+      </AnimatePresence>
 
-        {loading ? (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600"></div>
-            <p className="mt-4 text-gray-600">Loading job descriptions...</p>
+      {/* Header */}
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Job Descriptions</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            {jds.length} job description{jds.length !== 1 ? 's' : ''} — used for CV matching and ranking
+          </p>
+        </div>
+        <Link href="/jobs/new">
+          <motion.button
+            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+            className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-xl shadow-lg shadow-blue-500/25 hover:bg-blue-700 hover:shadow-blue-500/40 transition-all">
+            <Plus size={16} /> New Job Description
+          </motion.button>
+        </Link>
+      </motion.div>
+
+      {/* Search + Filter Bar */}
+      <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+        className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search by title, description or skills..."
+            className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+          />
+        </div>
+        <div className="flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
+          {(['all', 'remote', 'hybrid', 'on-site'] as const).map(f => (
+            <button key={f} onClick={() => setFilter(f)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all ${
+                filter === f
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+              }`}>
+              {f}
+            </button>
+          ))}
+        </div>
+      </motion.div>
+
+      {/* Content */}
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 size={28} className="animate-spin text-blue-500" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-16 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center mx-auto mb-4">
+            {search ? <Search size={28} className="text-slate-400" /> : <Briefcase size={28} className="text-slate-400" />}
           </div>
-        ) : filteredJDs.length === 0 ? (
-          <motion.div className="bg-white rounded-2xl shadow-lg p-12 text-center" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <div className="text-6xl mb-4">💼</div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">No job descriptions found</h3>
-            <p className="text-gray-600 mb-6">Create your first job description to start finding candidates</p>
-            <Link href="/job-descriptions/new">
-              <motion.button className="px-8 py-4 bg-gradient-to-r from-sky-600 to-blue-600 text-white rounded-xl font-medium shadow-lg" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
+            {search ? 'No results found' : 'No job descriptions yet'}
+          </h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+            {search
+              ? `No job descriptions match "${search}"`
+              : 'Create your first job description to start matching and ranking candidates'}
+          </p>
+          {!search && (
+            <Link href="/jobs/new">
+              <button className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors">
                 Create Job Description
-              </motion.button>
+              </button>
             </Link>
-          </motion.div>
-        ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredJDs.map((jd, index) => (
-              <motion.div key={jd.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.1 }}>
-                <CardHoverEffect>
-                  <div className="bg-white rounded-xl shadow-lg p-6 h-full flex flex-col">
-                    <div className="flex-1">
-                      <h3 className="text-xl font-bold text-gray-900 mb-2">{jd.title}</h3>
-                      <p className="text-sm text-gray-600 mb-4 line-clamp-2">{jd.description}</p>
-                      {jd.required_skills && jd.required_skills.length > 0 && (
-                        <div className="mb-4">
-                          <p className="text-xs font-medium text-gray-600 mb-2">Required Skills:</p>
-                          <div className="flex flex-wrap gap-1">
-                            {jd.required_skills.slice(0, 3).map((skill: string, i: number) => (
-                              <span key={i} className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded text-xs">{skill}</span>
-                            ))}
-                            {jd.required_skills.length > 3 && (
-                              <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">+{jd.required_skills.length - 3} more</span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      <p className="text-xs text-gray-500">{formatDateTime(jd.created_at)}</p>
-                    </div>
-                    <div className="mt-4 pt-4 border-t border-gray-200 flex gap-2">
-                      <Link href={`/job-descriptions/${jd.id}/edit`} className="flex-1">
-                        <button className="w-full px-4 py-2 text-sm text-sky-600 border border-sky-600 rounded-lg hover:bg-sky-50 transition-all">Edit</button>
-                      </Link>
-                      <button onClick={() => handleDelete(jd.id)} className="flex-1 px-4 py-2 text-sm text-red-600 border border-red-600 rounded-lg hover:bg-red-50 transition-all">Delete</button>
-                    </div>
-                  </div>
-                </CardHoverEffect>
+          )}
+        </motion.div>
+      ) : (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}
+          className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          <AnimatePresence mode="popLayout">
+            {filtered.map((jd, i) => (
+              <motion.div key={jd.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.97 }}
+                transition={{ delay: i * 0.04 }}>
+                <JDCard jd={jd} onRequestDelete={setPendingDelete} />
               </motion.div>
             ))}
-          </div>
-        )}
-      </main>
+          </AnimatePresence>
+        </motion.div>
+      )}
     </div>
   )
 }

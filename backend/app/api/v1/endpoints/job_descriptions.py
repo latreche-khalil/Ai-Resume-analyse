@@ -45,23 +45,22 @@ async def create_job_description(
     Requirements: 11.1, 11.2
     """
     try:
-        # Validate JD length (≥ 50 words as per activity diagram)
+        # Validate JD length (minimum 10 words)
         word_count = len(jd_data.description.split())
-        if word_count < 50:
+        if word_count < 10:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Job description is too brief ({word_count} words). Minimum 50 words required."
+                detail=f"Job description is too brief ({word_count} words). Please provide more detail."
             )
 
-        # Create job description
-        # If user is candidate, set recruiter_id to None (self-created JD for analysis)
         recruiter_id = current_user.id if current_user.role == "recruiter" else None
         
         job_description = JobDescription(
             recruiter_id=recruiter_id,
             title=jd_data.title,
+            company=getattr(jd_data, 'company', None),
             description=jd_data.description,
-            required_skills=jd_data.required_skills,
+            required_skills=jd_data.required_skills or [],
             preferred_skills=jd_data.preferred_skills or [],
             experience_level=jd_data.experience_level,
             education_requirements=jd_data.education_requirements,
@@ -77,11 +76,17 @@ async def create_job_description(
         db.add(job_description)
         await db.commit()
         await db.refresh(job_description)
-        
+
+        # Invalidate list cache
+        from app.core.simple_cache import simple_cache
+        simple_cache.delete_prefix(f"jds:{current_user.id}:")
+
         logger.info(f"Job description created: {job_description.id} by {current_user.email}")
         
         return JobDescriptionResponse.model_validate(job_description)
         
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
         logger.error(f"Job description creation error: {str(e)}")
@@ -143,60 +148,64 @@ async def list_job_descriptions(
     limit: int = Query(20, ge=1, le=100),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
     is_archived: Optional[bool] = Query(None, description="Filter by archived status"),
-    current_user: User = Depends(get_current_user),  # Allow both candidate and recruiter
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ) -> JobDescriptionListResponse:
-    """
-    List job descriptions with pagination and filters.
-    
-    Requirements: 11.5
-    """
-    # Build query based on user role
+    """List job descriptions. Requirements: 11.5"""
+    from app.core.simple_cache import simple_cache
+
+    cache_key = f"jds:{current_user.id}:{skip}:{limit}:{is_active}:{is_archived}"
+    cached = simple_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     if current_user.role == "recruiter":
-        # Recruiters see only their own JDs
         base_query = select(JobDescription).where(
-            JobDescription.recruiter_id == current_user.id
+            JobDescription.recruiter_id == current_user.id,
+            JobDescription.deleted_at.is_(None)
         )
     else:
-        # Candidates see any active JD (for practice)
         base_query = select(JobDescription).where(
             JobDescription.is_active == True,
             JobDescription.deleted_at.is_(None)
         )
-    
-    # Apply filters
+
     if is_active is not None:
         base_query = base_query.where(JobDescription.is_active == is_active)
-    
     if is_archived is not None:
         base_query = base_query.where(JobDescription.is_archived == is_archived)
-    
-    # Get total count
+
     count_query = select(func.count()).select_from(JobDescription)
     if current_user.role == "recruiter":
-        count_query = count_query.where(JobDescription.recruiter_id == current_user.id)
+        count_query = count_query.where(
+            JobDescription.recruiter_id == current_user.id,
+            JobDescription.deleted_at.is_(None)
+        )
     else:
-        count_query = count_query.where(JobDescription.recruiter_id.is_(None))
-    
+        count_query = count_query.where(
+            JobDescription.recruiter_id.is_(None),
+            JobDescription.deleted_at.is_(None)
+        )
     if is_active is not None:
         count_query = count_query.where(JobDescription.is_active == is_active)
     if is_archived is not None:
         count_query = count_query.where(JobDescription.is_archived == is_archived)
-    
+
     total_result = await db.execute(count_query)
     total = total_result.scalar()
-    
-    # Get items
+
     query = base_query.order_by(JobDescription.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(query)
     jds = result.scalars().all()
-    
-    return JobDescriptionListResponse(
+
+    response = JobDescriptionListResponse(
         items=[JobDescriptionResponse.model_validate(jd) for jd in jds],
         total=total or 0,
         skip=skip,
         limit=limit
     )
+    simple_cache.set(cache_key, response, ttl=15)
+    return response
 
 
 @router.patch(
@@ -294,9 +303,10 @@ async def delete_job_description(
     
     # Soft delete
     jd.deleted_at = datetime.now(timezone.utc)
-    
     await db.commit()
-    
+
+    from app.core.simple_cache import simple_cache
+    simple_cache.delete_prefix(f"jds:{current_user.id}:")
     logger.info(f"Job description deleted: {jd_id} by {current_user.email}")
 
 

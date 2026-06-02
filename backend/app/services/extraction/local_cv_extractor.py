@@ -392,7 +392,6 @@ class LocalCVExtractor:
     
     def _extract_image_enhanced(self, file_content: bytes) -> Dict[str, Any]:
         """Enhanced image OCR extraction."""
-        # Lazy load EasyOCR if not initialized
         if not self._easyocr_initialized:
             self._initialize_easyocr()
         
@@ -402,25 +401,48 @@ class LocalCVExtractor:
         logger.info("Enhanced image extraction using EasyOCR...")
         
         try:
-            # Use EasyOCR with enhanced settings
+            # Strategy 1: paragraph mode (groups text spatially)
             results = self.ocr_reader.readtext(
                 file_content,
-                detail=1,  # Return bounding boxes and confidence
-                paragraph=True,  # Group text into paragraphs
-                width_ths=0.7,  # Text width threshold
-                height_ths=0.7  # Text height threshold
+                detail=1,
+                paragraph=True,
+                width_ths=0.7,
+                height_ths=0.7
             )
             
-            # Extract text with spatial awareness
             text_parts = []
-            for (bbox, text, confidence) in results:
-                if confidence > 0.6 and text.strip():  # Higher confidence threshold
-                    text_parts.append(text.strip())
+            for result in results:
+                if len(result) == 3:
+                    bbox, text, confidence = result
+                    if confidence > 0.4 and text.strip():
+                        text_parts.append(text.strip())
+                elif len(result) == 2:
+                    bbox, text = result
+                    if text.strip():
+                        text_parts.append(text.strip())
             
+            # Strategy 2 fallback: word-level mode if paragraph gave nothing
+            if not text_parts:
+                logger.info("Paragraph mode returned empty — retrying with word-level mode")
+                results2 = self.ocr_reader.readtext(
+                    file_content,
+                    detail=1,
+                    paragraph=False
+                )
+                for result in results2:
+                    if len(result) == 3:
+                        bbox, text, confidence = result
+                        if confidence > 0.3 and text.strip():
+                            text_parts.append(text.strip())
+                    elif len(result) == 2:
+                        bbox, text = result
+                        if text.strip():
+                            text_parts.append(text.strip())
+
             full_text = '\n'.join(text_parts)
             cleaned_text = self._clean_text_enhanced(full_text)
             
-            logger.info(f"Enhanced image OCR successful: {len(cleaned_text)} chars")
+            logger.info(f"Enhanced image OCR successful: {len(cleaned_text)} chars, {len(cleaned_text.split())} words")
             return {
                 'text': cleaned_text,
                 'method': 'easyocr_enhanced',

@@ -209,24 +209,13 @@ class RoleChecker:
         request: Request,
         allowed: bool
     ) -> None:
-        """
-        Log access attempt to audit log.
-        
-        Args:
-            db: Database session
-            user: User attempting access
-            request: FastAPI request object
-            allowed: Whether access was allowed
-            
-        Requirements: 20.14
-        """
         try:
             audit_log = AuditLog(
                 user_id=user.id,
                 operation="ACCESS_ATTEMPT" if allowed else "ACCESS_DENIED",
                 resource_type="ENDPOINT",
                 resource_id=None,
-                details={
+                operation_metadata={
                     "endpoint": str(request.url.path),
                     "method": request.method,
                     "allowed_roles": self.allowed_roles,
@@ -236,14 +225,15 @@ class RoleChecker:
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-            
             db.add(audit_log)
-            await db.commit()
-            
+            # Use flush instead of commit to avoid greenlet issues inside dependency
+            await db.flush()
         except Exception as e:
             logger.error(f"Failed to log access attempt: {str(e)}")
-            # Don't fail the request if audit logging fails
-            await db.rollback()
+            try:
+                await db.rollback()
+            except Exception:
+                pass
 
 
 # Convenience role checker instances

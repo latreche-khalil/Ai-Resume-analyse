@@ -106,10 +106,6 @@ class AuditLog(Base, UUIDMixin, TimestampMixin):
     
     # Constraints
     __table_args__ = (
-        CheckConstraint(
-            "created_at >= NOW() - INTERVAL '2 years'",
-            name="check_retention_period"
-        ),
         Index("idx_audit_logs_user_id", "user_id"),
         Index("idx_audit_logs_operation", "operation"),
         Index("idx_audit_logs_created_at", "created_at"),

@@ -11,7 +11,8 @@ export default function RecruiterLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     if (!loading && !user) router.push('/login')
-    if (!loading && user && user.role !== 'recruiter') router.push('/dashboard')
+    if (!loading && user && user.role === 'admin') router.push('/admin')
+    if (!loading && user && user.role === 'candidate') router.push('/dashboard')
   }, [user, loading, router])
 
   return (

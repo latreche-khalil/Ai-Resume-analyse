@@ -49,11 +49,17 @@ class JobDescription(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         nullable=False,
         comment="Job title"
     )
+
+    company = Column(
+        String(255),
+        nullable=True,
+        comment="Company name"
+    )
     
     description = Column(
         Text,
         nullable=False,
-        comment="Full job description text (minimum 100 words)"
+        comment="Full job description text"
     )
     
     # Skills
@@ -162,22 +168,9 @@ class JobDescription(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     
     # Constraints
     __table_args__ = (
-        CheckConstraint(
-            "experience_level IN ('entry', 'mid', 'senior', 'expert') OR experience_level IS NULL",
-            name="check_experience_level"
-        ),
-        CheckConstraint(
-            "work_arrangement IN ('remote', 'hybrid', 'onsite') OR work_arrangement IS NULL",
-            name="check_work_arrangement"
-        ),
         Index("idx_job_descriptions_recruiter_id", "recruiter_id"),
-        Index(
-            "idx_job_descriptions_active",
-            "is_active",
-            postgresql_where="is_active = TRUE"
-        ),
+        Index("idx_job_descriptions_active", "is_active"),
         Index("idx_job_descriptions_created_at", "created_at"),
-        Index("idx_job_descriptions_required_skills", "required_skills", postgresql_using="gin"),
     )
     
     def __repr__(self) -> str:

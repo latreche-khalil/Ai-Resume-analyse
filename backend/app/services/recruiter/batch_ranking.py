@@ -148,46 +148,55 @@ class BatchRankingService:
         cv_documents: List[CVDocument],
         job_description: JobDescription
     ) -> Dict[UUID, float]:
-        """
-        Calculate semantic similarity using ChromaDB vector search.
-        
-        Returns:
-            Dict mapping CV ID to similarity score (0.0-1.0)
-        """
+        """Calculate semantic similarity using ChromaDB + keyword fallback."""
         scores = {}
-        
-        try:
-            # Use job description as query
-            jd_text = job_description.description[:1000]
-            
-            for cv in cv_documents:
-                try:
-                    # Search for relevant chunks in this CV
-                    chunks = await rag_pipeline.semantic_search(
-                        query=jd_text,
-                        document_ids=[cv.id],
-                        top_k=5
-                    )
-                    
-                    if chunks:
-                        # Average similarity of top chunks
-                        avg_similarity = sum(chunk['similarity'] for chunk in chunks) / len(chunks)
+        jd_text = job_description.description[:1000]
+
+        for cv in cv_documents:
+            try:
+                chunks = await rag_pipeline.semantic_search(
+                    query=jd_text,
+                    document_ids=[cv.id],
+                    top_k=5
+                )
+                if chunks:
+                    avg_similarity = sum(chunk['similarity'] for chunk in chunks) / len(chunks)
+                    # Only trust if meaningfully above random (>0.3)
+                    if avg_similarity > 0.3:
                         scores[cv.id] = avg_similarity
-                    else:
-                        # No embeddings found, use fallback
-                        scores[cv.id] = 0.5
-                        
-                except Exception as e:
-                    logger.warning(f"Semantic search failed for CV {cv.id}: {e}")
-                    scores[cv.id] = 0.5
-            
-            logger.info(f"Semantic similarity calculated for {len(scores)} CVs")
-            return scores
-            
-        except Exception as e:
-            logger.error(f"Semantic similarity calculation error: {e}")
-            # Return default scores
-            return {cv.id: 0.5 for cv in cv_documents}
+                        continue
+
+                # Fallback: keyword overlap between CV and JD
+                scores[cv.id] = self._keyword_similarity(
+                    cv.masked_text or cv.extracted_text or "",
+                    job_description.description
+                )
+            except Exception as e:
+                logger.warning(f"Semantic search failed for CV {cv.id}: {e}")
+                scores[cv.id] = self._keyword_similarity(
+                    cv.masked_text or cv.extracted_text or "",
+                    job_description.description
+                )
+
+        logger.info(f"Semantic similarity calculated for {len(scores)} CVs")
+        return scores
+
+    def _keyword_similarity(self, cv_text: str, jd_text: str) -> float:
+        """Keyword-based similarity as fallback for semantic search."""
+        import re
+        def keywords(text: str):
+            words = set(re.findall(r'\b[a-zA-Z][a-zA-Z0-9+#.]{2,}\b', text.lower()))
+            stopwords = {'the','and','for','with','you','are','our','have','will',
+                         'must','can','this','that','from','your','their','they',
+                         'has','was','not','but','all','any','its','been','more'}
+            return {w for w in words if w not in stopwords}
+
+        cv_kw  = keywords(cv_text)
+        jd_kw  = keywords(jd_text)
+        if not jd_kw:
+            return 0.5
+        overlap = len(cv_kw & jd_kw) / len(jd_kw)
+        return round(min(1.0, overlap * 2), 3)  # scale up since overlap is usually small
     
     async def _calculate_skills_match(
         self,
@@ -237,54 +246,61 @@ class BatchRankingService:
         job_description: JobDescription,
         db: AsyncSession
     ) -> Dict[UUID, float]:
-        """
-        Analyze experience level alignment.
-        
-        Returns:
-            Dict mapping CV ID to experience score (0.0-1.0)
-        """
+        """Analyze experience level alignment using skill report + text heuristics."""
+        import re
         scores = {}
-        
-        # Extract required experience from JD (simple heuristic)
+
+        # Extract required years from JD text
         jd_text = job_description.description.lower()
         required_years = 0
-        
-        if 'senior' in jd_text or '5+ years' in jd_text or '5 years' in jd_text:
+        year_match = re.search(r'(\d+)\+?\s*years?', jd_text)
+        if year_match:
+            required_years = int(year_match.group(1))
+        elif any(w in jd_text for w in ['staff', 'principal', 'architect', 'lead']):
+            required_years = 8
+        elif 'senior' in jd_text:
             required_years = 5
-        elif 'mid-level' in jd_text or '3+ years' in jd_text or '3 years' in jd_text:
+        elif 'mid' in jd_text or 'intermediate' in jd_text:
             required_years = 3
-        elif 'junior' in jd_text or '1+ year' in jd_text or '1 year' in jd_text:
+        elif 'junior' in jd_text or 'entry' in jd_text:
             required_years = 1
-        
+
         for cv in cv_documents:
             try:
-                # Get skill report for experience data
                 skill_result = await db.execute(
                     select(SkillReport).where(SkillReport.document_id == cv.id)
                 )
                 skill_report = skill_result.scalar_one_or_none()
-                
+
+                cv_years = 0
                 if skill_report and skill_report.total_experience_months:
                     cv_years = skill_report.total_experience_months / 12
-                    
-                    # Score based on alignment
-                    if required_years == 0:
-                        score = 0.7  # No specific requirement
-                    elif cv_years >= required_years:
-                        # Perfect or over-qualified
-                        score = min(1.0, 0.8 + (cv_years - required_years) * 0.05)
-                    else:
-                        # Under-qualified
-                        score = max(0.3, cv_years / required_years)
-                    
-                    scores[cv.id] = score
                 else:
-                    scores[cv.id] = 0.6  # Default if no data
-                    
+                    # Heuristic: count year mentions in CV text
+                    cv_text = (cv.masked_text or cv.extracted_text or "").lower()
+                    year_mentions = re.findall(r'(\d+)\+?\s*years?', cv_text)
+                    if year_mentions:
+                        cv_years = max(int(y) for y in year_mentions)
+
+                if required_years == 0:
+                    score = 0.75
+                elif cv_years == 0:
+                    score = 0.5  # Unknown experience
+                elif cv_years >= required_years * 1.5:
+                    score = 0.95  # Significantly over-qualified
+                elif cv_years >= required_years:
+                    score = 0.85  # Meets requirement
+                elif cv_years >= required_years * 0.7:
+                    score = 0.65  # Slightly under
+                else:
+                    score = max(0.3, cv_years / required_years * 0.7)
+
+                scores[cv.id] = round(score, 3)
+
             except Exception as e:
                 logger.warning(f"Experience analysis failed for CV {cv.id}: {e}")
-                scores[cv.id] = 0.6
-        
+                scores[cv.id] = 0.5
+
         logger.info(f"Experience level analyzed for {len(scores)} CVs")
         return scores
     
@@ -293,36 +309,35 @@ class BatchRankingService:
         cv_documents: List[CVDocument],
         job_description: JobDescription
     ) -> Dict[UUID, float]:
-        """
-        Analyze cultural fit based on keywords.
-        
-        Returns:
-            Dict mapping CV ID to cultural fit score (0.0-1.0)
-        """
+        """Analyze cultural fit using expanded keyword matching."""
         scores = {}
-        
-        # Extract cultural keywords from JD
         jd_text = job_description.description.lower()
+
+        # Expanded cultural/soft-skill keywords
         cultural_keywords = {
             'agile', 'scrum', 'remote', 'collaborative', 'team player',
-            'innovation', 'startup', 'fast-paced', 'flexible', 'autonomous'
+            'innovation', 'startup', 'fast-paced', 'flexible', 'autonomous',
+            'leadership', 'mentoring', 'cross-functional', 'stakeholder',
+            'communication', 'problem-solving', 'ownership', 'proactive',
+            'open source', 'community', 'research', 'publications', 'kaggle',
+            'speaker', 'contributor', 'driven', 'passionate', 'initiative'
         }
-        
+
         jd_keywords = {kw for kw in cultural_keywords if kw in jd_text}
-        
-        if not jd_keywords:
-            # No cultural indicators in JD
-            return {cv.id: 0.7 for cv in cv_documents}
-        
+
         for cv in cv_documents:
             cv_text = (cv.masked_text or cv.extracted_text or "").lower()
-            
-            # Count matching keywords
-            matches = sum(1 for kw in jd_keywords if kw in cv_text)
-            score = min(1.0, 0.5 + (matches / len(jd_keywords)) * 0.5)
-            
-            scores[cv.id] = score
-        
+
+            if not jd_keywords:
+                # No cultural indicators — use generic soft-skill presence
+                generic = {'team', 'lead', 'manage', 'collaborate', 'deliver', 'drive'}
+                matches = sum(1 for kw in generic if kw in cv_text)
+                scores[cv.id] = round(min(1.0, 0.5 + matches * 0.08), 3)
+            else:
+                matches = sum(1 for kw in jd_keywords if kw in cv_text)
+                score = 0.4 + (matches / len(jd_keywords)) * 0.6
+                scores[cv.id] = round(min(1.0, score), 3)
+
         logger.info(f"Cultural fit analyzed for {len(scores)} CVs")
         return scores
     
@@ -371,9 +386,16 @@ class BatchRankingService:
             else:
                 rank_category = "Weak"
             
+            # Clean summary — remove any raw score mentions like "0.82" or "82%"
+            import re
+            raw_summary = skills_data.get('summary', '')
+            clean_summary = re.sub(r'\b0\.\d{2,3}\b', '', raw_summary)  # remove 0.XX
+            clean_summary = re.sub(r'\b\d{1,3}%\b', '', clean_summary)  # remove XX%
+            clean_summary = re.sub(r'\s{2,}', ' ', clean_summary).strip()
+
             candidates.append({
                 'cv_id': str(cv_id),
-                'filename': cv.filename,
+                'filename': cv.original_filename,
                 'composite_score': round(composite_score, 3),
                 'rank_category': rank_category,
                 'scores_breakdown': {
@@ -382,9 +404,21 @@ class BatchRankingService:
                     'experience_level': round(experience, 3),
                     'cultural_fit': round(cultural, 3)
                 },
-                'matching_skills': skills_data.get('matching_skills', [])[:5],
-                'missing_skills': skills_data.get('missing_skills', [])[:5],
+                'matching_skills': skills_data.get('matching_skills', [])[:8],
+                'missing_skills': skills_data.get('missing_skills', [])[:8],
+                'transferable_skills': skills_data.get('transferable_skills', [])[:5],
+                'red_flags': skills_data.get('red_flags', [])[:5],
                 'recommendation': skills_data.get('recommendation', 'consider'),
+                'summary': clean_summary,
+                'confidence': skills_data.get('confidence', 'medium'),
+                'evidence_for_match': [
+                    f"✓ {skill}" for skill in skills_data.get('matching_skills', [])[:6]
+                ],
+                'evidence_against_match': [
+                    f"✗ Missing: {skill}" for skill in skills_data.get('missing_skills', [])[:4]
+                ] + [
+                    f"⚠ {flag}" for flag in skills_data.get('red_flags', [])[:2]
+                ],
                 'seniority_alignment': skills_data.get('seniority_alignment', {}),
                 'competitive_advantage': skills_data.get('competitive_advantage', {})
             })

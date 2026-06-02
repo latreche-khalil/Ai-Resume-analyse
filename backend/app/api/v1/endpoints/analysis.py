@@ -3,15 +3,16 @@ Analysis endpoints for CV-JD matching.
 
 Requirements: 8.1, 8.2, 9.1, 10.1
 """
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, literal
 
 from app.core.database import get_db, AsyncSessionLocal
-from app.services.auth.dependencies import get_current_user
+from app.services.auth.dependencies import get_current_user, require_role
 from app.models.user import User
 from app.models.cv_document import CVDocument
 from app.models.analysis_record import AnalysisRecord
@@ -29,6 +30,13 @@ from app.utils.logger import logger
 
 
 router = APIRouter(prefix="/analysis")
+
+
+class BatchCandidateRankRequest(BaseModel):
+    """Rank a recruiter-selected set of uploaded CVs against one job description."""
+    cv_document_ids: List[UUID] = Field(..., min_length=1, max_length=50)
+    job_description_id: UUID
+    ranking_criteria: Optional[Dict[str, float]] = None
 
 
 @router.get(
@@ -231,6 +239,143 @@ async def create_analysis(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to start analysis"
         )
+
+
+@router.post(
+    "/batch-rank",
+    response_model=Dict,
+    summary="Rank multiple uploaded CVs",
+    description="Analyze a recruiter-selected batch of CVs against one job description and return a sorted leaderboard"
+)
+async def batch_rank_uploaded_candidates(
+    request: BatchCandidateRankRequest,
+    current_user: User = Depends(require_role("recruiter")),
+    db: AsyncSession = Depends(get_db)
+) -> Dict:
+    """
+    Rank multiple uploaded CVs together instead of creating isolated match cards.
+
+    Returns a recruiter-friendly leaderboard with best candidate, comparison
+    summary, score breakdowns, evidence for/against each candidate, and gaps.
+    """
+    from app.services.recruiter.batch_ranking import batch_ranking_service
+
+    unique_cv_ids = list(dict.fromkeys(request.cv_document_ids))
+    if not unique_cv_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one CV document is required"
+        )
+
+    jd_result = await db.execute(
+        select(JobDescription).where(
+            JobDescription.id == request.job_description_id,
+            JobDescription.recruiter_id == current_user.id,
+            JobDescription.is_active == True,
+            JobDescription.deleted_at.is_(None),
+        )
+    )
+    job_description = jd_result.scalar_one_or_none()
+    if not job_description:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job description not found"
+        )
+
+    cv_result = await db.execute(
+        select(CVDocument).where(
+            CVDocument.id.in_(unique_cv_ids),
+            CVDocument.user_id == current_user.id,
+            CVDocument.deleted_at.is_(None),
+        )
+    )
+    cv_documents = cv_result.scalars().all()
+    found_ids = {cv.id for cv in cv_documents}
+    missing_ids = [str(cv_id) for cv_id in unique_cv_ids if cv_id not in found_ids]
+    if missing_ids:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Some CV documents were not found or are not accessible: {', '.join(missing_ids)}"
+        )
+
+    not_ready = [
+        {
+            "cv_id": str(cv.id),
+            "filename": cv.original_filename,
+            "processing_status": cv.processing_status,
+            "status_message": cv.status_message,
+        }
+        for cv in cv_documents
+        if cv.processing_status != "completed"
+    ]
+    if not_ready:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": "Some CVs are still processing. Try again when all documents are completed.",
+                "not_ready": not_ready,
+            }
+        )
+
+    # Filter out CVs with no extracted text (OCR/extraction failed silently)
+    empty_cvs = [cv for cv in cv_documents if not (cv.extracted_text or '').strip()]
+    usable_cvs = [cv for cv in cv_documents if (cv.extracted_text or '').strip()]
+
+    if not usable_cvs:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="None of the uploaded CVs could be read. The files may be scanned images or corrupted. Please upload text-based PDFs or DOCX files."
+        )
+
+    if empty_cvs:
+        logger.warning(
+            f"Skipping {len(empty_cvs)} CV(s) with no extracted text: "
+            f"{[cv.original_filename for cv in empty_cvs]}"
+        )
+
+    # Use only usable CV IDs for ranking
+    unique_cv_ids = [cv.id for cv in usable_cvs]
+
+    ranking_result = await batch_ranking_service.rank_candidates(
+        cv_ids=unique_cv_ids,
+        job_description_id=request.job_description_id,
+        db=db,
+        ranking_criteria=request.ranking_criteria,
+    )
+
+    leaderboard = ranking_result.get("leaderboard", [])
+    best = leaderboard[0] if leaderboard else None
+    all_matching = sorted({
+        skill
+        for candidate in leaderboard
+        for skill in candidate.get("matching_skills", [])
+    })
+    all_missing = sorted({
+        skill
+        for candidate in leaderboard
+        for skill in candidate.get("missing_skills", [])
+    })
+
+    return {
+        **ranking_result,
+        "comparison": {
+            "best_candidate": best,
+            "best_candidate_id": best.get("cv_id") if best else None,
+            "best_candidate_name": best.get("filename") if best else None,
+            "score_spread": round(
+                (leaderboard[0]["composite_score"] - leaderboard[-1]["composite_score"])
+                if len(leaderboard) > 1 else 0,
+                3,
+            ) if leaderboard else 0,
+            "shared_strengths": all_matching[:10],
+            "common_gaps": all_missing[:10],
+            "recommendation": (
+                f"Start with {best['filename']} as the strongest candidate."
+                if best else "No candidates were ranked."
+            ),
+        },
+        "sort_options": ["rank", "composite_score", "skills_match", "semantic_similarity", "experience_level"],
+    }
 
 
 @router.get(
@@ -525,43 +670,40 @@ async def list_analyses(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ) -> AnalysisListResponse:
-    """
-    List user's analyses with pagination.
-    
-    Requirements: 8.1
-    """
+    """List user's analyses with pagination. Requirements: 8.1"""
     from app.utils.db_helpers import get_user_cvs
-    
-    # Get user's CV IDs using helper
+    from app.core.simple_cache import simple_cache
+
+    cache_key = f"analyses:{current_user.id}:{skip}:{limit}"
+    cached = simple_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     cv_ids = await get_user_cvs(db, current_user.id)
-    
     if not cv_ids:
         return AnalysisListResponse(analyses=[], total=0, skip=skip, limit=limit)
-    
-    # Get analyses with job description details
+
     query = select(
         AnalysisRecord,
         JobDescription.title.label("job_title"),
-        JobDescription.company.label("job_company")
+        literal(None).label("job_company")
     ).outerjoin(
         JobDescription, AnalysisRecord.job_description_id == JobDescription.id
     ).where(
         AnalysisRecord.cv_document_id.in_(cv_ids)
     )
-    
-    # Get total count
+
     count_query = select(func.count()).select_from(AnalysisRecord).where(
         AnalysisRecord.cv_document_id.in_(cv_ids)
     )
     total_result = await db.execute(count_query)
     total = total_result.scalar()
-    
-    # Order and paginate
+
     query = query.order_by(AnalysisRecord.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(query)
     rows = result.all()
-    
-    return AnalysisListResponse(
+
+    response = AnalysisListResponse(
         analyses=[
             {
                 'id': str(row.AnalysisRecord.id),
@@ -579,6 +721,8 @@ async def list_analyses(
         skip=skip,
         limit=limit
     )
+    simple_cache.set(cache_key, response, ttl=10)
+    return response
 
 
 @router.delete(

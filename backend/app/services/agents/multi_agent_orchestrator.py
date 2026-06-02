@@ -219,8 +219,6 @@ class MultiAgentOrchestrator:
             
             # Update analysis record with match results
             logger.info(f"Matching Agent returned score: {match_result.get('match_score')} for analysis {analysis_id}")
-            with open("debug_log.txt", "a") as f:
-                f.write(f"ANALYSIS {analysis_id}: Score {match_result.get('match_score')} | Skills: {len(match_result.get('matching_skills', []))}\n")
             analysis_record.match_score = match_result.get('match_score', 0.0)
             
             # Deduplicate: Ensure matching and missing skills are mutually exclusive
@@ -300,16 +298,10 @@ class MultiAgentOrchestrator:
             # Run agents sequentially to avoid free tier rate limits/concurrency issues
             gap_result = await run_gap()
             xai_result = await run_xai()
-            
-            with open("debug_log.txt", "a") as f:
-                f.write(f"ANALYSIS {analysis_id}: Gap and XAI finished. Committing...\n")
 
             # Flush to ensure everything is saved
             await db.commit()
             await db.refresh(analysis_record)
-            
-            with open("debug_log.txt", "a") as f:
-                f.write(f"ANALYSIS {analysis_id}: SUCCESSFUL COMMIT.\n")
 
             xai_failed = xai_result.get('summary') == 'AI Explanation unavailable.'
             gap_data_found = any([
@@ -356,9 +348,7 @@ class MultiAgentOrchestrator:
             
         except Exception as e:
             logger.error(f"CV-JD matching error: {str(e)}")
-            with open("debug_log.txt", "a") as f:
-                f.write(f"ANALYSIS {analysis_id if 'analysis_id' in locals() else 'unknown'}: CRITICAL ERROR: {str(e)}\n")
-            
+
             # Update analysis status to failed
             if 'analysis_record' in locals() and analysis_record:
                 analysis_record.processing_status = 'failed'

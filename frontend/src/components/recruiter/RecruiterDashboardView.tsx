@@ -1,232 +1,505 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
+import { useRouter } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
 import { useAuth } from '@/contexts/auth-context'
 import {
-  Briefcase, Users, Target, Plus, ArrowRight,
-  Sparkles, Clock, Tag
+  Users, Target, Filter, Search,
+  Sparkles, Clock, Award, AlertCircle, CheckCircle2,
+  ArrowRight, Brain, Zap, BarChart3, Upload, RefreshCw,
+  Briefcase, TrendingUp
 } from 'lucide-react'
 
-function StatCard({ label, value, icon: Icon, loading = false, sub }: {
-  label: string; value: string | number; icon: React.ElementType; loading?: boolean; sub?: string
+// ── Types ──────────────────────────────────────────────────────────────────────
+interface AnalysisItem {
+  id: string
+  cv_document_id: string
+  job_description_id: string | null
+  match_score: number | null
+  analysis_status: string
+  created_at: string
+  job_title?: string
+  // enriched after fetch
+  cv_filename?: string
+  matching_skills?: string[]
+  missing_skills?: string[]
+  requires_human_review?: boolean
+}
+
+interface Stats {
+  totalCandidates: number
+  avgMatchScore: number
+  topMatches: number
+  pendingReviews: number
+}
+
+// ── Stat Card ──────────────────────────────────────────────────────────────────
+function StatCard({ label, value, icon: Icon, loading = false, trend, color }: {
+  label: string
+  value: string | number
+  icon: React.ElementType
+  loading?: boolean
+  trend?: { value: string; up: boolean }
+  color: string
 }) {
   return (
-    <div className="bg-white dark:bg-[#0f0f0f] border border-gray-200 dark:border-[#1f1f1f] rounded-xl p-4 hover:border-gray-300 dark:hover:border-[#2a2a2a] transition-all">
+    <motion.div
+      whileHover={{ y: -2, scale: 1.01 }}
+      className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 hover:shadow-lg hover:shadow-slate-200/50 dark:hover:shadow-slate-900/50 transition-all"
+    >
       <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">{label}</p>
+        <div className="flex-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+            {label}
+          </p>
           {loading ? (
-            <div className="h-7 w-16 bg-gray-100 dark:bg-white/5 rounded animate-pulse" />
+            <div className="h-8 w-20 bg-slate-100 dark:bg-slate-700 rounded animate-pulse" />
           ) : (
-            <div>
-              <span className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">{value}</span>
-              {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold text-slate-900 dark:text-white">{value}</span>
+              {trend && (
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                  trend.up
+                    ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10'
+                    : 'text-slate-500 bg-slate-100 dark:bg-slate-700'
+                }`}>
+                  {trend.value}
+                </span>
+              )}
             </div>
           )}
         </div>
-        <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-white/5 flex items-center justify-center shrink-0">
-          <Icon size={15} className="text-gray-500 dark:text-gray-400" />
+        <div
+          className="w-12 h-12 rounded-xl flex items-center justify-center shadow-sm"
+          style={{ backgroundColor: `${color}15` }}
+        >
+          <Icon size={20} style={{ color }} strokeWidth={2.5} />
         </div>
       </div>
-    </div>
+    </motion.div>
+  )
+}
+
+// ── Candidate Card ─────────────────────────────────────────────────────────────
+function CandidateCard({ candidate, onClick }: { candidate: AnalysisItem; onClick: () => void }) {
+  const score = candidate.match_score || 0
+  // Normalize: backend may return 0-1 or 0-100
+  const displayScore = score <= 1 ? Math.round(score * 100) : Math.round(score)
+
+  // Use static classes instead of dynamic to ensure Tailwind includes them in build
+  const scoreBadgeClass =
+    displayScore >= 80
+      ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20'
+      : displayScore >= 60
+      ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20'
+      : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20'
+
+  const scoreTextClass =
+    displayScore >= 80
+      ? 'text-emerald-600 dark:text-emerald-400'
+      : displayScore >= 60
+      ? 'text-blue-600 dark:text-blue-400'
+      : 'text-amber-600 dark:text-amber-400'
+
+  return (
+    <motion.div
+      whileHover={{ scale: 1.01 }}
+      onClick={onClick}
+      className="group bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-lg transition-all cursor-pointer"
+    >
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex-1 min-w-0">
+          <h4 className="font-semibold text-slate-900 dark:text-white truncate text-sm">
+            {candidate.cv_filename || `CV ${candidate.cv_document_id.slice(0, 8)}…`}
+          </h4>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+            {candidate.job_title || 'No job title'}
+          </p>
+        </div>
+
+        {/* Score Badge */}
+        <div className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg shrink-0 border ${scoreBadgeClass}`}>
+          <span className={`text-xl font-bold ${scoreTextClass}`}>
+            {displayScore}
+          </span>
+          <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-500">
+            Match
+          </span>
+        </div>
+      </div>
+
+      {/* Matching Skills */}
+      {candidate.matching_skills && candidate.matching_skills.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-2">
+          {candidate.matching_skills.slice(0, 3).map((skill, i) => (
+            <span key={i}
+              className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-md text-[10px] font-medium">
+              <CheckCircle2 size={9} />{skill}
+            </span>
+          ))}
+          {candidate.matching_skills.length > 3 && (
+            <span className="text-[10px] text-slate-400">+{candidate.matching_skills.length - 3}</span>
+          )}
+        </div>
+      )}
+
+      {/* Missing Skills */}
+      {candidate.missing_skills && candidate.missing_skills.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-2">
+          {candidate.missing_skills.slice(0, 2).map((skill, i) => (
+            <span key={i}
+              className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-md text-[10px] font-medium">
+              <AlertCircle size={9} />{skill}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="flex items-center justify-between pt-2.5 border-t border-slate-100 dark:border-slate-700 mt-1">
+        <div className="flex items-center gap-1 text-[10px] text-slate-400">
+          <Clock size={10} />
+          {new Date(candidate.created_at).toLocaleDateString()}
+        </div>
+        <div className="flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
+          View Details <ArrowRight size={11} />
+        </div>
+      </div>
+    </motion.div>
   )
 }
 
 export function RecruiterDashboardView() {
   const { user } = useAuth()
-  const [stats, setStats] = useState({ activeJDs: 0, totalCandidates: 0, recentMatches: 0 })
-  const [recentJDs, setRecentJDs] = useState<any[]>([])
-  const [talentPools, setTalentPools] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const router = useRouter()
+  const [stats, setStats] = useState<Stats>({
+    totalCandidates: 0, avgMatchScore: 0, topMatches: 0, pendingReviews: 0,
+  })
+  const [topCandidates, setTopCandidates] = useState<AnalysisItem[]>([])
+  const [talentPools, setTalentPools]     = useState<any[]>([])
+  const [loading, setLoading]             = useState(true)
+  const [refreshing, setRefreshing]       = useState(false)
+  const [searchQuery, setSearchQuery]     = useState('')
 
-  useEffect(() => { loadData() }, [])
-
-  const loadData = async () => {
+  const loadData = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true)
     try {
-      const [jdsResponse, pools] = await Promise.all([
-        apiClient.getJobDescriptions({ limit: 10 }).catch(() => ({ items: [], total: 0 })),
-        apiClient.listTalentPools().catch(() => [])
+      const [pools, analysesRes] = await Promise.all([
+        apiClient.listTalentPools().catch(() => [] as any[]),
+        apiClient.listAnalyses({ limit: 50 }).catch(() => ({ analyses: [], total: 0 })),
       ])
-      const items = jdsResponse.items || []
-      setRecentJDs(items.slice(0, 4))
       setTalentPools(pools)
-      const totalCandidates = pools.reduce((acc: number, p: any) => acc + (p.candidate_count || p.candidates?.length || 0), 0)
-      setStats({ activeJDs: jdsResponse.total || 0, totalCandidates, recentMatches: Math.max(jdsResponse.total * 3, 10) })
+      const analysesData: AnalysisItem[] = analysesRes.analyses || []
+
+      const withScores = analysesData
+        .filter(a => a.match_score != null && a.analysis_status === 'completed')
+        .sort((a, b) => {
+          const sa = a.match_score! <= 1 ? a.match_score! * 100 : a.match_score!
+          const sb = b.match_score! <= 1 ? b.match_score! * 100 : b.match_score!
+          return sb - sa
+        })
+
+      const top6 = withScores.slice(0, 6)
+      const enriched = await Promise.all(
+        top6.map(async (a) => {
+          try {
+            const [full, doc] = await Promise.all([
+              apiClient.getAnalysis(a.id),
+              apiClient.getDocument(a.cv_document_id).catch(() => null),
+            ])
+            return {
+              ...a,
+              cv_filename: doc?.original_filename,
+              matching_skills: full.matching_skills || [],
+              missing_skills:  full.missing_skills  || [],
+              requires_human_review: full.requires_human_review || false,
+            } as AnalysisItem
+          } catch { return a }
+        })
+      )
+      setTopCandidates(enriched)
+
+      const completed = analysesData.filter(a => a.analysis_status === 'completed')
+      const scores    = completed.map(a => {
+        const s = a.match_score || 0
+        return s <= 1 ? s * 100 : s
+      })
+      const avg = scores.length ? scores.reduce((s, v) => s + v, 0) / scores.length : 0
+      setStats({
+        totalCandidates: analysesData.length,
+        avgMatchScore:   Math.round(avg),
+        topMatches:      completed.filter(a => {
+          const s = a.match_score || 0
+          return (s <= 1 ? s * 100 : s) >= 80
+        }).length,
+        pendingReviews:  completed.filter(a => (a as any).requires_human_review).length,
+      })
     } catch (e) {
-      console.error(e)
+      console.error('Failed to load recruiter data:', e)
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
-  }
+  }, [])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  const filtered = topCandidates.filter(c =>
+    !searchQuery ||
+    (c.cv_filename || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (c.job_title   || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (c.matching_skills || []).some(s => s.toLowerCase().includes(searchQuery.toLowerCase()))
+  )
+
+  const analyzedToday = topCandidates.filter(c =>
+    new Date(c.created_at).toDateString() === new Date().toDateString()
+  ).length
 
   return (
-    <div className="max-w-[1200px] mx-auto space-y-6 pb-10">
+    <div className="max-w-[1400px] mx-auto space-y-6 pb-10" style={{ fontFamily: 'Roboto, sans-serif' }}>
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
-            Recruiter Dashboard
-          </h1>
-          <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">
-            Welcome back, {user?.first_name || 'Recruiter'}
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Smart Recruiting Hub</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2">
+            <Brain size={14} className="text-blue-500" /> AI-powered candidate screening and analysis
           </p>
         </div>
-        <Link href="/job-descriptions/new">
-          <button className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
-            <Plus size={15} />
-            New Position
+        <div className="flex items-center gap-2">
+          <button onClick={() => loadData(true)} disabled={refreshing}
+            className="p-2.5 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-all shadow-sm">
+            <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
           </button>
-        </Link>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <StatCard label="Active Positions" value={stats.activeJDs} icon={Briefcase} loading={loading} sub="Job descriptions" />
-        <StatCard label="Total Candidates" value={stats.totalCandidates} icon={Users} loading={loading} sub="In talent pools" />
-        <StatCard label="AI Matches" value={stats.recentMatches} icon={Target} loading={loading} sub="Generated matches" />
-      </div>
-
-      {/* Main content */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-
-        {/* Job Descriptions */}
-        <div className="lg:col-span-3 bg-white dark:bg-[#0f0f0f] border border-gray-200 dark:border-[#1f1f1f] rounded-xl overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-[#1a1a1a]">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Active Positions</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Open job requisitions</p>
-            </div>
-            <Link href="/jobs" className="text-xs text-blue-600 hover:text-blue-700 font-medium">View all</Link>
-          </div>
-
-          {loading ? (
-            <div className="flex items-center justify-center h-40">
-              <div className="w-5 h-5 border-2 border-gray-200 dark:border-[#2a2a2a] border-t-blue-500 rounded-full animate-spin" />
-            </div>
-          ) : recentJDs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center px-6">
-              <Briefcase size={24} className="text-gray-300 dark:text-gray-700 mb-2" />
-              <p className="text-sm text-gray-400 mb-3">No job descriptions yet</p>
-              <Link href="/job-descriptions/new">
-                <button className="px-3 py-1.5 text-xs text-blue-600 border border-blue-600/30 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors">
-                  Create first position
-                </button>
-              </Link>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-100 dark:divide-[#1a1a1a]">
-              {recentJDs.map((jd, i) => (
-                <div key={jd.id || i} className="px-5 py-4 hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">{jd.title}</h4>
-                      <p className="text-xs text-gray-400 mt-0.5">{jd.company}</p>
-                      {jd.required_skills?.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {jd.required_skills.slice(0, 3).map((s: string, si: number) => (
-                            <span key={si} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 rounded text-[10px]">
-                              {s}
-                            </span>
-                          ))}
-                          {jd.required_skills.length > 3 && (
-                            <span className="text-[10px] text-gray-400">+{jd.required_skills.length - 3}</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="px-2 py-0.5 bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 rounded text-[10px] font-medium">
-                        {jd.work_arrangement || 'Full-time'}
-                      </span>
-                      <Link href={`/jobs/${jd.id}`} className="text-gray-400 hover:text-blue-600 transition-colors">
-                        <ArrowRight size={14} />
-                      </Link>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 mt-2 text-[10px] text-gray-400">
-                    <Clock size={10} />
-                    {new Date(jd.created_at || Date.now()).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <Link href="/compare-candidates">
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm">
+              <Target size={16} /> Compare
+            </motion.button>
+          </Link>
+          <Link href="/talent-pool">
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm">
+              <Users size={16} /> Talent Pools
+            </motion.button>
+          </Link>
+          <Link href="/upload">
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-xl shadow-lg shadow-blue-500/25 hover:bg-blue-700 hover:shadow-blue-500/40 transition-all">
+              <Upload size={16} /> Upload CVs
+            </motion.button>
+          </Link>
         </div>
+      </motion.div>
 
-        {/* Talent Pools */}
-        <div className="lg:col-span-2 bg-white dark:bg-[#0f0f0f] border border-gray-200 dark:border-[#1f1f1f] rounded-xl overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-[#1a1a1a]">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Talent Pools</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Candidate pipelines</p>
-            </div>
-            <Link href="/talent-pool" className="text-xs text-blue-600 hover:text-blue-700 font-medium">Manage</Link>
-          </div>
+      {/* Stats Grid */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Total Analyses"   value={stats.totalCandidates} icon={Users}      loading={loading} color="#3b82f6"
+          trend={{ value: `${stats.totalCandidates} total`, up: stats.totalCandidates > 0 }} />
+        <StatCard label="Avg Match Score"  value={`${stats.avgMatchScore}%`} icon={Target} loading={loading} color="#10b981"
+          trend={{ value: stats.avgMatchScore >= 70 ? 'Good' : 'Fair', up: stats.avgMatchScore >= 70 }} />
+        <StatCard label="Top Matches ≥80%" value={stats.topMatches}    icon={Award}        loading={loading} color="#f59e0b"
+          trend={{ value: `${stats.topMatches} candidates`, up: stats.topMatches > 0 }} />
+        <StatCard label="Pending Reviews"  value={stats.pendingReviews} icon={AlertCircle} loading={loading} color="#8b5cf6"
+          trend={{ value: stats.pendingReviews > 0 ? 'Action needed' : 'All clear', up: false }} />
+      </motion.div>
 
-          {loading ? (
-            <div className="flex items-center justify-center h-40">
-              <div className="w-5 h-5 border-2 border-gray-200 dark:border-[#2a2a2a] border-t-blue-500 rounded-full animate-spin" />
-            </div>
-          ) : talentPools.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-              <Users size={24} className="text-gray-300 dark:text-gray-700 mb-2" />
-              <p className="text-sm text-gray-400 mb-3">No talent pools yet</p>
-              <Link href="/talent-pool">
-                <button className="px-3 py-1.5 text-xs text-blue-600 border border-blue-600/30 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors">
-                  Create pool
-                </button>
-              </Link>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-100 dark:divide-[#1a1a1a]">
-              {talentPools.slice(0, 5).map((pool: any, i: number) => (
-                <div key={pool.id || i} className="px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{pool.name}</p>
-                      <p className="text-xs text-gray-400 mt-0.5 truncate">
-                        {pool.candidates?.length || pool.candidate_count || 0} candidates
-                      </p>
-                    </div>
-                    <span className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded shrink-0">
-                      <Sparkles size={9} /> AI ready
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div>
-        <p className="text-xs text-gray-400 mb-3 font-medium uppercase tracking-wider">Quick actions</p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {[
-            { label: 'Create Job Description', sub: 'Post a new requisition', href: '/job-descriptions/new', icon: Briefcase },
-            { label: 'Upload Candidate CVs', sub: 'Bulk import resumes', href: '/talent-pool', icon: Users },
-            { label: 'View Talent Pool', sub: 'Browse candidates', href: '/talent-pool', icon: Target },
-          ].map((action) => (
-            <Link key={action.label} href={action.href}>
-              <div className="flex items-center gap-3 p-4 bg-white dark:bg-[#0f0f0f] border border-gray-200 dark:border-[#1f1f1f] rounded-xl hover:border-gray-300 dark:hover:border-[#2a2a2a] hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-all cursor-pointer">
-                <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-white/5 flex items-center justify-center shrink-0">
-                  <action.icon size={15} className="text-gray-500 dark:text-gray-400" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{action.label}</p>
-                  <p className="text-xs text-gray-400">{action.sub}</p>
-                </div>
+      {/* Main Content */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Top Candidates - 2/3 width */}
+        <motion.div 
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.2 }}
+          className="lg:col-span-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden shadow-sm"
+        >
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Sparkles size={18} className="text-blue-500" />
+                  Top Candidates
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  AI-ranked by match score and relevance
+                </p>
               </div>
-            </Link>
-          ))}
-        </div>
-      </div>
+              <Link href="/talent-pool">
+                <button className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1">
+                  View All
+                  <ArrowRight size={12} />
+                </button>
+              </Link>
+            </div>
 
+            {/* Search */}
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search candidates by name or skills..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              />
+            </div>
+          </div>
+
+          {/* Candidates List */}
+          <div className="p-4">
+            {loading ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="w-8 h-8 border-4 border-slate-200 dark:border-slate-700 border-t-blue-500 rounded-full animate-spin" />
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-64 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center mb-4">
+                  <Users size={28} className="text-slate-400" />
+                </div>
+                <h4 className="font-semibold text-slate-900 dark:text-white mb-2">
+                  {searchQuery ? 'No results found' : 'No candidates yet'}
+                </h4>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                  {searchQuery
+                    ? `No candidates match "${searchQuery}"`
+                    : 'Upload CVs and run analysis to see candidates here'}
+                </p>
+                {!searchQuery && (
+                  <Link href="/upload">
+                    <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+                      Upload CVs
+                    </button>
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <AnimatePresence>
+                  {filtered.map((candidate, i) => (
+                    <motion.div
+                      key={candidate.id || i}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ delay: i * 0.05 }}
+                    >
+                      <CandidateCard
+                        candidate={candidate}
+                        onClick={() => router.push(`/analysis/${candidate.id}`)}
+                      />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
+          </div>
+        </motion.div>
+
+        {/* Sidebar - 1/3 width */}
+        <motion.div 
+          initial={{ opacity: 0, x: 10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.3 }}
+          className="space-y-4"
+        >
+          {/* AI Insights */}
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                <Brain size={20} />
+              </div>
+              <h3 className="font-bold text-lg">AI Insights</h3>
+            </div>
+            <p className="text-sm text-blue-50 mb-4 leading-relaxed">
+              {stats.topMatches > 0 
+                ? `You have ${stats.topMatches} highly qualified candidates with 80%+ match scores. Review them for priority interviews.`
+                : 'Upload more CVs to get AI-powered candidate insights and recommendations.'}
+            </p>
+            <Link href="/talent-pool">
+              <button className="w-full px-4 py-2.5 bg-white text-blue-600 rounded-xl font-semibold text-sm hover:bg-blue-50 transition-colors flex items-center justify-center gap-2">
+                <Zap size={16} />
+                View Analysis
+              </button>
+            </Link>
+          </div>
+
+          {/* Talent Pools */}
+          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden shadow-sm">
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Filter size={16} className="text-slate-500" />
+                Talent Pools
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Organized candidate pipelines
+              </p>
+            </div>
+            <div className="p-4">
+              {talentPools.length === 0 ? (
+                <div className="text-center py-8">
+                  <Users size={24} className="text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    No pools yet
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {talentPools.slice(0, 4).map((pool: any) => (
+                    <Link key={pool.id} href="/talent-pool">
+                      <div className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer group">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
+                            {pool.name}
+                          </p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            {pool.candidates_count ?? pool.candidate_count ?? 0} candidates
+                          </p>
+                        </div>
+                        <ArrowRight size={14} className="text-slate-400 group-hover:text-blue-500 transition-colors" />
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Quick Stats */}
+          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 shadow-sm">
+            <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
+              <BarChart3 size={16} className="text-slate-500" />
+              Quick Stats
+            </h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-600 dark:text-slate-400">Analyzed Today</span>
+                <span className="font-bold text-slate-900 dark:text-white">
+                  {analyzedToday}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-600 dark:text-slate-400">Success Rate</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                  {stats.totalCandidates > 0 ? Math.round((stats.topMatches / stats.totalCandidates) * 100) : 0}%
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-600 dark:text-slate-400">Avg Processing</span>
+                <span className="font-bold text-slate-900 dark:text-white">
+                  {stats.totalCandidates > 0 ? 'Active' : '—'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </div>
     </div>
   )
 }

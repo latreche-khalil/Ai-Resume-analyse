@@ -268,16 +268,26 @@ class DocumentIngestionService:
             document.status_message = status_map.get(method, "Text extraction completed.")
             
             if not extracted_text:
-                # Accept document even if text extraction fails
-                logger.warning(f"Text extraction returned empty for {document_id}, marking as completed anyway")
+                # For images: the OCR might have failed — mark as failed with clear message
+                file_fmt = document.file_format or ''
+                is_image = file_fmt.lower() in ['jpg', 'jpeg', 'png']
+                logger.warning(f"Text extraction returned empty for {document_id} (format: {file_fmt}), marking as failed")
                 document.extracted_text = ""
                 document.masked_text = ""
                 document.detected_language = 'en'
                 document.word_count = 0
-                document.processing_status = 'completed'
-                document.status_message = "No text found in document."
+                document.processing_status = 'failed'
+                document.status_message = (
+                    "Could not extract text from this image. "
+                    "Please ensure the image is clear, high-resolution, and contains readable text. "
+                    "Try uploading a PDF or DOCX version instead."
+                    if is_image else
+                    "Could not extract text from this file. "
+                    "Please ensure it is a text-based PDF or DOCX (not a scanned image). "
+                    "Try re-uploading a higher quality version."
+                )
                 await db.commit()
-                return True, None
+                return False, document.status_message
             
             # Update document with extracted text
             document.extracted_text = extracted_text
@@ -307,7 +317,6 @@ class DocumentIngestionService:
             await db.commit()
 
             # Stage 2: RAG Pipeline - Semantic Vector Matching (Anonymization-First)
-            # We embed the MASKED text to ensure Vector DB integrity
             try:
                 from app.services.nlp.rag_pipeline import rag_pipeline
                 logger.info(f"Generating embeddings for masked text of document {document_id}")
@@ -318,8 +327,13 @@ class DocumentIngestionService:
                 )
             except Exception as rag_e:
                 logger.error(f"RAG embedding failed for {document_id}: {rag_e}")
-                # We continue as extraction might still work
-            
+                # Non-fatal — continue without embeddings
+
+            # ✅ Mark as completed
+            document.processing_status = 'completed'
+            document.status_message = "Document ready for analysis."
+            await db.commit()
+
             logger.info(
                 f"Document processed successfully: {document_id} "
                 f"({word_count} words, language: {detected_language}, "

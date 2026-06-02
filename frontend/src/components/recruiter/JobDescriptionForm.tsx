@@ -4,158 +4,149 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
-import { ShimmerButton } from '@/components/ui/shimmer-button'
+import { toast } from 'sonner'
+import { Loader2, Plus, Briefcase, ArrowLeft } from 'lucide-react'
 
-export function JobDescriptionForm() {
+interface JDFormData {
+  title: string
+  company: string
+  description: string
+}
+
+interface JobDescriptionFormProps {
+  initialData?: Partial<JDFormData> & { id?: string }
+  mode: 'create' | 'edit'
+}
+
+export function JobDescriptionForm({ initialData, mode }: JobDescriptionFormProps) {
   const router = useRouter()
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    required_skills: '',
-    preferred_skills: '',
-    experience_level: 'Mid',
-    education_requirements: '',
-    work_arrangement: 'Hybrid',
+  const [form, setForm] = useState<JDFormData>({
+    title:       initialData?.title       || '',
+    company:     initialData?.company     || '',
+    description: initialData?.description || '',
   })
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+
+  const set = (key: keyof JDFormData) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm(prev => ({ ...prev, [key]: e.target.value }))
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
-    setLoading(true)
 
+    // Client-side validation
+    const wordCount = form.description.trim().split(/\s+/).filter(Boolean).length
+    if (wordCount < 10) {
+      toast.error(`Description is too brief (${wordCount} words). Please provide at least 10 words.`)
+      return
+    }
+
+    setLoading(true)
     try {
-      const data = {
-        ...formData,
-        required_skills: formData.required_skills.split(',').map((s) => s.trim()).filter(Boolean),
-        preferred_skills: formData.preferred_skills.split(',').map((s) => s.trim()).filter(Boolean),
+      if (mode === 'create') {
+        await apiClient.createJobDescription(form)
+        toast.success('Job description created')
+      } else if (initialData?.id) {
+        await apiClient.updateJobDescription(initialData.id, form)
+        toast.success('Job description updated')
       }
-      await apiClient.createJobDescription(data)
-      router.push('/job-descriptions')
+      router.push('/jobs')
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create job description')
+      const msg = err.message || `Failed to ${mode} job description`
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
   }
 
+  const inputCls = 'w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all'
+
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-8">
-      {error && (
-        <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          {error}
-        </div>
-      )}
+    <div className="max-w-3xl mx-auto space-y-6 pb-10" style={{ fontFamily: 'Roboto, sans-serif' }}>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Header */}
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+        className="flex items-center gap-4">
+        <button type="button" onClick={() => router.push('/jobs')}
+          className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+          <ArrowLeft size={18} />
+        </button>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Job Title *</label>
-          <input
-            type="text"
-            required
-            value={formData.title}
-            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            placeholder="e.g., Senior Software Engineer"
-          />
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+            {mode === 'create' ? 'New Job Description' : 'Edit Job Description'}
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            {mode === 'create'
+              ? 'Paste the full job description — the AI will extract skills automatically'
+              : 'Update the job details'}
+          </p>
+        </div>
+      </motion.div>
+
+      {/* Form Card */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+        className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden shadow-sm">
+
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 flex items-center justify-center">
+            <Briefcase size={16} className="text-blue-600 dark:text-blue-400" />
+          </div>
+          <span className="font-semibold text-slate-900 dark:text-white">Job Details</span>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Description *</label>
-          <textarea
-            required
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-            rows={6}
-            placeholder="Describe the role, responsibilities, and requirements..."
-          />
-        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
 
-        <div className="grid md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Required Skills *</label>
-            <input
-              type="text"
-              required
-              value={formData.required_skills}
-              onChange={(e) => setFormData({ ...formData, required_skills: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              placeholder="Python, React, AWS (comma-separated)"
-            />
+          {/* Title + Company */}
+          <div className="grid sm:grid-cols-2 gap-5">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                Job Title <span className="text-red-500">*</span>
+              </label>
+              <input required value={form.title} onChange={set('title')}
+                placeholder="e.g. Senior Software Engineer"
+                className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                Company
+              </label>
+              <input value={form.company} onChange={set('company')}
+                placeholder="e.g. Acme Corp"
+                className={inputCls} />
+            </div>
           </div>
 
+          {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Preferred Skills</label>
-            <input
-              type="text"
-              value={formData.preferred_skills}
-              onChange={(e) => setFormData({ ...formData, preferred_skills: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              placeholder="Docker, Kubernetes (comma-separated)"
-            />
-          </div>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Experience Level</label>
-            <select
-              value={formData.experience_level}
-              onChange={(e) => setFormData({ ...formData, experience_level: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="Entry">Entry (0-2 years)</option>
-              <option value="Mid">Mid (3-5 years)</option>
-              <option value="Senior">Senior (6-10 years)</option>
-              <option value="Expert">Expert (10+ years)</option>
-            </select>
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+              Job Description <span className="text-red-500">*</span>
+            </label>
+            <textarea required value={form.description} onChange={set('description')} rows={12}
+              placeholder="Paste the full job description here — responsibilities, requirements, qualifications..."
+              className={`${inputCls} resize-none`} />
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5">
+              The AI will automatically extract required skills, experience level, and other details.
+            </p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Work Arrangement</label>
-            <select
-              value={formData.work_arrangement}
-              onChange={(e) => setFormData({ ...formData, work_arrangement: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="Remote">Remote</option>
-              <option value="Hybrid">Hybrid</option>
-              <option value="On-site">On-site</option>
-            </select>
+          {/* Actions */}
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={() => router.push('/jobs')}
+              className="flex-1 py-3 text-sm font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+              Cancel
+            </button>
+            <button type="submit" disabled={loading}
+              className="flex-1 py-3 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20">
+              {loading
+                ? <><Loader2 size={15} className="animate-spin" /> Saving...</>
+                : mode === 'create'
+                  ? <><Plus size={15} /> Create Job Description</>
+                  : 'Save Changes'}
+            </button>
           </div>
-        </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Education Requirements</label>
-          <input
-            type="text"
-            value={formData.education_requirements}
-            onChange={(e) => setFormData({ ...formData, education_requirements: e.target.value })}
-            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            placeholder="e.g., Bachelor's in Computer Science"
-          />
-        </div>
-
-        <div className="flex gap-4 pt-4">
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="flex-1 px-6 py-4 border-2 border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all"
-            disabled={loading}
-          >
-            Cancel
-          </button>
-          <ShimmerButton
-            type="submit"
-            disabled={loading}
-            className="flex-1 bg-gradient-to-r from-sky-600 to-blue-600 py-4 text-lg"
-          >
-            {loading ? 'Creating...' : 'Create Job Description'}
-          </ShimmerButton>
-        </div>
-      </form>
+        </form>
+      </motion.div>
     </div>
   )
 }
