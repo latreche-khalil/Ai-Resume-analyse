@@ -57,10 +57,104 @@ const HISTORY_KEY = 'recruiter_analysis_history'
 const loadHistory  = (): HistoryEntry[] => { try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]') } catch { return [] } }
 const saveHistory  = (e: HistoryEntry[]) => { try { localStorage.setItem(HISTORY_KEY, JSON.stringify(e.slice(0, 20))) } catch {} }
 
+// ── Add to Pool Modal ──────────────────────────────────────────────────────────
+function AddToPoolModal({ candidate, onClose }: {
+  candidate: RankedCandidate
+  onClose: () => void
+}) {
+  const [pools, setPools]         = useState<any[]>([])
+  const [selectedPool, setPool]   = useState('')
+  const [status, setStatus]       = useState<'shortlisted' | 'backup'>('shortlisted')
+  const [loading, setLoading]     = useState(true)
+  const [saving, setSaving]       = useState(false)
+
+  useEffect(() => {
+    apiClient.listTalentPools()
+      .then(setPools)
+      .catch(() => toast.error('Failed to load pools'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const submit = async () => {
+    if (!selectedPool) { toast.error('Select a pool first'); return }
+    setSaving(true)
+    try {
+      await apiClient.addCandidateToPool(selectedPool, candidate.cv_id)
+      await apiClient.updateCandidateStatus(selectedPool, candidate.cv_id, status)
+      toast.success(`Added to pool as ${status}`)
+      onClose()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to add to pool')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <motion.div initial={{ opacity: 0, scale: 0.96, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 8 }}
+        onClick={e => e.stopPropagation()}
+        className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-sm p-6">
+        <h3 className="font-bold text-slate-900 dark:text-white text-lg mb-1">Add to Talent Pool</h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-5 truncate">{candidate.filename}</p>
+
+        {/* Pool selector */}
+        <div className="mb-4">
+          <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wide">Select Pool</label>
+          {loading ? (
+            <div className="h-10 bg-slate-100 dark:bg-slate-700 rounded-xl animate-pulse" />
+          ) : pools.length === 0 ? (
+            <p className="text-sm text-slate-400 italic">No pools yet — create one first</p>
+          ) : (
+            <select value={selectedPool} onChange={e => setPool(e.target.value)}
+              className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+              <option value="">Choose pool...</option>
+              {pools.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          )}
+        </div>
+
+        {/* Status selector */}
+        <div className="mb-5">
+          <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wide">Status</label>
+          <div className="flex gap-2">
+            {(['shortlisted', 'backup'] as const).map(s => (
+              <button key={s} onClick={() => setStatus(s)}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold capitalize transition-all border ${
+                  status === s
+                    ? s === 'shortlisted'
+                      ? 'bg-emerald-600 text-white border-emerald-600'
+                      : 'bg-amber-500 text-white border-amber-500'
+                    : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-600'
+                }`}>
+                {s === 'shortlisted' ? '✓ Shortlist' : '~ Backup'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <button onClick={onClose}
+            className="flex-1 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+            Cancel
+          </button>
+          <button onClick={submit} disabled={saving || !selectedPool || loading}
+            className="flex-1 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+            Add to Pool
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  )
+}
+
 // ── Leaderboard ────────────────────────────────────────────────────────────────
 function Leaderboard({ result, jdTitle, onNew }: { result: any; jdTitle?: string; onNew?: () => void }) {
   const lb: RankedCandidate[] = result?.leaderboard || []
   const stats = result?.statistics || {}
+  const [addingTo, setAddingTo] = useState<RankedCandidate | null>(null)
 
   return (
     <div className="space-y-5">
@@ -198,6 +292,14 @@ function Leaderboard({ result, jdTitle, onNew }: { result: any; jdTitle?: string
                         ))}
                       </div>
                     )}
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/50">
+                      <button onClick={() => setAddingTo(c)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors">
+                        <Plus size={12} /> Add to Pool
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -205,6 +307,13 @@ function Leaderboard({ result, jdTitle, onNew }: { result: any; jdTitle?: string
           })}
         </div>
       </div>
+
+      {/* Add to Pool Modal */}
+      <AnimatePresence>
+        {addingTo && (
+          <AddToPoolModal candidate={addingTo} onClose={() => setAddingTo(null)} />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
