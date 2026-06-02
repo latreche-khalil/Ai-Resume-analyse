@@ -100,14 +100,15 @@ async def get_talent_pool(
     count_result = await db.execute(count_query)
     count = count_result.scalar_one()
 
-    # Fetch candidates list
+    # Fetch candidates list (TalentPoolCV associations, NOT CVDocument objects)
     candidates_result = await db.execute(
         select(TalentPoolCV).where(TalentPoolCV.talent_pool_id == pool_id)
     )
-    candidates = candidates_result.scalars().all()
+    pool_cvs = candidates_result.scalars().all()
 
     pool.candidates_count = count
-    pool.candidates = candidates
+    # Attach as a non-mapped attribute for schema serialization
+    pool.__dict__['candidates'] = pool_cvs
     return pool
 
 

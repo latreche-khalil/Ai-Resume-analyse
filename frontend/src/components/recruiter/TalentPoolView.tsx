@@ -24,6 +24,16 @@ interface PoolCandidate {
   cv_document_id: string
   status: 'pending' | 'shortlisted' | 'rejected' | 'backup'
   pool_specific_score?: number
+  // enriched from analysis/batch history
+  filename?: string
+  match_score?: number
+  matching_skills?: string[]
+  missing_skills?: string[]
+  recommendation?: string
+  rank_category?: string
+  summary?: string
+  confidence?: string
+  scores_breakdown?: Record<string, number>
 }
 
 interface JobDescription {
@@ -235,7 +245,7 @@ function AddCandidateModal({
 // ── Candidate Row ──────────────────────────────────────────────────────────────
 function CandidateRow({
   candidate, poolId, revealed, revealing,
-  onStatusChange, onReveal, onRemove
+  onStatusChange, onReveal, onRemove, onViewDetails
 }: {
   candidate: PoolCandidate
   poolId: string
@@ -244,11 +254,18 @@ function CandidateRow({
   onStatusChange: (cvId: string, status: string) => void
   onReveal: (cvId: string) => void
   onRemove: (cvId: string) => void
+  onViewDetails: (candidate: PoolCandidate) => void
 }) {
   const cvId = candidate.cv_document_id
-  const score = candidate.pool_specific_score
-    ? Math.round(candidate.pool_specific_score * 100)
+  const rawScore = candidate.pool_specific_score ?? candidate.match_score ?? null
+  const score = rawScore !== null
+    ? Math.round(rawScore <= 1 ? rawScore * 100 : rawScore)
     : null
+
+  const scoreBg = score === null ? '' :
+    score >= 80 ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400' :
+    score >= 60 ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20 text-blue-700 dark:text-blue-400' :
+    'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20 text-amber-700 dark:text-amber-400'
 
   return (
     <motion.div
@@ -258,46 +275,53 @@ function CandidateRow({
       exit={{ opacity: 0, x: -10 }}
       className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-600 transition-all"
     >
-      <div className="flex items-start gap-4">
+      <div className="flex items-start gap-3">
         {/* Identity / ID */}
         <div className="flex-1 min-w-0">
+          {/* Filename if available */}
+          {candidate.filename && (
+            <p className="font-semibold text-slate-900 dark:text-white text-sm truncate mb-0.5">
+              {candidate.filename}
+            </p>
+          )}
           {revealed ? (
             <div className="space-y-0.5">
               {revealed.PERSON?.[0] && (
-                <p className="font-semibold text-slate-900 dark:text-white text-sm flex items-center gap-1.5">
-                  <Shield size={12} className="text-emerald-500 shrink-0" />
-                  {revealed.PERSON[0]}
+                <p className="font-semibold text-emerald-600 dark:text-emerald-400 text-sm flex items-center gap-1.5">
+                  <Shield size={12} className="shrink-0" />{revealed.PERSON[0]}
                 </p>
               )}
-              {revealed.EMAIL?.[0] && (
-                <p className="text-xs text-slate-500 dark:text-slate-400">{revealed.EMAIL[0]}</p>
-              )}
-              {revealed.PHONE?.[0] && (
-                <p className="text-xs text-slate-500 dark:text-slate-400">{revealed.PHONE[0]}</p>
-              )}
+              {revealed.EMAIL?.[0] && <p className="text-xs text-slate-500 dark:text-slate-400">{revealed.EMAIL[0]}</p>}
+              {revealed.PHONE?.[0] && <p className="text-xs text-slate-500 dark:text-slate-400">{revealed.PHONE[0]}</p>}
             </div>
           ) : (
-            <div>
-              <p className="font-mono text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
-                <EyeOff size={12} className="shrink-0" />
-                {cvId.slice(0, 16)}…
-              </p>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Identity masked</p>
+            <p className="font-mono text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+              <EyeOff size={11} className="shrink-0" />{cvId.slice(0, 16)}…
+            </p>
+          )}
+
+          {/* Skills preview */}
+          {(candidate.matching_skills || []).length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {candidate.matching_skills!.slice(0, 3).map(s => (
+                <span key={s} className="px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded text-[10px] font-medium border border-emerald-200 dark:border-emerald-500/20">
+                  {s}
+                </span>
+              ))}
+              {candidate.matching_skills!.length > 3 && (
+                <span className="text-[10px] text-slate-400">+{candidate.matching_skills!.length - 3}</span>
+              )}
             </div>
           )}
         </div>
 
         {/* Score */}
         {score !== null && (
-          <div className={`shrink-0 px-2.5 py-1.5 rounded-lg text-center border ${
-            score >= 80
-              ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400'
-              : score >= 60
-              ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20 text-blue-700 dark:text-blue-400'
-              : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20 text-amber-700 dark:text-amber-400'
-          }`}>
+          <div className={`shrink-0 px-2.5 py-1.5 rounded-lg text-center border ${scoreBg}`}>
             <div className="text-lg font-bold leading-none">{score}%</div>
-            <div className="text-[9px] font-semibold uppercase tracking-wide mt-0.5 opacity-70">Score</div>
+            <div className="text-[9px] font-semibold uppercase tracking-wide mt-0.5 opacity-70">
+              {candidate.rank_category || 'Score'}
+            </div>
           </div>
         )}
 
@@ -306,54 +330,199 @@ function CandidateRow({
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
+      <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-slate-100 dark:border-slate-700 flex-wrap">
         <button onClick={() => onStatusChange(cvId, 'shortlisted')}
-          title="Shortlist"
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+          className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
             candidate.status === 'shortlisted'
               ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400'
               : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:text-emerald-700 dark:hover:text-emerald-400'
           }`}>
-          <CheckCircle2 size={12} /> Shortlist
+          <CheckCircle2 size={11} /> Shortlist
         </button>
         <button onClick={() => onStatusChange(cvId, 'backup')}
-          title="Backup"
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+          className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
             candidate.status === 'backup'
               ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400'
               : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 hover:text-amber-700 dark:hover:text-amber-400'
           }`}>
-          <Bookmark size={12} /> Backup
+          <Bookmark size={11} /> Backup
         </button>
         <button onClick={() => onStatusChange(cvId, 'rejected')}
-          title="Reject"
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+          className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
             candidate.status === 'rejected'
               ? 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400'
               : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-700 dark:hover:text-red-400'
           }`}>
-          <XCircle size={12} /> Reject
+          <XCircle size={11} /> Reject
         </button>
 
         <div className="flex-1" />
 
-        {/* Reveal — only for shortlisted */}
+        {/* View details */}
+        {(score !== null || (candidate.matching_skills || []).length > 0) && (
+          <button onClick={() => onViewDetails(candidate)}
+            className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:text-blue-700 dark:hover:text-blue-400 transition-colors">
+            <TrendingUp size={11} /> Details
+          </button>
+        )}
+
+        {/* Reveal */}
         {candidate.status === 'shortlisted' && !revealed && (
           <button onClick={() => onReveal(cvId)} disabled={revealing}
-            title="Reveal identity (logged)"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-500/20 hover:bg-purple-100 dark:hover:bg-purple-500/20 disabled:opacity-50 transition-colors">
-            {revealing ? <Loader2 size={12} className="animate-spin" /> : <Eye size={12} />}
+            className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-500/20 hover:bg-purple-100 dark:hover:bg-purple-500/20 disabled:opacity-50 transition-colors">
+            {revealing ? <Loader2 size={11} className="animate-spin" /> : <Eye size={11} />}
             Reveal
           </button>
         )}
 
         <button onClick={() => onRemove(cvId)}
-          title="Remove from pool"
           className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors">
-          <Trash2 size={14} />
+          <Trash2 size={13} />
         </button>
       </div>
     </motion.div>
+  )
+}
+
+// ── Candidate Detail Modal ─────────────────────────────────────────────────────
+function CandidateDetailModal({ candidate, revealed, onClose }: {
+  candidate: PoolCandidate
+  revealed: RevealedIdentity | null
+  onClose: () => void
+}) {
+  const rawScore = candidate.pool_specific_score ?? candidate.match_score ?? null
+  const score = rawScore !== null ? Math.round(rawScore <= 1 ? rawScore * 100 : rawScore) : null
+  const scorePct = (v = 0) => Math.round(v <= 1 ? v * 100 : v)
+
+  const recStyle = (rec: string) => {
+    if (rec === 'shortlist') return 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20'
+    if (rec === 'interview') return 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/20'
+    if (rec === 'reject')    return 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/20'
+    return 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-600'
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 8 }}
+        onClick={e => e.stopPropagation()}
+        className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-2xl max-h-[85vh] overflow-y-auto"
+      >
+        {/* Header */}
+        <div className="sticky top-0 bg-white dark:bg-slate-800 px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-start justify-between z-10">
+          <div className="min-w-0 flex-1">
+            <h2 className="font-bold text-lg text-slate-900 dark:text-white truncate">
+              {candidate.filename || (revealed?.PERSON?.[0]) || `CV-${candidate.cv_document_id.slice(0, 8)}`}
+            </h2>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <StatusBadge status={candidate.status || 'pending'} />
+              {candidate.recommendation && (
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border capitalize ${recStyle(candidate.recommendation)}`}>
+                  {candidate.recommendation}
+                </span>
+              )}
+              {candidate.confidence && (
+                <span className="text-xs text-slate-400">{candidate.confidence} confidence</span>
+              )}
+            </div>
+          </div>
+          <button onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0 ml-3">
+            <XCircle size={18} />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-5">
+          {/* Score + Summary */}
+          <div className="flex items-start gap-4">
+            {score !== null && (
+              <div className={`px-5 py-4 rounded-2xl border text-center shrink-0 ${
+                score >= 80
+                  ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                  : score >= 60
+                  ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20 text-blue-700 dark:text-blue-300'
+                  : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20 text-amber-700 dark:text-amber-300'
+              }`}>
+                <div className="text-4xl font-black leading-none">{score}%</div>
+                <div className="text-[10px] uppercase font-bold tracking-wide mt-1 opacity-70">
+                  {candidate.rank_category || 'Match'}
+                </div>
+              </div>
+            )}
+            {candidate.summary && (
+              <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed flex-1">{candidate.summary}</p>
+            )}
+          </div>
+
+          {/* Score breakdown */}
+          {candidate.scores_breakdown && (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">Score Breakdown</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {([
+                  ['Skills',     candidate.scores_breakdown.skills_match,       '#3b82f6'],
+                  ['Semantic',   candidate.scores_breakdown.semantic_similarity, '#8b5cf6'],
+                  ['Experience', candidate.scores_breakdown.experience_level,    '#10b981'],
+                  ['Culture',    candidate.scores_breakdown.cultural_fit,        '#f59e0b'],
+                ] as [string, number, string][]).map(([label, val, color]) => (
+                  <div key={label} className="bg-slate-50 dark:bg-slate-900 rounded-xl p-3">
+                    <div className="flex items-center justify-between text-[10px] mb-1.5">
+                      <span className="font-semibold text-slate-600 dark:text-slate-400">{label}</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-300">{scorePct(val)}%</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${scorePct(val)}%`, backgroundColor: color }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Identity (if revealed) */}
+          {revealed && (
+            <div className="p-4 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl border border-emerald-200 dark:border-emerald-500/20">
+              <p className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-2 flex items-center gap-1.5">
+                <Shield size={12} /> Revealed Identity
+              </p>
+              {revealed.PERSON?.[0] && <p className="font-semibold text-slate-900 dark:text-white text-sm">{revealed.PERSON[0]}</p>}
+              {revealed.EMAIL?.[0] && <p className="text-sm text-slate-600 dark:text-slate-400">{revealed.EMAIL[0]}</p>}
+              {revealed.PHONE?.[0] && <p className="text-sm text-slate-600 dark:text-slate-400">{revealed.PHONE[0]}</p>}
+            </div>
+          )}
+
+          {/* Skills */}
+          <div className="grid sm:grid-cols-2 gap-4">
+            {(candidate.matching_skills || []).length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-2">
+                  ✓ Matching ({candidate.matching_skills!.length})
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {candidate.matching_skills!.map(s => (
+                    <span key={s} className="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-lg text-xs font-medium border border-emerald-200 dark:border-emerald-500/20">{s}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {(candidate.missing_skills || []).length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-2">
+                  ✗ Missing ({candidate.missing_skills!.length})
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {candidate.missing_skills!.map(s => (
+                    <span key={s} className="px-2.5 py-1 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-lg text-xs font-medium border border-amber-200 dark:border-amber-500/20">{s}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    </div>
   )
 }
 
@@ -370,6 +539,25 @@ export function TalentPoolView() {
   const [revealedMap, setRevealedMap]   = useState<Record<string, RevealedIdentity>>({})
   const [revealingId, setRevealingId]   = useState<string | null>(null)
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null)
+  const [detailCandidate, setDetailCandidate] = useState<PoolCandidate | null>(null)
+  // batch history for enriching candidates
+  const [batchMap, setBatchMap] = useState<Record<string, any>>({})
+
+  // Load batch history from localStorage to enrich candidates
+  useEffect(() => {
+    try {
+      const history = JSON.parse(localStorage.getItem('recruiter_analysis_history') || '[]')
+      const map: Record<string, any> = {}
+      history.forEach((entry: any) => {
+        ;(entry.result?.leaderboard || []).forEach((c: any) => {
+          if (!map[c.cv_id] || (c.composite_score || 0) > (map[c.cv_id].composite_score || 0)) {
+            map[c.cv_id] = { ...c, jd_title: entry.jd_title }
+          }
+        })
+      })
+      setBatchMap(map)
+    } catch {}
+  }, [])
 
   // Load initial data
   useEffect(() => {
@@ -462,7 +650,21 @@ export function TalentPoolView() {
     }
   }
 
-  const candidates = selectedPool?.candidates || []
+  const candidates: PoolCandidate[] = (selectedPool?.candidates || []).map(c => {
+    const batch = batchMap[c.cv_document_id]
+    const rawScore = c.pool_specific_score ?? batch?.composite_score ?? null
+    return {
+      ...c,
+      filename: batch?.filename,
+      match_score: rawScore,
+      matching_skills: batch?.matching_skills || [],
+      missing_skills: batch?.missing_skills || [],
+      recommendation: batch?.recommendation,
+      rank_category: batch?.rank_category,
+      summary: batch?.summary,
+      scores_breakdown: batch?.scores_breakdown,
+    }
+  })
   const shortlisted = candidates.filter(c => c.status === 'shortlisted').length
   const pending     = candidates.filter(c => c.status === 'pending' || !c.status).length
 
@@ -625,6 +827,7 @@ export function TalentPoolView() {
                           onStatusChange={handleStatusChange}
                           onReveal={handleReveal}
                           onRemove={handleRemove}
+                          onViewDetails={setDetailCandidate}
                         />
                       ))}
                     </div>
@@ -651,6 +854,13 @@ export function TalentPoolView() {
             availableCVs={availableCVs}
             onClose={() => setShowAddModal(false)}
             onAdded={updated => refreshPoolInList(updated)}
+          />
+        )}
+        {detailCandidate && (
+          <CandidateDetailModal
+            candidate={detailCandidate}
+            revealed={revealedMap[detailCandidate.cv_document_id] || null}
+            onClose={() => setDetailCandidate(null)}
           />
         )}
       </AnimatePresence>
