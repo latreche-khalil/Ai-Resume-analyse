@@ -161,8 +161,6 @@ THINK STEP-BY-STEP:
 3. CROSS-REFERENCE: Where are the direct matches? Where are the semantic overlaps (Transferable)? What is strictly missing?
 4. CALCULATE: Match score should be 100% only if ALL critical requirements are met with proven impact.
 
-BE CONCISE and use high-density professional language in your summary. Focus on the candidate's Value Proposition.
-
 OUTPUT LANGUAGE: MUST be {lang}.
 
 JOB DESCRIPTION:
@@ -181,18 +179,36 @@ OUTPUT FORMAT (Strict JSON):
   "recommendation": "shortlist/interview/reject",
   "confidence": "high/medium/low",
   "seniority_alignment": {{
-    "cv_level": "Level detected",
-    "jd_level": "Level required",
+    "cv_level": "Level detected from CV",
+    "jd_level": "Level required by JD",
     "match": "matched/underqualified/overqualified",
-    "explanation": "Depth of experience vs years required."
+    "explanation": "Brief explanation of seniority fit."
   }},
+  "evidence_for_hire": [
+    "Specific evidence from CV that supports hiring (e.g., 'Led team of 8 engineers at X company')",
+    "Quantified achievement directly relevant to the role",
+    "Directly verified skill with proof of use"
+  ],
+  "evidence_against_hire": [
+    "Specific gap or concern from CV (e.g., 'No experience with Kubernetes despite it being required')",
+    "Missing critical qualification",
+    "Potential red flag with explanation"
+  ],
+  "interview_questions": [
+    "Technical question targeting a key gap or claimed skill",
+    "Behavioral question based on a red flag or uncertainty",
+    "Role-specific scenario question"
+  ],
+  "hiring_recommendation": "1-2 sentences for the hiring manager: whether to proceed, what to probe in interview, and any conditions.",
   "red_flags": ["Gaps, lack of impact, or missing mandatory stack"],
   "hiring_urgency": "low/medium/high"
 }}
 
 RULES:
 - Be CRITICAL. Low-quality matches must have low scores (<0.40).
-- summary must NOT contain the numeric score value.
+- summary and hiring_recommendation must NOT contain the numeric score value.
+- evidence_for_hire and evidence_against_hire must reference SPECIFIC content from the CV, not generic statements.
+- interview_questions must be role-specific and actionable.
 - Only return the JSON object."""
     
     def _parse_matching_response(self, response: str) -> Dict[str, Any]:
@@ -234,7 +250,12 @@ RULES:
                     'cv_level': 'unknown', 'jd_level': 'unknown', 'match': 'unknown', 'explanation': ''
                 }),
                 'red_flags': result.get('red_flags', [])[:self.MAX_RED_FLAGS],
-                'hiring_urgency': result.get('hiring_urgency', 'standard')
+                'hiring_urgency': result.get('hiring_urgency', 'standard'),
+                # New recruiter-specific fields
+                'evidence_for_hire':     result.get('evidence_for_hire', [])[:6],
+                'evidence_against_hire': result.get('evidence_against_hire', [])[:6],
+                'interview_questions':   result.get('interview_questions', [])[:5],
+                'hiring_recommendation': result.get('hiring_recommendation', ''),
             }
             
         except Exception as e:

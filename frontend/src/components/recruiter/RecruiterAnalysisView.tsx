@@ -21,6 +21,13 @@ interface RankedCandidate {
   matching_skills: string[]; missing_skills: string[]
   red_flags?: string[]; recommendation: string
   summary?: string; confidence?: string
+  // new recruiter intelligence fields
+  evidence_for_hire?: string[]
+  evidence_against_hire?: string[]
+  interview_questions?: string[]
+  hiring_recommendation?: string
+  seniority_alignment?: { cv_level: string; jd_level: string; match: string; explanation: string }
+  hiring_urgency?: string
 }
 interface HistoryEntry {
   id: string; jd_title: string; jd_id: string
@@ -150,6 +157,208 @@ function AddToPoolModal({ candidate, onClose }: {
   )
 }
 
+// ── Collapsible Candidate Card ─────────────────────────────────────────────────
+function CandidateCard({ c, onAddToPool }: { c: RankedCandidate; onAddToPool: (c: RankedCandidate) => void }) {
+  const [expanded, setExpanded] = useState(false)
+  const pct = scorePct(c.composite_score)
+
+  return (
+    <div className="border-b border-slate-200 dark:border-slate-700 last:border-0">
+      {/* ── Collapsed header (always visible) ── */}
+      <div
+        className="flex items-center gap-4 px-5 py-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors select-none"
+        onClick={() => setExpanded(p => !p)}
+      >
+        {/* Rank */}
+        <div className={`w-10 h-10 rounded-xl border-2 flex items-center justify-center shrink-0 font-black text-sm ${rankStyle(c.rank)}`}>
+          #{c.rank}
+        </div>
+
+        {/* Name + summary */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-bold text-slate-900 dark:text-white text-sm truncate">{c.filename}</span>
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border capitalize ${recStyle(c.recommendation)}`}>{c.recommendation}</span>
+            {c.confidence && <span className="text-[10px] text-slate-400">{c.confidence} confidence</span>}
+          </div>
+          {c.summary && (
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">{c.summary}</p>
+          )}
+        </div>
+
+        {/* Score + chevron */}
+        <div className="flex items-center gap-3 shrink-0">
+          <div className={`px-3 py-2 rounded-xl border text-center ${scoreStyle(pct)}`}>
+            <div className="text-lg font-black leading-none">{pct}%</div>
+            <div className="text-[8px] uppercase font-bold tracking-wide mt-0.5 opacity-60">{c.rank_category}</div>
+          </div>
+          <div className={`text-slate-400 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 9l6 6 6-6"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Expanded details ── */}
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            {/* Score bars */}
+            <div className="px-5 pb-4 pt-1 grid grid-cols-2 sm:grid-cols-4 gap-2 border-t border-dashed border-slate-200 dark:border-slate-700">
+              {([
+                ['Skills',     c.scores_breakdown?.skills_match,       '#3b82f6', 'bg-blue-50 dark:bg-blue-500/10'],
+                ['Semantic',   c.scores_breakdown?.semantic_similarity, '#8b5cf6', 'bg-violet-50 dark:bg-violet-500/10'],
+                ['Experience', c.scores_breakdown?.experience_level,    '#10b981', 'bg-emerald-50 dark:bg-emerald-500/10'],
+                ['Culture',    c.scores_breakdown?.cultural_fit,        '#f59e0b', 'bg-amber-50 dark:bg-amber-500/10'],
+              ] as [string, number, string, string][]).map(([label, val, color, bg]) => (
+                <div key={label} className={`${bg} rounded-xl p-3 border border-slate-200/60 dark:border-slate-700/60 mt-3`}>
+                  <div className="flex items-center justify-between text-[10px] mb-2">
+                    <span className="font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">{label}</span>
+                    <span className="font-black text-slate-800 dark:text-white text-sm">{scorePct(val)}%</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-white/70 dark:bg-slate-800 overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${scorePct(val)}%`, backgroundColor: color }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Skills */}
+            <div className="px-5 pb-4 grid sm:grid-cols-2 gap-3 border-t border-slate-200 dark:border-slate-700 pt-4">
+              {c.matching_skills.length > 0 && (
+                <div className="bg-emerald-50 dark:bg-emerald-500/5 rounded-xl p-3 border border-emerald-200 dark:border-emerald-500/20">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 mb-2">✓ Matching ({c.matching_skills.length})</p>
+                  <div className="flex flex-wrap gap-1">
+                    {c.matching_skills.slice(0, 8).map(s => (
+                      <span key={s} className="px-2 py-0.5 bg-white dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-md text-[10px] font-semibold border border-emerald-300 dark:border-emerald-500/30">{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {c.missing_skills.length > 0 && (
+                <div className="bg-red-50 dark:bg-red-500/5 rounded-xl p-3 border border-red-200 dark:border-red-500/20">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-400 mb-2">✗ Missing ({c.missing_skills.length})</p>
+                  <div className="flex flex-wrap gap-1">
+                    {c.missing_skills.slice(0, 8).map(s => (
+                      <span key={s} className="px-2 py-0.5 bg-white dark:bg-red-500/10 text-red-600 dark:text-red-400 rounded-md text-[10px] font-semibold border border-red-300 dark:border-red-500/30">{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Red flags */}
+            {c.red_flags && c.red_flags.length > 0 && (
+              <div className="px-5 pb-4 flex flex-wrap gap-1.5 border-t border-dashed border-slate-200 dark:border-slate-700 pt-3">
+                {c.red_flags.slice(0, 4).map(f => (
+                  <span key={f} className="inline-flex items-center gap-1 px-2.5 py-1 bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 rounded-lg text-[10px] font-semibold border border-orange-200 dark:border-orange-500/20">⚠ {f}</span>
+                ))}
+              </div>
+            )}
+
+            {/* Hiring Recommendation */}
+            {c.hiring_recommendation && (
+              <div className="mx-5 mb-4 p-4 bg-blue-600 rounded-xl border-t border-slate-200 dark:border-slate-700">
+                <p className="text-[10px] font-black uppercase tracking-wider text-blue-100 mb-1.5">🎯 Hiring Manager Recommendation</p>
+                <p className="text-sm text-white leading-relaxed">{c.hiring_recommendation}</p>
+              </div>
+            )}
+
+            {/* Evidence grid */}
+            {(c.evidence_for_hire?.length || c.evidence_against_hire?.length) && (
+              <div className="px-5 pb-4 grid sm:grid-cols-2 gap-4 border-t border-slate-200 dark:border-slate-700 pt-4">
+                {c.evidence_for_hire && c.evidence_for_hire.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-2 flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full inline-block shrink-0" /> Evidence For Hire
+                    </p>
+                    <ul className="space-y-1.5">
+                      {c.evidence_for_hire.map((e, i) => (
+                        <li key={i} className="text-xs text-slate-700 dark:text-slate-300 flex items-start gap-2 leading-relaxed">
+                          <span className="text-emerald-500 font-bold shrink-0 mt-0.5">+</span>{e}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {c.evidence_against_hire && c.evidence_against_hire.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-400 mb-2 flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 bg-red-500 rounded-full inline-block shrink-0" /> Concerns
+                    </p>
+                    <ul className="space-y-1.5">
+                      {c.evidence_against_hire.map((e, i) => (
+                        <li key={i} className="text-xs text-slate-700 dark:text-slate-300 flex items-start gap-2 leading-relaxed">
+                          <span className="text-red-500 font-bold shrink-0 mt-0.5">−</span>{e}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Seniority */}
+            {c.seniority_alignment && c.seniority_alignment.cv_level !== 'unknown' && (
+              <div className="px-5 pb-4 border-t border-slate-200 dark:border-slate-700 pt-3 flex items-center gap-3 flex-wrap">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Seniority:</span>
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{c.seniority_alignment.cv_level}</span>
+                <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border ${
+                  c.seniority_alignment.match === 'matched'       ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30' :
+                  c.seniority_alignment.match === 'overqualified' ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-500/30' :
+                  'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-500/30'
+                }`}>{c.seniority_alignment.match}</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">vs {c.seniority_alignment.jd_level}</span>
+                {c.seniority_alignment.explanation && (
+                  <span className="text-[10px] text-slate-400 hidden sm:inline">{c.seniority_alignment.explanation}</span>
+                )}
+              </div>
+            )}
+
+            {/* Interview questions */}
+            {c.interview_questions && c.interview_questions.length > 0 && (
+              <div className="px-5 pb-4 border-t border-slate-200 dark:border-slate-700 pt-4">
+                <p className="text-[10px] font-black uppercase tracking-wider text-violet-600 dark:text-violet-400 mb-2.5">💬 Suggested Interview Questions</p>
+                <ol className="space-y-2">
+                  {c.interview_questions.map((q, i) => (
+                    <li key={i} className="text-xs text-slate-700 dark:text-slate-300 flex items-start gap-2.5 leading-relaxed">
+                      <span className="w-5 h-5 rounded-full bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400 flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">{i + 1}</span>{q}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+
+            {/* Action bar */}
+            <div className="px-5 py-3 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex items-center gap-2">
+              <button onClick={() => onAddToPool(c)}
+                className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm shadow-emerald-500/20">
+                <Plus size={13} /> Add to Talent Pool
+              </button>
+              {c.hiring_urgency && c.hiring_urgency !== 'medium' && (
+                <span className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border ${
+                  c.hiring_urgency === 'high'
+                    ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/20'
+                    : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-600'
+                }`}>
+                  {c.hiring_urgency === 'high' ? '🔥 High Priority' : '↓ Low Priority'}
+                </span>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 // ── Leaderboard ────────────────────────────────────────────────────────────────
 function Leaderboard({ result, jdTitle, onNew }: { result: any; jdTitle?: string; onNew?: () => void }) {
   const lb: RankedCandidate[] = result?.leaderboard || []
@@ -211,100 +420,12 @@ function Leaderboard({ result, jdTitle, onNew }: { result: any; jdTitle?: string
 
       {/* Cards */}
       <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden shadow-sm">
-        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between bg-slate-50 dark:bg-slate-900/50">
           <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2"><BarChart3 size={18} className="text-blue-500" /> Candidate Leaderboard</h3>
-          <span className="text-xs text-slate-400">{lb.length} candidate{lb.length !== 1 ? 's' : ''}</span>
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">{lb.length} candidate{lb.length !== 1 ? 's' : ''}</span>
         </div>
-        <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
-          {lb.map(c => {
-            const pct = scorePct(c.composite_score)
-            return (
-              <div key={c.cv_id} className="p-5 hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-colors">
-                <div className="flex items-start gap-4">
-                  {/* Rank */}
-                  <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 font-bold text-sm ${rankStyle(c.rank)}`}>#{c.rank}</div>
-                  <div className="flex-1 min-w-0">
-                    {/* Name row */}
-                    <div className="flex items-start justify-between gap-3 mb-2">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="font-bold text-slate-900 dark:text-white text-sm truncate">{c.filename}</h4>
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border capitalize ${recStyle(c.recommendation)}`}>{c.recommendation}</span>
-                          {c.confidence && <span className="text-[10px] text-slate-400">{c.confidence} confidence</span>}
-                        </div>
-                        {c.summary && <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">{c.summary}</p>}
-                      </div>
-                      <div className={`px-3 py-2 rounded-xl border text-center shrink-0 ${scoreStyle(pct)}`}>
-                        <div className="text-xl font-bold leading-none">{pct}%</div>
-                        <div className="text-[9px] uppercase font-semibold tracking-wide mt-0.5 opacity-70">{c.rank_category}</div>
-                      </div>
-                    </div>
-
-                    {/* Score bars */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
-                      {([
-                        ['Skills',     c.scores_breakdown?.skills_match,       '#3b82f6'],
-                        ['Semantic',   c.scores_breakdown?.semantic_similarity, '#8b5cf6'],
-                        ['Experience', c.scores_breakdown?.experience_level,    '#10b981'],
-                        ['Culture',    c.scores_breakdown?.cultural_fit,        '#f59e0b'],
-                      ] as [string, number, string][]).map(([label, val, color]) => (
-                        <div key={label} className="bg-slate-50 dark:bg-slate-900 rounded-lg p-2.5">
-                          <div className="flex items-center justify-between text-[10px] mb-1.5">
-                            <span className="font-semibold text-slate-600 dark:text-slate-400">{label}</span>
-                            <span className="font-bold text-slate-700 dark:text-slate-300">{scorePct(val)}%</span>
-                          </div>
-                          <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${scorePct(val)}%`, backgroundColor: color }} />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Skills */}
-                    <div className="grid sm:grid-cols-2 gap-3 mt-3">
-                      {c.matching_skills.length > 0 && (
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1.5">✓ Matching ({c.matching_skills.length})</p>
-                          <div className="flex flex-wrap gap-1">
-                            {c.matching_skills.slice(0, 6).map(s => (
-                              <span key={s} className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-md text-[10px] font-medium border border-emerald-200 dark:border-emerald-500/20">{s}</span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {c.missing_skills.length > 0 && (
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1.5">✗ Missing ({c.missing_skills.length})</p>
-                          <div className="flex flex-wrap gap-1">
-                            {c.missing_skills.slice(0, 6).map(s => (
-                              <span key={s} className="px-2 py-0.5 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-md text-[10px] font-medium border border-amber-200 dark:border-amber-500/20">{s}</span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Red flags */}
-                    {c.red_flags && c.red_flags.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {c.red_flags.slice(0, 3).map(f => (
-                          <span key={f} className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 rounded-md text-[10px] font-medium border border-red-200 dark:border-red-500/20">⚠ {f}</span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/50">
-                      <button onClick={() => setAddingTo(c)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors">
-                        <Plus size={12} /> Add to Pool
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
+        <div>
+          {lb.map(c => <CandidateCard key={c.cv_id} c={c} onAddToPool={setAddingTo} />)}
         </div>
       </div>
 

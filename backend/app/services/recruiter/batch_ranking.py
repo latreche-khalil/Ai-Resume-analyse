@@ -411,15 +411,15 @@ class BatchRankingService:
                 'recommendation': skills_data.get('recommendation', 'consider'),
                 'summary': clean_summary,
                 'confidence': skills_data.get('confidence', 'medium'),
-                'evidence_for_match': [
-                    f"✓ {skill}" for skill in skills_data.get('matching_skills', [])[:6]
-                ],
-                'evidence_against_match': [
-                    f"✗ Missing: {skill}" for skill in skills_data.get('missing_skills', [])[:4]
-                ] + [
-                    f"⚠ {flag}" for flag in skills_data.get('red_flags', [])[:2]
-                ],
-                'seniority_alignment': skills_data.get('seniority_alignment', {}),
+                # New recruiter intelligence fields
+                'evidence_for_hire':     skills_data.get('evidence_for_hire', [])[:6],
+                'evidence_against_hire': skills_data.get('evidence_against_hire', [])[:6],
+                'interview_questions':   skills_data.get('interview_questions', [])[:5],
+                'hiring_recommendation': skills_data.get('hiring_recommendation', ''),
+                'seniority_alignment':   skills_data.get('seniority_alignment', {}),
+                'hiring_urgency':        skills_data.get('hiring_urgency', 'medium'),
+                'evidence_for_match': [f"✓ {s}" for s in skills_data.get('matching_skills', [])[:6]],
+                'evidence_against_match': [f"✗ Missing: {s}" for s in skills_data.get('missing_skills', [])[:4]],
                 'competitive_advantage': skills_data.get('competitive_advantage', {})
             })
         

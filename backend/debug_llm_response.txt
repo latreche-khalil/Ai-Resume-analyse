@@ -536,3 +536,115 @@
 }
 ```
 ---------------------------
+
+--- ANALYSIS 3f98e5cc-fb67-4baf-a19c-aa6804c04c52 ---
+```json
+{
+  "match_score": 0.82,
+  "matching_skills": ["Python", "Hugging Face Transformers", "PyTorch", "LangGraph", "PhiData", "AutoGen", "MLOps", "LLMOps", "AWS", "GCP", "Docker", "Kubernetes", "GitHub Actions"],
+  "missing_skills": ["Decentralized AI", "Quantum Machine Learning (QML)", "Neuro-Evolutionary Algorithms", "Adversarial AI Defense"],
+  "transferable_skills": ["Machine Learning", "Deep Learning", "Generative AI", "Natural Language Processing (NLP)"],
+  "summary": "The candidate has a strong background in Generative AI, LLMs, and Autonomous AI Systems, with expertise in optimizing workflows, streamlining data pipelines, and building scalable AI architectures. However, there are critical gaps in Decentralized AI, Quantum Machine Learning, and Adversarial AI Defense.",
+  "recommendation": "shortlist",
+  "confidence": "high",
+  "seniority_alignment": {
+    "cv_level": "Senior Data Scientist and Machine Learning Engineer",
+    "jd_level": "Staff GenAI & Autonomous Systems Architect",
+    "match": "matched",
+    "explanation": "The candidate's experience and skills align with the seniority level required by the job description."
+  },
+  "evidence_for_hire": [
+    "Led AI-Driven MVPs & Enterprise Deployments, including an Enterprise-Grade RAG Pipeline for BI, a Health Guard AI Pipeline for Remote Patient Monitoring, and an Agentic AI System for Legal & Financial Advisory",
+    "Designed, deployed, and optimized end-to-end AI/ML pipelines on AWS and GCP, ensuring high availability, cost efficiency, and real-time insights",
+    "Recognized as a 24x LinkedIn Top Voice, Top 100, and KaggleX BIPOC Mentor, contributing to the NVIDIA Developer Program, Google Developer Group, and AWS AI Community"
+  ],
+  "evidence_against_hire": [
+    "No experience with Decentralized AI, Quantum Machine Learning, or Adversarial AI Defense",
+    "Limited experience with Blockchain for data integrity and decentralized training",
+    "No direct experience with ZenML or LangSmith, although familiar with MLflow"
+  ],
+  "interview_questions": [
+    "Can you explain your approach to designing autonomous reasoning frameworks capable of real-time decision-making?",
+    "How would you integrate Blockchain for data integrity and decentralized training in an AI system?",
+    "What strategies would you employ to build robust security against adversarial attacks on large language models?"
+  ],
+  "hiring_recommendation": "Proceed with caution, focusing on the candidate's ability to learn and adapt to new technologies, particularly in the areas of Decentralized AI and Quantum Machine Learning. Probe their experience with autonomous AI systems and their approach to building scalable AI architectures.",
+  "red_flags": ["Gaps in Decentralized AI, Quantum Machine Learning, and Adversarial AI Defense"],
+  "hiring_urgency": "medium"
+}
+```
+---------------------------
+
+--- ANALYSIS 3f00d94e-c857-4b80-80a0-79e63f66c367 ---
+```
+{
+  "match_score": 0.21,
+  "matching_skills": ["Python", "PyTorch", "Machine Learning", "Deep Learning"],
+  "missing_skills": ["LangGraph", "PhiData", "AutoGen", "Hugging Face Transformers", "MLflow", "ZenML", "LangSmith", "Decentralized AI", "Quantum Machine Learning", "Neuro-Evolutionary Algorithms", "Adversarial AI Defense"],
+  "transferable_skills": ["Data Analysis", "Numerical Computations", "Computer Vision", "Natural Language Processing"],
+  "summary": "Rahul Khanna has a strong background in machine learning and deep learning, with experience in developing and deploying models using PyTorch and Python. However, there are significant gaps in his skills and experience, particularly in areas such as autonomous agentic systems, LLMOps, and decentralized AI.",
+  "recommendation": "reject",
+  "confidence": "medium",
+  "seniority_alignment": {
+    "cv_level": "Mid-level",
+    "jd_level": "Senior",
+    "match": "underqualified",
+    "explanation": "Rahul's experience and skills are not aligned with the senior-level requirements of the job description."
+  },
+  "evidence_for_hire": [
+    "Developed and integrated large-scale, distributed machine learning system lifecycles utilizing cutting-edge open source technologies",
+    "Improved distributed cloud GPU training approaches for deep learning models",
+    "Trained models with the end-to-end Bayesian segmentation setwork, resulting in $400,000 annual savings"
+  ],
+  "evidence_against_hire": [
+    "No experience with LangGraph, PhiData, or AutoGen",
+    "Lack of expertise in decentralized AI, quantum machine learning, and neuro-evolutionary algorithms",
+    "No mention of experience with MLflow, ZenML, or LangSmith"
+  ],
+  "interview_questions": [
+    "Can you explain your experience with autonomous agentic systems and how you would design a real-time decision-making framework?",
+    "How would you approach decentralized AI and blockchain integration in a machine learning project?",
+    "Can you walk us through your experience with PyTorch and how you would apply it to a complex optimization challenge?"
+  ],
+  "hiring_recommendation": "While Rahul has a strong foundation in machine learning, the significant gaps in his skills and experience make him a less competitive candidate for this senior-level role. Further evaluation would be needed to determine his potential for growth and development.",
+  "red_flags": ["Lack of experience with required tools and technologies", "Insufficient seniority level"],
+  "hiring_urgency": "low"
+}
+```
+---------------------------
+
+--- ANALYSIS 35eeb903-6856-42bf-8cd2-923a64a5c49b ---
+```json
+{
+  "match_score": 0.21,
+  "matching_skills": ["Python", "Docker", "Kubernetes", "MLOps pipelines"],
+  "missing_skills": ["Autonomous Agentic Systems", "LangGraph", "PhiData", "AutoGen", "Decentralized AI", "Quantum Machine Learning (QML)", "Neuro-Evolutionary Algorithms", "Adversarial AI Defense"],
+  "transferable_skills": ["Computer Vision", "ML models"],
+  "summary": "The candidate has experience in developing and enhancing Computer Vision ML models and implementing MLOps pipelines, which could be beneficial for the role. However, there are significant gaps in critical skills required for the position, such as Autonomous Agentic Systems, Decentralized AI, and Quantum Machine Learning.",
+  "recommendation": "reject",
+  "confidence": "high",
+  "seniority_alignment": {
+    "cv_level": "mid-level",
+    "jd_level": "senior",
+    "match": "underqualified",
+    "explanation": "The candidate's experience and skills do not align with the senior-level requirements of the job description."
+  },
+  "evidence_for_hire": [
+    "Developed and enhanced Computer Vision ML models for the Pivo Tracking System",
+    "Implemented MLOps pipelines for experiment tracking, model artifacts, and data versioning"
+  ],
+  "evidence_against_hire": [
+    "No experience with Autonomous Agentic Systems, LangGraph, PhiData, or AutoGen",
+    "Lack of experience in Decentralized AI, Quantum Machine Learning, and Neuro-Evolutionary Algorithms"
+  ],
+  "interview_questions": [
+    "Can you explain your experience with MLOps pipelines and how you think it could be applied to Autonomous Agentic Systems?",
+    "How do you think your Computer Vision skills could be transferred to other areas of AI, such as Natural Language Processing?",
+    "Can you describe a project where you had to implement a new technology or skill, and how you overcame any challenges that arose?"
+  ],
+  "hiring_recommendation": "The candidate does not meet the critical requirements for the role, and it is recommended to reject the application. If the candidate were to gain experience in the missing skills, they may be reconsidered for a future position.",
+  "red_flags": ["Lack of experience in critical skills", "No evidence of leadership or innovation in AI"],
+  "hiring_urgency": "low"
+}
+```
+---------------------------
