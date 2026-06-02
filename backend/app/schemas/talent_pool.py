@@ -36,6 +36,7 @@ class TalentPoolRead(TalentPoolBase):
     recruiter_id: UUID
     created_at: datetime
     updated_at: datetime
+    candidates_count: int = 0
     
     model_config = ConfigDict(from_attributes=True)
 

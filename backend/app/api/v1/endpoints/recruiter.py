@@ -20,7 +20,119 @@ from app.utils.logger import logger
 router = APIRouter(prefix="/recruiter")
 
 
-# ── Identity Reveal (after shortlisting) ──────────────────────────────────────
+# ── Dashboard Stats ────────────────────────────────────────────────────────────
+
+@router.get("/dashboard-stats")
+async def get_dashboard_stats(
+    current_user: User = Depends(require_role("recruiter")),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get real dashboard statistics for the recruiter.
+    Returns analyses, match scores, talent pool counts.
+    """
+    from app.models.cv_document import CVDocument
+    from app.models.analysis_record import AnalysisRecord
+    from app.models.job_description import JobDescription
+    from sqlalchemy import select, func
+
+    # Get all CVs uploaded by this recruiter
+    cv_result = await db.execute(
+        select(CVDocument.id).where(
+            CVDocument.user_id == current_user.id,
+            CVDocument.deleted_at.is_(None)
+        )
+    )
+    cv_ids = [row[0] for row in cv_result.all()]
+
+    # Also get analyses via JDs owned by this recruiter
+    jd_result = await db.execute(
+        select(JobDescription.id).where(
+            JobDescription.recruiter_id == current_user.id,
+            JobDescription.deleted_at.is_(None)
+        )
+    )
+    jd_ids = [row[0] for row in jd_result.all()]
+
+    # Analyses = CV belongs to recruiter OR JD belongs to recruiter
+    from sqlalchemy import or_
+    analysis_filter = []
+    if cv_ids:
+        analysis_filter.append(AnalysisRecord.cv_document_id.in_(cv_ids))
+    if jd_ids:
+        analysis_filter.append(AnalysisRecord.job_description_id.in_(jd_ids))
+
+    if not analysis_filter:
+        pool_count_result = await db.execute(
+            select(func.count(TalentPool.id)).where(TalentPool.recruiter_id == current_user.id)
+        )
+        return {
+            "total_analyses": 0, "avg_match_score": 0, "top_matches": 0,
+            "pending_reviews": 0, "total_cvs": len(cv_ids), "total_jds": len(jd_ids),
+            "pool_count": pool_count_result.scalar() or 0, "analyses": []
+        }
+
+    # Get all analyses matching the filter
+    analyses_result = await db.execute(
+        select(
+            AnalysisRecord,
+            JobDescription.title.label("job_title")
+        ).outerjoin(
+            JobDescription, AnalysisRecord.job_description_id == JobDescription.id
+        ).where(
+            or_(*analysis_filter)
+        ).order_by(AnalysisRecord.created_at.desc()).limit(100)
+    )
+    rows = analyses_result.all()
+
+    analyses = [
+        {
+            "id": str(row.AnalysisRecord.id),
+            "cv_document_id": str(row.AnalysisRecord.cv_document_id),
+            "job_description_id": str(row.AnalysisRecord.job_description_id) if row.AnalysisRecord.job_description_id else None,
+            "match_score": float(row.AnalysisRecord.match_score) if row.AnalysisRecord.match_score else None,
+            "analysis_status": row.AnalysisRecord.processing_status,
+            "requires_human_review": row.AnalysisRecord.requires_human_review or False,
+            "created_at": row.AnalysisRecord.created_at.isoformat() if row.AnalysisRecord.created_at else None,
+            "job_title": row.job_title,
+        }
+        for row in rows
+    ]
+
+    completed = [a for a in analyses if a["analysis_status"] in ("completed", "partial_done") and a["match_score"] is not None]
+    scores = [a["match_score"] * 100 if a["match_score"] <= 1 else a["match_score"] for a in completed]
+    avg = round(sum(scores) / len(scores)) if scores else 0
+    top = sum(1 for s in scores if s >= 80)
+    pending = sum(1 for a in completed if a["requires_human_review"])
+
+    # CV count — all CVs accessible to recruiter (own + via JDs)
+    all_cv_ids_in_analyses = list({a["cv_document_id"] for a in analyses})
+    total_cvs = max(len(cv_ids), len(all_cv_ids_in_analyses))
+
+    # JD count
+    jd_count_result = await db.execute(
+        select(func.count(JobDescription.id)).where(
+            JobDescription.recruiter_id == current_user.id,
+            JobDescription.deleted_at.is_(None)
+        )
+    )
+    # Pool count
+    pool_count_result = await db.execute(
+        select(func.count(TalentPool.id)).where(TalentPool.recruiter_id == current_user.id)
+    )
+
+    return {
+        "total_analyses": len(completed),
+        "total_cvs": total_cvs,
+        "avg_match_score": avg,
+        "top_matches": top,
+        "pending_reviews": pending,
+        "total_jds": jd_count_result.scalar() or 0,
+        "pool_count": pool_count_result.scalar() or 0,
+        "analyses": analyses
+    }
+
+
 
 @router.post("/candidates/{cv_document_id}/reveal")
 async def reveal_candidate_identity(

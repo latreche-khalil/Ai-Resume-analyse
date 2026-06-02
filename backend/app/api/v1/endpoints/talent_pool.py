@@ -51,12 +51,28 @@ async def list_talent_pools(
     db: AsyncSession = Depends(get_db)
 ):
     """List all talent pools managed by the recruiter."""
+    from sqlalchemy import func as sqlfunc
+
     query = select(TalentPool).where(
         TalentPool.recruiter_id == current_user.id
     ).offset(skip).limit(limit)
-    
+
     result = await db.execute(query)
-    return result.scalars().all()
+    pools = result.scalars().all()
+
+    # Attach candidates_count to each pool
+    pool_ids = [p.id for p in pools]
+    if pool_ids:
+        counts_result = await db.execute(
+            select(TalentPoolCV.talent_pool_id, sqlfunc.count(TalentPoolCV.cv_document_id).label("cnt"))
+            .where(TalentPoolCV.talent_pool_id.in_(pool_ids))
+            .group_by(TalentPoolCV.talent_pool_id)
+        )
+        counts = {row[0]: row[1] for row in counts_result.all()}
+        for pool in pools:
+            pool.candidates_count = counts.get(pool.id, 0)  # type: ignore
+
+    return pools
 
 
 @router.get("/{pool_id}", response_model=TalentPoolDetail)
