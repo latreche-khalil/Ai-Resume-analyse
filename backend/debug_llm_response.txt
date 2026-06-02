@@ -492,3 +492,47 @@
 }
 ```
 ---------------------------
+
+--- ANALYSIS 3f98e5cc-fb67-4baf-a19c-aa6804c04c52 ---
+```
+{
+  "match_score": 0.82,
+  "matching_skills": ["LangGraph", "PhiData", "AutoGen", "Hugging Face Transformers", "PyTorch", "MLflow", "ZenML", "LangSmith", "Pinecone", "AWS", "GCP", "Docker", "Kubernetes", "GitHub Actions"],
+  "missing_skills": ["Decentralized AI", "Quantum Machine Learning (QML)", "Neuro-Evolutionary Algorithms", "Adversarial AI Defense"],
+  "transferable_skills": ["Machine Learning", "Deep Learning", "Generative AI", "Natural Language Processing (NLP)", "Time Series Analysis"],
+  "summary": "The candidate has a strong background in Generative AI, LLMs, and Autonomous AI Systems, with expertise in optimizing workflows and building scalable AI architectures. However, there are critical gaps in Decentralized AI, Quantum Machine Learning, and Adversarial AI Defense. The candidate's experience in driving business ROI through AI and contributing to global AI communities is a significant strength.",
+  "recommendation": "shortlist",
+  "confidence": "high",
+  "seniority_alignment": {
+    "cv_level": "Senior",
+    "jd_level": "Staff",
+    "match": "matched",
+    "explanation": "The candidate's depth of experience and years of experience align with the requirements of the role."
+  },
+  "red_flags": ["Lack of experience in Decentralized AI and Quantum Machine Learning"],
+  "hiring_urgency": "medium"
+}
+```
+---------------------------
+
+--- ANALYSIS 3f00d94e-c857-4b80-80a0-79e63f66c367 ---
+```
+{
+  "match_score": 0.32,
+  "matching_skills": ["Python", "PyTorch", "Machine Learning", "Deep Learning", "Data Analysis"],
+  "missing_skills": ["LangGraph", "PhiData", "AutoGen", "Hugging Face Transformers", "Decentralized AI", "Quantum Machine Learning", "Neuro-Evolutionary Algorithms", "Adversarial AI Defense"],
+  "transferable_skills": ["Data Structures", "Predictive Modeling", "Clustering Models"],
+  "summary": "Rahul Khanna demonstrates strong machine learning and deep learning skills, with experience in developing and deploying models using PyTorch and Python. However, he lacks critical skills in autonomous agentic systems, decentralized AI, and quantum machine learning, which are essential for the Staff GenAI & Autonomous Systems Architect role. His experience in machine learning engineering and data analysis can be valuable, but significant gaps in required skills need to be addressed.",
+  "recommendation": "reject",
+  "confidence": "medium",
+  "seniority_alignment": {
+    "cv_level": "Mid-level",
+    "jd_level": "Senior-level",
+    "match": "underqualified",
+    "explanation": "Rahul's 5+ years of experience in machine learning engineering is notable, but the role requires a more senior-level candidate with expertise in autonomous agentic systems, decentralized AI, and quantum machine learning."
+  },
+  "red_flags": ["Lack of experience in autonomous agentic systems", "No mention of decentralized AI or quantum machine learning", "Insufficient seniority level"],
+  "hiring_urgency": "low"
+}
+```
+---------------------------

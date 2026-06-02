@@ -58,18 +58,25 @@ const NAV_GROUPS = {
     {
       label: 'Recruiting',
       items: [
-        { icon: LayoutDashboard, label: 'Dashboard',     href: '/recruiter',           id: 'recruiter'           },
-        { icon: Users,           label: 'Talent Pool',   href: '/talent-pool',         id: 'talent-pool'         },
-        { icon: Target,          label: 'Compare',       href: '/compare-candidates',  id: 'compare-candidates'  },
+        { icon: LayoutDashboard, label: 'Dashboard',        href: '/recruiter',          id: 'recruiter'           },
+        { icon: Users,           label: 'Talent Pool',      href: '/talent-pool',        id: 'talent-pool'         },
+        { icon: Target,          label: 'Compare',          href: '/compare-candidates', id: 'compare-candidates'  },
       ],
     },
     {
       label: 'Analysis',
       items: [
         { icon: Briefcase,       label: 'Job Descriptions', href: '/jobs',         id: 'jobs'         },
-        { icon: Upload,          label: 'Upload CVs',    href: '/upload',       id: 'upload'       },
-        { icon: Zap,             label: 'New Analysis',  href: '/analysis/new', id: 'analysis-new' },
-        { icon: FileText,        label: 'Documents',     href: '/documents',    id: 'documents'    },
+        { icon: Upload,          label: 'Upload CVs',       href: '/upload',       id: 'upload'       },
+        { icon: Zap,             label: 'New Analysis',     href: '/analysis/new', id: 'analysis-new' },
+        { icon: FileText,        label: 'Documents',        href: '/documents',    id: 'documents'    },
+      ],
+    },
+    {
+      label: 'Community',
+      items: [
+        { icon: MessageSquare,  label: 'Testimonials', href: '/testimonials', id: 'testimonials' },
+        { icon: HeartHandshake, label: 'Feedback',     href: '/feedback',     id: 'feedback'     },
       ],
     },
   ],
@@ -174,19 +181,17 @@ function Sidebar({ role, collapsed, pathname, userInitial, userName, userId, log
 
       {/* Bottom */}
       <div className={`shrink-0 border-t border-gray-200 dark:border-slate-600/50 pt-3 pb-4 space-y-0.5 ${collapsed ? 'px-2' : 'px-3'}`}>
-        {role !== 'recruiter' && (
-          <Link href="/settings">
-            <div
-              title={collapsed ? 'Settings' : undefined}
-              className={`flex items-center rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer
-                ${collapsed ? 'justify-center py-2.5 px-2' : 'gap-2.5 px-3 py-2.5'}
-                ${pathname === '/settings' ? 'bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400' : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}
-            >
-              <Settings size={16} className={`shrink-0 ${pathname === '/settings' ? 'text-sky-500' : 'text-gray-400 dark:text-slate-500'}`} />
-              {!collapsed && <span>Settings</span>}
-            </div>
-          </Link>
-        )}
+        <Link href="/settings">
+          <div
+            title={collapsed ? 'Settings' : undefined}
+            className={`flex items-center rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer
+              ${collapsed ? 'justify-center py-2.5 px-2' : 'gap-2.5 px-3 py-2.5'}
+              ${pathname === '/settings' ? 'bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400' : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}
+          >
+            <Settings size={16} className={`shrink-0 ${pathname === '/settings' ? 'text-sky-500' : 'text-gray-400 dark:text-slate-500'}`} />
+            {!collapsed && <span>Settings</span>}
+          </div>
+        </Link>
         <button
           onClick={logout}
           title={collapsed ? 'Sign out' : undefined}
