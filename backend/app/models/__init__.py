@@ -21,6 +21,7 @@ from app.models.talent_pool import TalentPool, TalentPoolCV
 from app.models.pii_audit_trail import PIIAuditTrail
 from app.models.dlq_record import DLQRecord
 from app.models.testimonial import Testimonial
+from app.models.batch_ranking_result import BatchRankingResult
 
 __all__ = [
     # Base classes
@@ -68,4 +69,7 @@ __all__ = [
     
     # Testimonials
     "Testimonial",
+    
+    # Recruiter Batch Ranking Results
+    "BatchRankingResult",
 ]

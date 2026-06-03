@@ -60,9 +60,7 @@ function recStyle(rec: string) {
   return 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-600'
 }
 
-const HISTORY_KEY = 'recruiter_analysis_history'
-const loadHistory  = (): HistoryEntry[] => { try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]') } catch { return [] } }
-const saveHistory  = (e: HistoryEntry[]) => { try { localStorage.setItem(HISTORY_KEY, JSON.stringify(e.slice(0, 20))) } catch {} }
+
 
 // ── Add to Pool Modal ──────────────────────────────────────────────────────────
 function AddToPoolModal({ candidate, onClose }: {
@@ -530,16 +528,28 @@ export function RecruiterAnalysisView() {
   useEffect(() => {
     if (dataLoaded.current) return
     dataLoaded.current = true
-    setHistory(loadHistory())
     ;(async () => {
       try {
-        const [p1, p2, jdsRes] = await Promise.all([
+        const [p1, p2, jdsRes, historyRes] = await Promise.all([
           apiClient.getDocuments({ limit: 100, skip: 0 }),
           apiClient.getDocuments({ limit: 100, skip: 100 }),
           apiClient.getJobDescriptions({ limit: 100 }),
+          apiClient.listBatchRankingHistory(),
         ])
         setCvDocs([...(p1.documents || []), ...(p2.documents || [])].filter((d: CVDoc) => d.processing_status === 'completed'))
         setJds(jdsRes.items || [])
+        
+        const mappedHistory = (historyRes || []).map((h: any) => ({
+          id: h.id,
+          jd_title: h.jd_title,
+          jd_id: h.jd_id,
+          cv_count: h.cv_count,
+          best_candidate: h.best_candidate || '—',
+          best_score: h.best_score || 0,
+          created_at: h.created_at,
+          result: h.result_data,
+        }))
+        setHistory(mappedHistory)
       } catch { toast.error('Failed to load data') }
     })()
   }, [])
@@ -556,30 +566,42 @@ export function RecruiterAnalysisView() {
       const lb = res?.leaderboard || []
       const best = lb[0]
       const entry: HistoryEntry = {
-        id: `${Date.now()}`, jd_title: jdObj?.title || 'Unknown JD', jd_id: selectedJD,
-        cv_count: lb.length, best_candidate: best?.filename || '—',
-        best_score: best?.composite_score || 0, created_at: new Date().toISOString(), result: res,
+        id: res.id || `${Date.now()}`,
+        jd_title: jdObj?.title || 'Unknown JD',
+        jd_id: selectedJD,
+        cv_count: lb.length,
+        best_candidate: best?.filename || '—',
+        best_score: best?.composite_score || 0,
+        created_at: res.created_at || new Date().toISOString(),
+        result: res,
       }
-      const updated = [entry, ...history]
-      setHistory(updated); saveHistory(updated)
+      setHistory(prev => [entry, ...prev])
     } catch (err: any) {
       toast.error(err.message || 'Ranking failed'); setStep('select-jd')
     } finally { setRanking(false) }
   }
 
-  const deleteEntry = (id: string) => {
-    const updated = history.filter(e => e.id !== id)
-    setHistory(updated)
-    saveHistory(updated)
-    if (viewing?.id === id) setViewing(null)
-    toast.success('Entry deleted')
+  const deleteEntry = async (id: string) => {
+    try {
+      await apiClient.deleteBatchRankingEntry(id)
+      const updated = history.filter(e => e.id !== id)
+      setHistory(updated)
+      if (viewing?.id === id) setViewing(null)
+      toast.success('Entry deleted')
+    } catch {
+      toast.error('Failed to delete entry')
+    }
   }
 
-  const clearAll = () => {
-    setHistory([])
-    saveHistory([])
-    setViewing(null)
-    toast.success('History cleared')
+  const clearAll = async () => {
+    try {
+      await apiClient.clearBatchRankingHistory()
+      setHistory([])
+      setViewing(null)
+      toast.success('History cleared')
+    } catch {
+      toast.error('Failed to clear history')
+    }
   }
 
   const reset = () => { setStep('select-cvs'); setResult(null); setSelectedCVs(new Set()); setSelectedJD(''); setViewing(null) }

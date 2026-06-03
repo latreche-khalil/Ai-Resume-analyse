@@ -39,7 +39,8 @@ class MultiAgentOrchestrator:
         self,
         document_id: UUID,
         db: AsyncSession,
-        ip_address: Optional[str] = None
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Process CV document through Privacy Gateway, Extraction, and RAG.
@@ -83,7 +84,8 @@ class MultiAgentOrchestrator:
                 document_id=document_id,
                 language=document.detected_language or 'en',
                 db=db,
-                ip_address=ip_address
+                ip_address=ip_address,
+                user_agent=user_agent
             )
             
             # Update document with masked text

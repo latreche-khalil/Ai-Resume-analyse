@@ -359,22 +359,17 @@ export function RecruiterDashboardView() {
   const loadData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
     try {
-      const [pools, statsRes] = await Promise.all([
+      const [pools, statsRes, batchHistory] = await Promise.all([
         apiClient.listTalentPools().catch(() => [] as any[]),
         apiClient.getRecruiterDashboardStats().catch(() => null),
+        apiClient.listBatchRankingHistory().catch(() => [] as any[]),
       ])
       setTalentPools(pools)
 
-      // ── Pull batch ranking history from localStorage ──
-      const HISTORY_KEY = 'recruiter_analysis_history'
-      let batchHistory: any[] = []
-      try {
-        batchHistory = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]')
-      } catch {}
-
       // Build candidate list from batch history leaderboard
-      const batchCandidates: AnalysisItem[] = batchHistory.flatMap((entry: any) =>
-        (entry.result?.leaderboard || []).map((c: any) => ({
+      const batchCandidates: AnalysisItem[] = batchHistory.flatMap((entry: any) => {
+        const resultObj = entry.result_data || entry.result
+        return (resultObj?.leaderboard || []).map((c: any) => ({
           id: c.cv_id,
           cv_document_id: c.cv_id,
           job_description_id: entry.jd_id || null,
@@ -395,7 +390,7 @@ export function RecruiterDashboardView() {
           scores_breakdown: c.scores_breakdown,
           isBatchResult: true,
         }))
-      )
+      })
 
       // Merge DB analyses + batch candidates, sort by score
       const dbAnalysesData: AnalysisItem[] = statsRes?.analyses || []

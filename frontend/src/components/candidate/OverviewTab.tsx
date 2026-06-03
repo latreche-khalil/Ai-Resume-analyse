@@ -90,6 +90,7 @@ export function OverviewTab({ data, onTabChange }: OverviewTabProps) {
           currentScore={data.match_score || 0}
           matchingSkills={data.matching_skills || []}
           missingSkills={data.missing_skills || []}
+          whatIfScenarios={data.xai_report?.what_if_scenarios || []}
         />
       </div>
 

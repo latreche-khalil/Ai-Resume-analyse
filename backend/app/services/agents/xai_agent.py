@@ -127,7 +127,7 @@ class XAIAgent:
                 return None
             
             # Parse response
-            xai_explanation = self._parse_xai_response(response, language)
+            xai_explanation = self._parse_xai_response(response, language, match_score=match_result['match_score'])
             
             # Store in database
             await self._store_xai_report(
@@ -258,7 +258,7 @@ RULES:
 - Return ONLY the JSON object."""
 
     
-    def _parse_xai_response(self, response: str, language: str) -> Dict[str, Any]:
+    def _parse_xai_response(self, response: str, language: str, match_score: float = 0.5) -> Dict[str, Any]:
         """
         Parse XAI response.
         
@@ -278,6 +278,107 @@ RULES:
                 # Fallback: model might have put feature_contributions at top level
                 shap_analysis = {'feature_contributions': result.get('feature_contributions'), 'base_score': result.get('base_score', 0.5)}
             
+            # Normalize and reconcile SHAP contributions to sum to match_score
+            base_score = float(shap_analysis.get('base_score', 0.5))
+            target_delta = match_score - base_score
+            
+            feature_contribs = shap_analysis.get('feature_contributions', [])
+            if not feature_contribs:
+                # If LLM didn't return any contributions, synthesize some from evidence
+                feature_contribs = []
+                evidence_for = result.get('evidence_for_match', [])
+                evidence_against = result.get('evidence_against_match', [])
+                for idx, ev in enumerate(evidence_for[:5]):
+                    feature_contribs.append({
+                        "feature": ev.get("claim", f"Matching Skill {idx+1}"),
+                        "contribution": float(ev.get("weight", 0.5)) * 0.1,
+                        "reason": ev.get("evidence", "")
+                    })
+                for idx, ev in enumerate(evidence_against[:5]):
+                    feature_contribs.append({
+                        "feature": ev.get("gap", f"Missing Skill {idx+1}"),
+                        "contribution": -float(ev.get("weight", 0.5)) * 0.1,
+                        "reason": f"Required: {ev.get('required', '')}. Current: {ev.get('current', '')}"
+                    })
+            
+            cleaned_contribs = []
+            contrib_sum = 0.0
+            for c in feature_contribs:
+                if isinstance(c, dict) and 'feature' in c:
+                    val = float(c.get('contribution', 0.0))
+                    cleaned_contribs.append({
+                        'feature': str(c.get('feature')),
+                        'contribution': val,
+                        'reason': str(c.get('reason', ''))
+                    })
+                    contrib_sum += val
+            
+            if cleaned_contribs:
+                # Separate into positive and negative contributions to preserve signs
+                positives = [c for c in cleaned_contribs if c['contribution'] >= 0]
+                negatives = [c for c in cleaned_contribs if c['contribution'] < 0]
+                
+                sum_pos = sum(c['contribution'] for c in positives)
+                sum_neg = sum(c['contribution'] for c in negatives)
+                
+                # We want: sum_pos_scaled + sum_neg_scaled = target_delta
+                if target_delta >= 0:
+                    # Positive delta (good match): scale positive contributions, keep negatives unchanged
+                    sum_pos_target = target_delta - sum_neg
+                    if sum_pos > 0.01:
+                        scale_pos = sum_pos_target / sum_pos
+                        scale_pos = max(0.0, min(100.0, scale_pos)) # guardrail
+                        for c in positives:
+                            c['contribution'] = c['contribution'] * scale_pos
+                    else:
+                        # Fallback if there are no positives but target is positive
+                        boost = target_delta / len(cleaned_contribs)
+                        for c in cleaned_contribs:
+                            c['contribution'] = boost
+                else:
+                    # Negative delta (poor match): scale negative contributions, keep positives unchanged
+                    sum_neg_target = target_delta - sum_pos
+                    if abs(sum_neg) > 0.01:
+                        scale_neg = sum_neg_target / sum_neg
+                        scale_neg = max(0.0, min(100.0, scale_neg)) # guardrail
+                        for c in negatives:
+                            c['contribution'] = c['contribution'] * scale_neg
+                    else:
+                        # Fallback if there are no negatives but target is negative
+                        boost = target_delta / len(cleaned_contribs)
+                        for c in cleaned_contribs:
+                            c['contribution'] = boost
+                
+                actual_sum = sum(c['contribution'] for c in cleaned_contribs)
+                shap_analysis['feature_contributions'] = cleaned_contribs
+                shap_analysis['base_score'] = base_score
+                shap_analysis['final_score'] = base_score + actual_sum
+            else:
+                shap_analysis['feature_contributions'] = []
+                shap_analysis['base_score'] = base_score
+                shap_analysis['final_score'] = match_score
+
+            # Programmatically construct waterfall_explanation
+            waterfall_steps = []
+            waterfall_steps.append({
+                'step': 'Base Score',
+                'delta': 0.0,
+                'score_after': base_score,
+                'reason': 'Baseline match probability'
+            })
+            
+            cumulative = base_score
+            for c in shap_analysis['feature_contributions']:
+                cumulative += c['contribution']
+                waterfall_steps.append({
+                    'step': c['feature'],
+                    'delta': c['contribution'],
+                    'score_after': min(1.0, max(0.0, cumulative)),
+                    'reason': c['reason']
+                })
+            
+            waterfall_explanation = {'steps': waterfall_steps}
+            
             raw_what_if = result.get('what_if_scenarios', result.get('scenarios', []))[:self.MAX_WHAT_IF_SCENARIOS]
             
             # Map predicted_score to expected_score for frontend compatibility
@@ -289,7 +390,6 @@ RULES:
             
             score_breakdown = result.get('score_breakdown', {})
             attention_analysis = result.get('attention_analysis', {})
-            waterfall_explanation = result.get('waterfall_explanation', {})
             
             # Evidence-based fields (from SHAP prompt)
             evidence_for = result.get('evidence_for_match', [])[:self.MAX_EVIDENCE_FOR]

@@ -215,7 +215,9 @@ class DocumentIngestionService:
     async def process_document(
         self,
         document_id: UUID,
-        db: AsyncSession
+        db: AsyncSession,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None
     ) -> Tuple[bool, Optional[str]]:
         """
         Process document: extract text, detect language, and mask PII.
@@ -307,7 +309,9 @@ class DocumentIngestionService:
                 user_id=document.user_id,
                 document_id=document.id,
                 language=document.detected_language,
-                db=db
+                db=db,
+                ip_address=ip_address,
+                user_agent=user_agent
             )
             
             # Update document with masked text

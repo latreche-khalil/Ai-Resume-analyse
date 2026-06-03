@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Resume Analyzer - Database Explorer</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS (via Play CDN for rapid prototyping) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                        outfit: ['Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f5f3ff',
+                            100: '#eedeff',
+                            500: '#8b5cf6',
+                            600: '#7c3aed',
+                            700: '#6d28d9',
+                            900: '#4c1d95',
+                        },
+                        darkbg: {
+                            DEFAULT: '#f8fafc',
+                            card: '#ffffff',
+                            border: '#e2e8f0',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #f8fafc;
+            color: #0f172a;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f8fafc;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="font-sans min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="border-b border-darkbg-border bg-darkbg-card/50 backdrop-blur sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center text-white font-outfit font-bold text-xl shadow-lg shadow-brand-500/20">
+                DB
+            </div>
+            <div>
+                <h1 class="text-lg font-semibold font-outfit text-slate-900">Database Explorer</h1>
+                <p class="text-xs text-slate-500">Interactive viewer for <code class="text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">ai_resume.db</code></p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-4">
+            <span class="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                SQLite 3
+            </span>
+            <span class="text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Active
+            </span>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden h-[calc(100vh-73px)]">
+        <!-- Sidebar -->
+        <aside class="w-72 border-r border-darkbg-border bg-darkbg-card p-4 flex flex-col space-y-4 overflow-y-auto shrink-0">
+            <div>
+                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 px-3 mb-2">Tables</h3>
+                <nav id="table-nav" class="space-y-1">
+                    <!-- Nav items will be generated here -->
+                </nav>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 flex flex-col overflow-hidden bg-slate-50 p-6">
+            <!-- Table Header -->
+            <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-slate-200 mb-4 space-y-3 md:space-y-0 shrink-0">
+                <div>
+                    <h2 id="current-table-title" class="text-2xl font-bold font-outfit text-slate-900">Select a Table</h2>
+                    <p id="current-table-desc" class="text-sm text-slate-500 mt-1">Choose a table from the sidebar to view data</p>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <input type="text" id="search-input" placeholder="Search rows..." class="bg-white border border-slate-200 rounded-lg px-4 py-2 text-sm text-slate-800 focus:outline-none focus:border-brand-500 w-64 transition-all placeholder:text-slate-400">
+                    <button onclick="exportTableToCSV()" class="px-3.5 py-2 text-sm bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-750 transition-colors flex items-center space-x-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                        <span>Export CSV</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Table Container -->
+            <div class="flex-1 overflow-auto border border-slate-200 rounded-xl bg-white shadow-sm relative">
+                <table class="w-full text-left border-collapse text-sm text-slate-700 relative" id="data-table">
+                    <!-- Dynamic Header -->
+                    <thead class="bg-slate-50 sticky top-0 z-10 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200" id="table-head">
+                    </thead>
+                    <!-- Dynamic Body -->
+                    <tbody class="divide-y divide-slate-200" id="table-body">
+                        <tr>
+                            <td class="p-8 text-center text-slate-400" colspan="100">
+                                Please select a table from the sidebar to view its structure and rows.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination/Footer -->
+            <div class="flex items-center justify-between pt-4 border-t border-slate-200 mt-4 shrink-0 text-xs text-slate-500">
+                <div id="pagination-info">
+                    Showing 0 to 0 of 0 entries
+                </div>
+                <div class="flex items-center space-x-2" id="pagination-controls">
+                    <!-- Pagination buttons -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Row Detail Modal -->
+    <div id="detail-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm">
+        <div class="bg-white border border-slate-200 rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl">
+            <div class="p-6 border-b border-slate-100 flex items-center justify-between shrink-0">
+                <h3 class="text-lg font-bold font-outfit text-slate-900" id="modal-title">Row Details</h3>
+                <button onclick="closeModal()" class="text-slate-500 hover:text-slate-800 transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 flex-1 text-sm text-slate-700" id="modal-content">
+                <!-- Row details dynamically formatted -->
+            </div>
+            <div class="p-4 bg-slate-50 border-t border-slate-100 flex justify-end shrink-0">
+                <button onclick="closeModal()" class="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-sm font-medium transition-colors">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Inject SQLite Data
+        const dbData = {"alembic_version": [{"version_num": "024_add_company_to_job_descriptions"}], "users": [{"id": "34f6e06b-4f8d-45a6-a00e-3f28666fb62c", "email": "latrechekhalil95@gmail.com", "password_hash": "$2b$12$tlyKKhMWFzxO19CNrTB5BOoHv69/EqxlUl.WjWOgv9nUYTVgVFS4q", "first_name": "Khalil1", "last_name": "Latreche", "role": "candidate", "is_active": 1, "email_verified": 0, "preferred_language": "ar", "last_login_at": "2026-06-03 13:50:11.250604", "created_at": "2026-05-11 10:44:28", "updated_at": "2026-06-03 13:50:11", "deleted_at": null}, {"id": "23caf874-caf2-4e5e-9203-ce34f46f90df", "email": "latrechekhalil@gmail.com", "password_hash": "$2b$12$T3XiFQPF8DR.u1q5.r714OooBBP.XIJHp2NBcclQxI/8pZrMRivbi", "first_name": "Khalil1", "last_name": "Latreche", "role": "recruiter", "is_active": 1, "email_verified": 0, "preferred_language": "en", "last_login_at": "2026-06-02 10:30:27.185245", "created_at": "2026-05-30 10:28:44", "updated_at": "2026-06-02 14:50:08.758559", "deleted_at": null}], "cv_documents": [], "skill_reports": [], "chat_sessions": [], "audit_logs": [], "feedback": [], "pii_mappings": [], "pii_audit_trail": [], "talent_pools": [], "talent_pool_cvs": [], "analysis_records": [], "gap_reports": [], "xai_reports": [], "testimonials": [], "interview_sessions": [], "interview_questions": [], "interview_answers": [], "chat_messages": [], "job_descriptions": []};
+        const dbSchemas = {"alembic_version": [{"cid": 0, "name": "version_num", "type": "VARCHAR(32)", "notnull": 1, "dflt_value": null, "pk": 1}], "users": [{"cid": 0, "name": "id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 1}, {"cid": 1, "name": "email", "type": "VARCHAR(255)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 2, "name": "password_hash", "type": "VARCHAR(255)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 3, "name": "first_name", "type": "VARCHAR(100)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 4, "name": "last_name", "type": "VARCHAR(100)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 5, "name": "role", "type": "VARCHAR(50)", "notnull": 1, "dflt_value": "'candidate'", "pk": 0}, {"cid": 6, "name": "is_active", "type": "BOOLEAN", "notnull": 1, "dflt_value": "'1'", "pk": 0}, {"cid": 7, "name": "email_verified", "type": "BOOLEAN", "notnull": 1, "dflt_value": "'0'", "pk": 0}, {"cid": 8, "name": "preferred_language", "type": "VARCHAR(10)", "notnull": 0, "dflt_value": "'en'", "pk": 0}, {"cid": 9, "name": "last_login_at", "type": "DATETIME", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 10, "name": "created_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 11, "name": "updated_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 12, "name": "deleted_at", "type": "DATETIME", "notnull": 0, "dflt_value": null, "pk": 0}], "cv_documents": [{"cid": 0, "name": "id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 1}, {"cid": 1, "name": "user_id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 2, "name": "original_filename", "type": "VARCHAR(255)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 3, "name": "file_path", "type": "VARCHAR(500)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 4, "name": "file_size_bytes", "type": "INTEGER", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 5, "name": "file_format", "type": "VARCHAR(10)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 6, "name": "extracted_text", "type": "TEXT", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 7, "name": "masked_text", "type": "TEXT", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 8, "name": "detected_language", "type": "VARCHAR(2)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 9, "name": "word_count", "type": "INTEGER", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 10, "name": "processing_status", "type": "VARCHAR(20)", "notnull": 1, "dflt_value": "'pending'", "pk": 0}, {"cid": 11, "name": "virus_scan_status", "type": "VARCHAR(20)", "notnull": 1, "dflt_value": "'pending'", "pk": 0}, {"cid": 12, "name": "status_message", "type": "VARCHAR(255)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 13, "name": "virus_scan_at", "type": "DATETIME", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 14, "name": "retention_until", "type": "DATETIME", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 15, "name": "created_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 16, "name": "updated_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 17, "name": "deleted_at", "type": "DATETIME", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 18, "name": "lang_confidence", "type": "NUMERIC(3, 2)", "notnull": 0, "dflt_value": null, "pk": 0}], "skill_reports": [{"cid": 0, "name": "id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 1}, {"cid": 1, "name": "document_id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 2, "name": "skills", "type": "JSON", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 3, "name": "job_titles", "type": "JSON", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 4, "name": "companies", "type": "JSON", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 5, "name": "education", "type": "JSON", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 6, "name": "certifications", "type": "JSON", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 7, "name": "total_experience_months", "type": "INTEGER", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 8, "name": "extraction_confidence", "type": "FLOAT", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 9, "name": "flagged_for_review", "type": "BOOLEAN", "notnull": 0, "dflt_value": "'0'", "pk": 0}, {"cid": 10, "name": "created_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 11, "name": "updated_at", "type": "DATETIME", "notnull": 0, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}], "chat_sessions": [{"cid": 0, "name": "id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 1}, {"cid": 1, "name": "user_id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 2, "name": "title", "type": "VARCHAR(255)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 3, "name": "created_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 4, "name": "updated_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 5, "name": "context_data", "type": "TEXT", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 6, "name": "message_count", "type": "INTEGER", "notnull": 1, "dflt_value": "'0'", "pk": 0}, {"cid": 7, "name": "is_active", "type": "BOOLEAN", "notnull": 1, "dflt_value": "'1'", "pk": 0}], "audit_logs": [{"cid": 0, "name": "id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 1}, {"cid": 1, "name": "user_id", "type": "VARCHAR(36)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 2, "name": "operation", "type": "VARCHAR(100)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 3, "name": "resource_type", "type": "VARCHAR(100)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 4, "name": "resource_id", "type": "VARCHAR(36)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 5, "name": "entity_type", "type": "VARCHAR(20)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 6, "name": "confidence_score", "type": "NUMERIC(3, 2)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 7, "name": "legal_basis", "type": "VARCHAR(100)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 8, "name": "ip_address", "type": "VARCHAR(45)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 9, "name": "user_agent", "type": "TEXT", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 10, "name": "operation_metadata", "type": "JSON", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 11, "name": "created_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 12, "name": "updated_at", "type": "DATETIME", "notnull": 0, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}], "feedback": [{"cid": 0, "name": "id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 1}, {"cid": 1, "name": "user_id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 2, "name": "analysis_record_id", "type": "VARCHAR(36)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 3, "name": "rating", "type": "INTEGER", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 4, "name": "feedback_text", "type": "TEXT", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 5, "name": "created_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 6, "name": "updated_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 7, "name": "feedback_type", "type": "VARCHAR(20)", "notnull": 0, "dflt_value": "'general'", "pk": 0}], "pii_mappings": [{"cid": 0, "name": "id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 1}, {"cid": 1, "name": "user_id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 2, "name": "document_id", "type": "VARCHAR(36)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 3, "name": "masked_token", "type": "VARCHAR(100)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 4, "name": "entity_type", "type": "VARCHAR(50)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 5, "name": "encrypted_value", "type": "BLOB", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 6, "name": "encryption_key_id", "type": "VARCHAR(50)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 7, "name": "confidence_score", "type": "NUMERIC(3, 2)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 8, "name": "flagged_for_review", "type": "BOOLEAN", "notnull": 1, "dflt_value": "'0'", "pk": 0}, {"cid": 9, "name": "retention_until", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 10, "name": "created_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 11, "name": "updated_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}], "pii_audit_trail": [{"cid": 0, "name": "id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 1}, {"cid": 1, "name": "mapping_id", "type": "VARCHAR(36)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 2, "name": "user_id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 3, "name": "document_id", "type": "VARCHAR(36)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 4, "name": "action", "type": "VARCHAR(50)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 5, "name": "purpose", "type": "VARCHAR(255)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 6, "name": "legal_basis", "type": "VARCHAR(255)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 7, "name": "timestamp", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 8, "name": "ip_address", "type": "VARCHAR(45)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 9, "name": "user_agent", "type": "VARCHAR(255)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 10, "name": "extra_details", "type": "JSON", "notnull": 0, "dflt_value": null, "pk": 0}], "talent_pools": [{"cid": 0, "name": "id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 1}, {"cid": 1, "name": "name", "type": "VARCHAR(255)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 2, "name": "description", "type": "VARCHAR(1000)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 3, "name": "recruiter_id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 4, "name": "job_description_id", "type": "VARCHAR(36)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 5, "name": "is_anonymized", "type": "BOOLEAN", "notnull": 1, "dflt_value": "'1'", "pk": 0}, {"cid": 6, "name": "ranking_criteria", "type": "JSON", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 7, "name": "created_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 8, "name": "updated_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}], "talent_pool_cvs": [{"cid": 0, "name": "talent_pool_id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 1}, {"cid": 1, "name": "cv_document_id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 2}, {"cid": 2, "name": "pool_specific_score", "type": "FLOAT", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 3, "name": "status", "type": "VARCHAR(50)", "notnull": 1, "dflt_value": "'pending'", "pk": 0}, {"cid": 4, "name": "created_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 5, "name": "updated_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}], "analysis_records": [{"cid": 0, "name": "id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 1}, {"cid": 1, "name": "cv_document_id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 2, "name": "job_description_id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 3, "name": "match_score", "type": "FLOAT", "notnull": 1, "dflt_value": "'0.0'", "pk": 0}, {"cid": 4, "name": "matching_skills", "type": "JSON", "notnull": 1, "dflt_value": "'[]'", "pk": 0}, {"cid": 5, "name": "missing_skills", "type": "JSON", "notnull": 1, "dflt_value": "'[]'", "pk": 0}, {"cid": 6, "name": "transferable_skills", "type": "JSON", "notnull": 1, "dflt_value": "'[]'", "pk": 0}, {"cid": 7, "name": "processing_status", "type": "VARCHAR(20)", "notnull": 1, "dflt_value": "'pending'", "pk": 0}, {"cid": 8, "name": "processing_started_at", "type": "DATETIME", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 9, "name": "processing_completed_at", "type": "DATETIME", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 10, "name": "error_message", "type": "TEXT", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 11, "name": "created_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 12, "name": "updated_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 13, "name": "seniority_alignment", "type": "JSON", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 14, "name": "red_flags", "type": "JSON", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 15, "name": "hiring_urgency", "type": "VARCHAR(20)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 16, "name": "is_binding", "type": "BOOLEAN", "notnull": 1, "dflt_value": "'false'", "pk": 0}, {"cid": 17, "name": "confidence_score", "type": "NUMERIC(3, 2)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 18, "name": "requires_human_review", "type": "BOOLEAN", "notnull": 1, "dflt_value": "'false'", "pk": 0}, {"cid": 19, "name": "human_review_status", "type": "VARCHAR(20)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 20, "name": "reviewed_by", "type": "VARCHAR(36)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 21, "name": "reviewed_at", "type": "DATETIME", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 22, "name": "reviewer_notes", "type": "TEXT", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 23, "name": "is_partial", "type": "BOOLEAN", "notnull": 1, "dflt_value": "'false'", "pk": 0}, {"cid": 24, "name": "rejection_reason", "type": "TEXT", "notnull": 0, "dflt_value": null, "pk": 0}], "gap_reports": [{"cid": 0, "name": "id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 1}, {"cid": 1, "name": "analysis_record_id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 2, "name": "created_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 3, "name": "quick_wins", "type": "JSON", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 4, "name": "critical_gaps", "type": "JSON", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 5, "name": "important_gaps", "type": "JSON", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 6, "name": "nice_to_have_gaps", "type": "JSON", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 7, "name": "learning_roadmap", "type": "JSON", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 8, "name": "estimated_time_weeks", "type": "INTEGER", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 9, "name": "competitive_differentiator", "type": "JSON", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 10, "name": "total_potential_improvement", "type": "NUMERIC(3, 2)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 11, "name": "updated_at", "type": "DATETIME", "notnull": 0, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}], "xai_reports": [{"cid": 0, "name": "id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 1}, {"cid": 1, "name": "analysis_record_id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 2, "name": "explanation_text", "type": "TEXT", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 3, "name": "created_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 4, "name": "credibility_analysis", "type": "JSON", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 5, "name": "counterfactuals", "type": "JSON", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 6, "name": "visual_data", "type": "JSON", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 7, "name": "force_plot_data", "type": "JSON", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 8, "name": "waterfall_data", "type": "JSON", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 9, "name": "summary_plot_data", "type": "JSON", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 10, "name": "overall_explanation", "type": "JSON", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 11, "name": "updated_at", "type": "DATETIME", "notnull": 0, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 12, "name": "evidence_for_match", "type": "JSON", "notnull": 0, "dflt_value": "'[]'", "pk": 0}, {"cid": 13, "name": "evidence_against_match", "type": "JSON", "notnull": 0, "dflt_value": "'[]'", "pk": 0}, {"cid": 14, "name": "key_achievements", "type": "JSON", "notnull": 0, "dflt_value": "'[]'", "pk": 0}], "testimonials": [{"cid": 0, "name": "id", "type": "INTEGER", "notnull": 0, "dflt_value": null, "pk": 1}, {"cid": 1, "name": "user_id", "type": "VARCHAR(36)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 2, "name": "name", "type": "VARCHAR(100)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 3, "name": "role", "type": "VARCHAR(100)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 4, "name": "company", "type": "VARCHAR(100)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 5, "name": "avatar_url", "type": "VARCHAR(500)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 6, "name": "content", "type": "TEXT", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 7, "name": "rating", "type": "FLOAT", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 8, "name": "is_featured", "type": "BOOLEAN", "notnull": 0, "dflt_value": "0", "pk": 0}, {"cid": 9, "name": "is_approved", "type": "BOOLEAN", "notnull": 0, "dflt_value": "0", "pk": 0}, {"cid": 10, "name": "is_verified", "type": "BOOLEAN", "notnull": 0, "dflt_value": "0", "pk": 0}, {"cid": 11, "name": "created_at", "type": "DATETIME", "notnull": 0, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 12, "name": "updated_at", "type": "DATETIME", "notnull": 0, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}], "interview_sessions": [{"cid": 0, "name": "id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 1}, {"cid": 1, "name": "created_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 2, "name": "updated_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 3, "name": "user_id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 4, "name": "job_description_id", "type": "VARCHAR(36)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 5, "name": "overall_score", "type": "NUMERIC(3, 2)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 6, "name": "status", "type": "VARCHAR(20)", "notnull": 1, "dflt_value": "'in_progress'", "pk": 0}, {"cid": 7, "name": "started_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 8, "name": "completed_at", "type": "DATETIME", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 9, "name": "context_data", "type": "TEXT", "notnull": 0, "dflt_value": null, "pk": 0}], "interview_questions": [{"cid": 0, "name": "id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 1}, {"cid": 1, "name": "created_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 2, "name": "updated_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 3, "name": "session_id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 4, "name": "question_text", "type": "TEXT", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 5, "name": "question_type", "type": "VARCHAR(20)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 6, "name": "difficulty_level", "type": "INTEGER", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 7, "name": "sequence_number", "type": "INTEGER", "notnull": 1, "dflt_value": null, "pk": 0}], "interview_answers": [{"cid": 0, "name": "id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 1}, {"cid": 1, "name": "created_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 2, "name": "updated_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 3, "name": "question_id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 4, "name": "answer_text", "type": "TEXT", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 5, "name": "relevance_score", "type": "NUMERIC(3, 2)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 6, "name": "completeness_score", "type": "NUMERIC(3, 2)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 7, "name": "clarity_score", "type": "NUMERIC(3, 2)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 8, "name": "feedback", "type": "TEXT", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 9, "name": "strengths", "type": "TEXT", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 10, "name": "improvements", "type": "TEXT", "notnull": 0, "dflt_value": null, "pk": 0}], "chat_messages": [{"cid": 0, "name": "id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 1}, {"cid": 1, "name": "session_id", "type": "VARCHAR(36)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 2, "name": "role", "type": "VARCHAR(20)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 3, "name": "content", "type": "TEXT", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 4, "name": "created_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 5, "name": "updated_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 6, "name": "message_metadata", "type": "TEXT", "notnull": 0, "dflt_value": null, "pk": 0}], "job_descriptions": [{"cid": 0, "name": "id", "type": "VARCHAR(36)", "notnull": 0, "dflt_value": null, "pk": 1}, {"cid": 1, "name": "recruiter_id", "type": "VARCHAR(36)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 2, "name": "title", "type": "VARCHAR(255)", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 3, "name": "description", "type": "TEXT", "notnull": 1, "dflt_value": null, "pk": 0}, {"cid": 4, "name": "is_active", "type": "BOOLEAN", "notnull": 1, "dflt_value": "1", "pk": 0}, {"cid": 5, "name": "is_archived", "type": "BOOLEAN", "notnull": 1, "dflt_value": "0", "pk": 0}, {"cid": 6, "name": "created_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 7, "name": "updated_at", "type": "DATETIME", "notnull": 1, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0}, {"cid": 8, "name": "deleted_at", "type": "DATETIME", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 9, "name": "is_long", "type": "BOOLEAN", "notnull": 1, "dflt_value": "0", "pk": 0}, {"cid": 10, "name": "word_count", "type": "INTEGER", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 11, "name": "detected_language", "type": "VARCHAR(2)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 12, "name": "lang_confidence", "type": "NUMERIC(3, 2)", "notnull": 0, "dflt_value": null, "pk": 0}, {"cid": 13, "name": "company", "type": "VARCHAR(255)", "notnull": 0, "dflt_value": null, "pk": 0}]};
+        const tableCounts = {"alembic_version": 1, "users": 2, "cv_documents": 0, "skill_reports": 0, "chat_sessions": 0, "audit_logs": 0, "feedback": 0, "pii_mappings": 0, "pii_audit_trail": 0, "talent_pools": 0, "talent_pool_cvs": 0, "analysis_records": 0, "gap_reports": 0, "xai_reports": 0, "testimonials": 0, "interview_sessions": 0, "interview_questions": 0, "interview_answers": 0, "chat_messages": 0, "job_descriptions": 0};
+
+        let currentTable = null;
+        let filteredRows = [];
+        let currentPage = 1;
+        const rowsPerPage = 25;
+
+        // Render Sidebar Menu
+        function initSidebar() {
+            const nav = document.getElementById('table-nav');
+            nav.innerHTML = '';
+            
+            Object.keys(dbData).sort().forEach(tableName => {
+                const rowCount = tableCounts[tableName];
+                const button = document.createElement('button');
+                button.className = `w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-all duration-200 text-left font-medium group hover:bg-slate-100 hover:text-slate-900 text-slate-600`;
+                button.id = `nav-${tableName}`;
+                button.onclick = () => selectTable(tableName);
+                
+                button.innerHTML = `
+                    <div class="flex items-center space-x-2.5 truncate">
+                        <svg class="w-4 h-4 text-slate-400 group-hover:text-brand-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                        <span class="truncate">${tableName}</span>
+                    </div>
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 group-hover:bg-slate-200 font-semibold text-slate-500 group-hover:text-slate-750 transition-all">${rowCount}</span>
+                `;
+                nav.appendChild(button);
+            });
+        }
+
+        // Select Table
+        function selectTable(tableName) {
+            if (currentTable) {
+                document.getElementById(`nav-${currentTable}`).classList.remove('bg-brand-600/10', 'text-brand-600', 'border-l-2', 'border-brand-500', 'pl-2');
+                document.getElementById(`nav-${currentTable}`).classList.add('text-slate-600');
+            }
+            
+            currentTable = tableName;
+            const activeBtn = document.getElementById(`nav-${tableName}`);
+            activeBtn.classList.remove('text-slate-600');
+            activeBtn.classList.add('bg-brand-600/10', 'text-brand-600', 'border-l-2', 'border-brand-500', 'pl-2');
+
+            document.getElementById('current-table-title').textContent = tableName;
+            document.getElementById('current-table-desc').textContent = `Showing details and rows for table "${tableName}"`;
+
+            // Reset search and pagination
+            document.getElementById('search-input').value = '';
+            currentPage = 1;
+
+            filterAndRender();
+        }
+
+        // Filter and Render Data
+        function filterAndRender() {
+            if (!currentTable) return;
+
+            const searchQuery = document.getElementById('search-input').value.toLowerCase().trim();
+            const originalRows = dbData[currentTable];
+            
+            if (searchQuery === "") {
+                filteredRows = [...originalRows];
+            } else {
+                filteredRows = originalRows.filter(row => {
+                    return Object.values(row).some(val => {
+                        if (val === null || val === undefined) return false;
+                        return String(val).toLowerCase().includes(searchQuery);
+                    });
+                });
+            }
+
+            currentPage = 1;
+            renderTableData();
+        }
+
+        // Render Table Headers and Body
+        function renderTableData() {
+            const schema = dbSchemas[currentTable];
+            const tableHead = document.getElementById('table-head');
+            const tableBody = document.getElementById('table-body');
+
+            // Render Head
+            let headHtml = '<tr>';
+            headHtml += `<th class="px-4 py-3 bg-slate-50 border-b border-slate-200 text-center w-12 text-slate-400">#</th>`;
+            schema.forEach(col => {
+                headHtml += `<th class="px-4 py-3 bg-slate-50 border-b border-slate-200 font-semibold">${col.name}</th>`;
+            });
+            headHtml += '</tr>';
+            tableHead.innerHTML = headHtml;
+
+            // Paginated rows
+            const startIndex = (currentPage - 1) * rowsPerPage;
+            const endIndex = Math.min(startIndex + rowsPerPage, filteredRows.length);
+            const pageRows = filteredRows.slice(startIndex, endIndex);
+
+            // Render Body
+            if (pageRows.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td class="p-8 text-center text-slate-400" colspan="${schema.length + 1}">
+                            No rows found.
+                        </td>
+                    </tr>
+                `;
+            } else {
+                let bodyHtml = '';
+                pageRows.forEach((row, idx) => {
+                    bodyHtml += `<tr class="hover:bg-slate-50 transition-colors cursor-pointer" onclick="showRowDetails(${startIndex + idx})">`;
+                    bodyHtml += `<td class="px-4 py-3 text-center text-slate-400 border-r border-slate-100">${startIndex + idx + 1}</td>`;
+                    
+                    schema.forEach(col => {
+                        let val = row[col.name];
+                        let displayVal = val;
+                        
+                        if (val === null) {
+                            displayVal = '<span class="text-slate-400 italic">null</span>';
+                        } else if (typeof val === 'string' && val.length > 80) {
+                            displayVal = escapeHtml(val.substring(0, 80)) + ' <span class="text-brand-600 font-medium font-outfit text-xs">...more</span>';
+                        } else if (typeof val === 'object') {
+                            displayVal = '<span class="text-indigo-600 font-mono text-xs"><class 'object'></span>';
+                        } else {
+                            displayVal = escapeHtml(String(val));
+                        }
+                        
+                        bodyHtml += `<td class="px-4 py-3 max-w-xs truncate font-mono text-xs">${displayVal}</td>`;
+                    });
+                    bodyHtml += '</tr>';
+                });
+                tableBody.innerHTML = bodyHtml;
+            }
+
+            // Render Pagination Info
+            const pagInfo = document.getElementById('pagination-info');
+            if (filteredRows.length === 0) {
+                pagInfo.textContent = `Showing 0 to 0 of 0 entries`;
+            } else {
+                pagInfo.textContent = `Showing ${startIndex + 1} to ${endIndex} of ${filteredRows.length} entries`;
+            }
+
+            // Render Pagination buttons
+            renderPaginationControls();
+        }
+
+        function renderPaginationControls() {
+            const controls = document.getElementById('pagination-controls');
+            controls.innerHTML = '';
+
+            const totalPages = Math.ceil(filteredRows.length / rowsPerPage);
+            if (totalPages <= 1) return;
+
+            // Prev Button
+            const prevBtn = document.createElement('button');
+            prevBtn.className = `px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-30 disabled:pointer-events-none transition-all`;
+            prevBtn.textContent = 'Previous';
+            prevBtn.disabled = currentPage === 1;
+            prevBtn.onclick = () => { currentPage--; renderTableData(); };
+            controls.appendChild(prevBtn);
+
+            // Page numbers (limit display to max 5)
+            let startPage = Math.max(1, currentPage - 2);
+            let endPage = Math.min(totalPages, startPage + 4);
+            if (endPage - startPage < 4) {
+                startPage = Math.max(1, endPage - 4);
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                const pageBtn = document.createElement('button');
+                pageBtn.className = `px-3 py-1.5 rounded-lg border font-medium transition-all ${i === currentPage ? 'bg-brand-600 border-brand-500 text-white shadow-sm' : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'}`;
+                pageBtn.textContent = i;
+                pageBtn.onclick = () => { currentPage = i; renderTableData(); };
+                controls.appendChild(pageBtn);
+            }
+
+            // Next Button
+            const nextBtn = document.createElement('button');
+            nextBtn.className = `px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-30 disabled:pointer-events-none transition-all`;
+            nextBtn.textContent = 'Next';
+            nextBtn.disabled = currentPage === totalPages;
+            nextBtn.onclick = () => { currentPage++; renderTableData(); };
+            controls.appendChild(nextBtn);
+        }
+
+        // Helper to escape HTML characters
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Show Full Row Details in Modal
+        function showRowDetails(index) {
+            const row = filteredRows[index];
+            const schema = dbSchemas[currentTable];
+            
+            document.getElementById('modal-title').textContent = `Table "${currentTable}" - Row Detail #${index + 1}`;
+            
+            let contentHtml = '<div class="space-y-4 divide-y divide-slate-100">';
+            schema.forEach(col => {
+                let val = row[col.name];
+                let formattedVal = "";
+                let isLongText = false;
+                
+                if (val === null) {
+                    formattedVal = '<span class="text-slate-400 italic">null</span>';
+                } else if (typeof val === 'string') {
+                    formattedVal = escapeHtml(val);
+                    if (val.length > 150) isLongText = true;
+                } else if (typeof val === 'object') {
+                    formattedVal = JSON.stringify(val, null, 2);
+                    isLongText = true;
+                } else {
+                    formattedVal = escapeHtml(String(val));
+                }
+
+                contentHtml += `
+                    <div class="pt-4 first:pt-0">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-xs font-bold font-outfit uppercase tracking-wider text-slate-500">${col.name}</span>
+                            <span class="text-2xs font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-500">${col.type}</span>
+                        </div>
+                        ${isLongText ? 
+                            `<pre class="bg-slate-50 p-4 rounded-xl border border-slate-200 overflow-x-auto text-xs font-mono text-slate-800 max-h-96 whitespace-pre-wrap select-text">\${formattedVal}</pre>` : 
+                            `<div class="bg-slate-50/50 px-4 py-3 rounded-lg border border-slate-100 font-mono text-slate-800 select-text">\${formattedVal}</div>`
+                        }
+                    </div>
+                `;
+            });
+            contentHtml += '</div>';
+
+            document.getElementById('modal-content').innerHTML = contentHtml;
+            document.getElementById('detail-modal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('detail-modal').classList.add('hidden');
+        }
+
+        // Export Table to CSV
+        function exportTableToCSV() {
+            if (!currentTable || filteredRows.length === 0) return;
+            
+            const schema = dbSchemas[currentTable];
+            const headers = schema.map(col => col.name);
+            
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += headers.map(h => `"${h.replace(/"/g, '""')}"`).join(",") + "\n";
+            
+            filteredRows.forEach(row => {
+                let rowData = headers.map(h => {
+                    let val = row[h];
+                    if (val === null || val === undefined) return '""';
+                    return `"${String(val).replace(/"/g, '""')}"`;
+                });
+                csvContent += rowData.join(",") + "\n";
+            });
+            
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `${currentTable}_export.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Event listener for search
+        document.getElementById('search-input').addEventListener('input', filterAndRender);
+
+        // Init page
+        initSidebar();
+        
+        // Select first table if exists
+        const tablesList = Object.keys(dbData);
+        if (tablesList.length > 0) {
+            sortTableList = tablesList.sort();
+            selectTable(sortTableList[0]);
+        }
+    </script>
+</body>
+</html>

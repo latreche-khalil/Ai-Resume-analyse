@@ -1,6 +1,6 @@
 import hashlib
 from typing import Dict, List, Optional, Tuple
-from uuid import UUID
+from uuid import UUID, uuid4
 import secrets
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -101,6 +101,7 @@ class Tokenizer:
                 blind_index = self.generate_blind_index(entity.text)
                 
                 pii_mapping = PIIMapping(
+                    id=uuid4(),
                     user_id=user_id,
                     document_id=document_id,
                     masked_token=masked_token,

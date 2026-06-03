@@ -25,7 +25,12 @@ def run_async(coro):
 
 
 @celery_app.task(name="process_cv_document_async", bind=True, max_retries=3)
-def process_cv_document_async(self, document_id: str):
+def process_cv_document_async(
+    self,
+    document_id: str,
+    ip_address: Optional[str] = None,
+    user_agent: Optional[str] = None
+):
     """
     Background task to process a CV document (Masking → Extraction → RAG).
     
@@ -38,7 +43,9 @@ def process_cv_document_async(self, document_id: str):
             try:
                 result = await multi_agent_orchestrator.process_cv_document(
                     document_id=UUID(document_id),
-                    db=db
+                    db=db,
+                    ip_address=ip_address,
+                    user_agent=user_agent
                 )
                 await db.commit()
                 return result

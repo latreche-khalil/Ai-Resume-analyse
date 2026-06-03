@@ -80,14 +80,7 @@ export default function JobDetailPage() {
 
         {/* Meta */}
         <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-700 flex flex-wrap gap-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 rounded-lg">
-            <Briefcase size={14} className="text-slate-500 dark:text-slate-400" />
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{jd.experience_level || 'Any level'}</span>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 rounded-lg">
-            <Star size={14} className="text-slate-500 dark:text-slate-400" />
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{jd.work_arrangement || 'Not specified'}</span>
-          </div>
+
           <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 rounded-lg">
             <Clock size={14} className="text-slate-500 dark:text-slate-400" />
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{formatDateTime(jd.created_at)}</span>
@@ -100,41 +93,6 @@ export default function JobDetailPage() {
           <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">{jd.description}</p>
         </div>
 
-        {/* Required Skills */}
-        {jd.required_skills?.length > 0 && (
-          <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-700">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">Required Skills</h3>
-            <div className="flex flex-wrap gap-2">
-              {jd.required_skills.map((skill: string, i: number) => (
-                <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20 rounded-lg text-sm font-medium">
-                  <CheckCircle2 size={12} /> {skill}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Preferred Skills */}
-        {jd.preferred_skills?.length > 0 && (
-          <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-700">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">Preferred Skills</h3>
-            <div className="flex flex-wrap gap-2">
-              {jd.preferred_skills.map((skill: string, i: number) => (
-                <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg text-sm font-medium">
-                  {skill}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Education */}
-        {jd.education_requirements && (
-          <div className="px-6 py-5">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">Education</h3>
-            <p className="text-sm text-slate-700 dark:text-slate-300">{jd.education_requirements}</p>
-          </div>
-        )}
       </motion.div>
     </div>
   )

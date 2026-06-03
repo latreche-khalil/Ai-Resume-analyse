@@ -154,6 +154,9 @@ class RAGPipeline:
                 })
                 chunk_index += 1
 
+            if end >= len(text):
+                break
+
             start += step
 
         logger.info(

@@ -28,6 +28,12 @@ class FeedbackCreate(BaseModel):
     is_dispute: bool = Field(False, description="Whether this is a dispute")
 
 
+class FeedbackUpdate(BaseModel):
+    """Schema for updating feedback"""
+    accuracy_rating: Optional[int] = Field(None, ge=1, le=5, description="Rating from 1 to 5")
+    feedback_text: Optional[str] = Field(None, description="Detailed feedback text")
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def submit_feedback(
     feedback_data: FeedbackCreate,
@@ -136,6 +142,7 @@ async def get_all_feedback(
         }
         for f, email, first_name, last_name in rows
     ]
+@router.get("/my")
 async def get_my_feedback(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -158,3 +165,55 @@ async def get_my_feedback(
         }
         for f in feedbacks
     ]
+
+
+@router.patch("/{feedback_id}")
+async def update_feedback(
+    feedback_id: UUID,
+    feedback_data: FeedbackUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update own feedback within 15 days of submission.
+    """
+    from datetime import datetime, timezone
+    result = await db.execute(
+        select(Feedback).where(Feedback.id == feedback_id)
+    )
+    feedback = result.scalar_one_or_none()
+    
+    if not feedback:
+        raise HTTPException(status_code=404, detail="Feedback not found")
+        
+    # Check ownership
+    if feedback.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You do not have access to this feedback record")
+        
+    # Check 15-day limit
+    now = datetime.now(timezone.utc)
+    created_at = feedback.created_at
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+        
+    if (now - created_at).days >= 15:
+        raise HTTPException(
+            status_code=400,
+            detail="You cannot edit your feedback after 15 days from submission"
+        )
+        
+    # Update fields
+    if feedback_data.accuracy_rating is not None:
+        feedback.rating = feedback_data.accuracy_rating
+    if feedback_data.feedback_text is not None:
+        feedback.feedback_text = feedback_data.feedback_text
+        
+    await db.commit()
+    await db.refresh(feedback)
+    
+    return {
+        "id": str(feedback.id),
+        "message": "Feedback updated successfully",
+        "rating": feedback.rating,
+        "feedback_text": feedback.feedback_text
+    }

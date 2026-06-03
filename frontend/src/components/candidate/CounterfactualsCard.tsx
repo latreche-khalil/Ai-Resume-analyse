@@ -125,7 +125,9 @@ export function CounterfactualsCard({
               {/* Visual Progress Bar */}
               <div className="mt-4 pt-3.5 border-t border-gray-200/50 dark:border-neutral-800/30">
                 <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-semibold text-slate-400 dark:text-neutral-500 w-16 truncate">Current</span>
+                  <span className="text-[10px] font-semibold text-slate-500 dark:text-neutral-400 w-24 shrink-0">
+                    Current: {Math.round(safeCurrent * 100)}%
+                  </span>
                   <div className="flex-1 relative h-1.5 bg-slate-100 dark:bg-neutral-800 rounded-full overflow-hidden">
                     {/* Current Score */}
                     <motion.div
@@ -142,8 +144,8 @@ export function CounterfactualsCard({
                       className="absolute h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full"
                     />
                   </div>
-                  <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 font-mono w-12 text-right">
-                    {Math.round(safeExpected * 100)}%
+                  <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 font-mono w-24 text-right shrink-0">
+                    Target: {Math.round(safeExpected * 100)}%
                   </span>
                 </div>
               </div>

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Request, status, UploadFile, File, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
@@ -39,6 +39,7 @@ router = APIRouter(prefix="/documents")
     description="Upload a CV file for processing"
 )
 async def upload_cv(
+    request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
@@ -65,11 +66,17 @@ async def upload_cv(
                 detail=error_msg or "Failed to upload document"
             )
         
+        # Extract client info for audit trail
+        ip_address = request.client.host if request.client else None
+        user_agent = request.headers.get("user-agent")
+        
         # 2. Add HEAVY processing to background tasks
         background_tasks.add_task(
             run_heavy_processing,
             document_id=cv_document.id,
-            user_email=current_user.email
+            user_email=current_user.email,
+            ip_address=ip_address,
+            user_agent=user_agent
         )
         
         logger.info(f"CV upload accepted: {cv_document.id}. Processing started in background.")
@@ -88,7 +95,12 @@ async def upload_cv(
             detail="Failed to upload document"
         )
 
-async def run_heavy_processing(document_id: UUID, user_email: str):
+async def run_heavy_processing(
+    document_id: UUID,
+    user_email: str,
+    ip_address: Optional[str] = None,
+    user_agent: Optional[str] = None
+):
     """
     Background task for OCR, PII masking, and Skill Extraction.
     Ensures status is updated even on failure.
@@ -107,7 +119,12 @@ async def run_heavy_processing(document_id: UUID, user_email: str):
                 return
 
             # 2. Document Processing (OCR + PII)
-            success, error = await document_ingestion_service.process_document(document_id, db)
+            success, error = await document_ingestion_service.process_document(
+                document_id,
+                db,
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
             if not success:
                 logger.error(f"Stage 1 (Ingestion) failed for {document_id}: {error}")
                 cv_document.processing_status = 'failed'
@@ -945,17 +962,24 @@ async def export_analysis_report(
 </body>
 </html>"""
 
-    # Try weasyprint for real PDF, fall back to HTML download
+    # Try xhtml2pdf for real PDF (Windows-compatible), fall back to HTML download
     try:
-        from weasyprint import HTML as WeasyprintHTML
-        pdf_bytes = WeasyprintHTML(string=html).write_pdf()
+        from io import BytesIO
+        from xhtml2pdf import pisa  # type: ignore[import-untyped]
+
+        pdf_buffer = BytesIO()
+        pisa_status = pisa.CreatePDF(html, dest=pdf_buffer)
+        if pisa_status.err:
+            raise RuntimeError(f"PDF generation error: {pisa_status.err}")
+        pdf_bytes = pdf_buffer.getvalue()
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
             headers={"Content-Disposition": f'attachment; filename="analysis_{analysis.id}.pdf"'},
         )
-    except ImportError:
-        # weasyprint not installed — return HTML (browser can print to PDF)
+    except (ImportError, RuntimeError) as pdf_err:
+        logger.warning(f"PDF generation failed ({pdf_err}), falling back to HTML")
+        # Fall back to HTML — browser can use File > Print > Save as PDF
         return Response(
             content=html.encode("utf-8"),
             media_type="text/html",

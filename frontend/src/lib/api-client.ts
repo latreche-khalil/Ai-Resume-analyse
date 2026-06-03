@@ -276,6 +276,18 @@ class ApiClient {
     })
   }
 
+  async listBatchRankingHistory(): Promise<any[]> {
+    return this.request('GET', '/analysis/batch-rank')
+  }
+
+  async deleteBatchRankingEntry(id: string): Promise<any> {
+    return this.request('DELETE', `/analysis/batch-rank/${id}`)
+  }
+
+  async clearBatchRankingHistory(): Promise<any> {
+    return this.request('POST', '/analysis/batch-rank/clear')
+  }
+
   async deleteAnalysis(id: string): Promise<void> {
     await this.request('DELETE', `/analysis/${id}`)
   }
@@ -310,6 +322,7 @@ class ApiClient {
   }
 
   async getInterviewNextQuestion(sessionId: string): Promise<{
+    status: string
     id: string
     question: string
     text: string
@@ -431,7 +444,6 @@ class ApiClient {
   async getBiasCheck(id: string): Promise<any> { return this.request('GET', `/analysis/${id}/bias-check`) }
   async getHallucinationGuard(id: string): Promise<any> { return this.request('GET', `/analysis/${id}/hallucination-guard`) }
 
-  // Feedback methods
   async submitFeedback(data: { 
     analysis_id?: string
     accuracy_rating: number
@@ -439,6 +451,10 @@ class ApiClient {
     is_dispute?: boolean
   }): Promise<{ id: string; message: string }> {
     return this.request('POST', '/feedback', data)
+  }
+
+  async updateFeedback(feedbackId: string, data: { accuracy_rating?: number; feedback_text?: string }): Promise<any> {
+    return this.request('PATCH', `/feedback/${feedbackId}`, data)
   }
 
   async getMyFeedback(): Promise<any[]> {

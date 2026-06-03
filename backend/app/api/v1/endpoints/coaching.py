@@ -3,6 +3,7 @@ Coaching endpoints for chat and interview simulation.
 
 Requirements: 12.1-12.11, 13.1-13.10
 """
+import json
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, timezone
@@ -35,7 +36,6 @@ async def create_chat_session(
 ):
     """Create new chat session. Requirements: 12.1"""
     from app.models.cv_document import CVDocument
-    import json
 
     # Check CV exists (diagram: No CV Found → 400)
     cv_result = await db.execute(
@@ -366,7 +366,6 @@ async def start_interview(
         
         logger.info(f"Creating interview session...")
         
-        import json
         context_data_dict = {
             "difficulty": data.difficulty or "mid",
             "interview_type": data.interview_type or "mixed",
@@ -448,30 +447,60 @@ async def submit_answer(
 ):
     """Submit interview answer and evaluate it. Requirements: 13.3"""
     from app.models.interview import InterviewAnswer, InterviewQuestion
-    
-    # Save answer
-    answer = InterviewAnswer(
-        question_id=data.question_id,
-        answer_text=data.answer_text
+
+    # ── Upsert: check if answer already exists for this question ────────────
+    existing_res = await db.execute(
+        select(InterviewAnswer).where(InterviewAnswer.question_id == data.question_id)
     )
-    db.add(answer)
-    
-    # Evaluate answer using LLM
+    answer = existing_res.scalar_one_or_none()
+
+    if answer:
+        # Update existing answer text (re-evaluate)
+        answer.answer_text = data.answer_text
+        logger.info(f"Updating existing answer for question {data.question_id}")
+    else:
+        # Create new answer
+        answer = InterviewAnswer(
+            question_id=data.question_id,
+            answer_text=data.answer_text
+        )
+        db.add(answer)
+        logger.info(f"Creating new answer for question {data.question_id}")
+
+    # ── Default values ───────────────────────────────────────────────────────
+    scores = {"relevance": 0.75, "completeness": 0.70, "clarity": 0.80}
+    feedback_text = "Good answer. Keep practicing."
+    strengths_list = ["Clear communication", "Relevant experience cited"]
+    improvements_list = ["Add more specific metrics", "Structure answer with STAR method"]
+
+    # ── Evaluate answer using LLM ────────────────────────────────────────────
     try:
         from app.services.nlp.llm_client import llm_client
-        eval_prompt = f"""Evaluate this interview answer briefly.
+        eval_prompt = f"""You are an expert interview coach. Evaluate the following interview answer thoroughly.
+
 Answer: {data.answer_text}
 
-Return JSON: {{"relevance": 0.0-1.0, "completeness": 0.0-1.0, "clarity": 0.0-1.0, "feedback": "brief feedback"}}"""
-        
+Return ONLY a valid JSON object with this exact structure:
+{{
+  "relevance": 0.0,
+  "completeness": 0.0,
+  "clarity": 0.0,
+  "feedback": "Overall feedback in 1-2 sentences.",
+  "strengths": ["Strength 1", "Strength 2"],
+  "improvements": ["Improvement suggestion 1", "Improvement suggestion 2"]
+}}
+
+Rules:
+- relevance, completeness, clarity must be floats between 0.0 and 1.0
+- strengths: list of 2-3 specific things done well
+- improvements: list of 2-3 concrete suggestions to improve
+- Be specific and actionable, not generic"""
+
         eval_response = await llm_client.generate(
-            prompt=eval_prompt, task_type="fast", temperature=0.3, max_tokens=200
+            prompt=eval_prompt, task_type="fast", temperature=0.3, max_tokens=400
         )
-        
+
         from app.utils.json_parser import json_parser
-        
-        scores = {"relevance": 0.75, "completeness": 0.70, "clarity": 0.80}
-        feedback_text = "Good answer. Keep practicing."
         if eval_response:
             try:
                 parsed = json_parser.extract_json_object(eval_response)
@@ -481,37 +510,62 @@ Return JSON: {{"relevance": 0.0-1.0, "completeness": 0.0-1.0, "clarity": 0.0-1.0
                     "clarity": float(parsed.get("clarity", 0.80)),
                 }
                 feedback_text = parsed.get("feedback", feedback_text)
-            except Exception:
-                pass
+                raw_strengths = parsed.get("strengths", strengths_list)
+                raw_improvements = parsed.get("improvements", improvements_list)
+                if isinstance(raw_strengths, list):
+                    strengths_list = raw_strengths
+                if isinstance(raw_improvements, list):
+                    improvements_list = raw_improvements
+            except Exception as parse_err:
+                logger.warning(f"Failed to parse evaluation JSON: {parse_err}")
 
-        answer.relevance_score = scores["relevance"]
-        answer.completeness_score = scores["completeness"]
-        answer.clarity_score = scores["clarity"]
-        answer.feedback = feedback_text
-        
-        # Check completion
+    except Exception as llm_err:
+        logger.warning(f"LLM evaluation failed, using defaults: {llm_err}")
+
+    # ── Persist scores ───────────────────────────────────────────────────────
+    answer.relevance_score = scores["relevance"]
+    answer.completeness_score = scores["completeness"]
+    answer.clarity_score = scores["clarity"]
+    answer.feedback = feedback_text
+    answer.strengths = json.dumps(strengths_list)
+    answer.improvements = json.dumps(improvements_list)
+
+    # ── Check session completion ─────────────────────────────────────────────
+    try:
         questions_count_res = await db.execute(
             select(func.count(InterviewQuestion.id)).where(InterviewQuestion.session_id == session_id)
         )
         count = questions_count_res.scalar_one()
-        
+
         if count >= 5:
             session_res = await db.execute(select(InterviewSession).where(InterviewSession.id == session_id))
-            interview_session = session_res.scalar_one()
-            interview_session.status = "completed"
-            interview_session.completed_at = datetime.now(timezone.utc)
+            interview_session = session_res.scalar_one_or_none()
+            if interview_session:
+                interview_session.status = "completed"
+                interview_session.completed_at = datetime.now(timezone.utc)
 
         await db.commit()
 
         return {
-            "evaluation": {"scores": scores, "feedback": feedback_text},
+            "evaluation": {
+                "scores": scores,
+                "feedback": feedback_text,
+                "strengths": strengths_list,
+                "improvements": improvements_list
+            },
             "status": "completed" if count >= 5 else "in_progress"
         }
+
     except Exception as e:
-        logger.error(f"Evaluation error: {e}")
-        await db.commit()
+        logger.error(f"Evaluation commit error: {e}")
+        await db.rollback()
         return {
-            "evaluation": {"scores": {"relevance": 0.7, "completeness": 0.7, "clarity": 0.7}, "feedback": "Answer recorded."},
+            "evaluation": {
+                "scores": scores,
+                "feedback": feedback_text,
+                "strengths": strengths_list,
+                "improvements": improvements_list
+            },
             "status": "in_progress"
         }
 
@@ -524,61 +578,101 @@ async def get_interview_next_question(
     db: AsyncSession = Depends(get_db)
 ):
     """Get the next adaptive question for the session."""
+    from app.models.interview import InterviewAnswer
+
     # Ownership check
     session_res = await db.execute(select(InterviewSession).where(InterviewSession.id == session_id))
     session = session_res.scalar_one_or_none()
     if not session or session.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # Get latest question to check count
-    questions_count_res = await db.execute(
-        select(func.count(InterviewQuestion.id)).where(InterviewQuestion.session_id == session_id)
+    # Get ALL questions for this session ordered by sequence
+    all_q_res = await db.execute(
+        select(InterviewQuestion)
+        .where(InterviewQuestion.session_id == session_id)
+        .order_by(InterviewQuestion.sequence_number)
     )
-    count = questions_count_res.scalar_one()
+    all_questions = all_q_res.scalars().all()
+    count = len(all_questions)
 
+    # ── KEY FIX: Return existing unanswered question if one exists ──────────
+    for q in all_questions:
+        ans_res = await db.execute(
+            select(InterviewAnswer).where(InterviewAnswer.question_id == q.id)
+        )
+        existing_ans = ans_res.scalar_one_or_none()
+        if existing_ans is None:
+            # This question has no answer yet — return it instead of creating a new one
+            logger.info(f"Resuming: returning existing unanswered question {q.id} (seq {q.sequence_number})")
+            return {
+                "id": str(q.id),
+                "text": q.question_text,
+                "type": q.question_type or "adaptive",
+                "question": q.question_text
+            }
+
+    # All existing questions are answered — check if session is complete
     if count >= 5:
         return {"question": None, "status": "completed"}
 
-    # Fetch last answer for adaptive logic
-    from app.models.interview import InterviewAnswer
-    last_q_stmt = select(InterviewQuestion).where(InterviewQuestion.session_id == session_id).order_by(InterviewQuestion.sequence_number.desc()).limit(1)
-    last_q_res = await db.execute(last_q_stmt)
-    last_q = last_q_res.scalar_one_or_none()
-    
-    last_ans_text = ""
-    if last_q:
-        ans_res = await db.execute(select(InterviewAnswer).where(InterviewAnswer.question_id == last_q.id))
-        ans = ans_res.scalar_one_or_none()
-        if ans:
-            last_ans_text = ans.answer_text
+    # Build full conversation history from ALL answered Q&A pairs
+    conversation_history = []
+    for prev_q in all_questions:
+        ans_res = await db.execute(
+            select(InterviewAnswer).where(InterviewAnswer.question_id == prev_q.id)
+        )
+        prev_ans = ans_res.scalar_one_or_none()
+        if prev_ans:
+            conversation_history.append({
+                "q_num": prev_q.sequence_number,
+                "question": prev_q.question_text,
+                "answer": prev_ans.answer_text,
+                "scores": {
+                    "relevance": float(prev_ans.relevance_score or 0),
+                    "completeness": float(prev_ans.completeness_score or 0),
+                    "clarity": float(prev_ans.clarity_score or 0),
+                }
+            })
 
-    # Generate next question
+    # Format conversation for the prompt
+    history_text = ""
+    for item in conversation_history:
+        avg_score = sum(item["scores"].values()) / 3
+        score_label = "Excellent" if avg_score >= 0.85 else "Good" if avg_score >= 0.70 else "Needs improvement"
+        history_text += f"\nQ{item['q_num']}: {item['question']}\nA{item['q_num']}: {item['answer'][:400]}{'...' if len(item['answer']) > 400 else ''}\n[Score: {score_label} ({avg_score:.0%})]\n"
+
     next_q_text = "Tell me more about your experience."
     try:
         from app.services.nlp.llm_client import llm_client
         from app.models.job_description import JobDescription
         jd_res = await db.execute(select(JobDescription).where(JobDescription.id == session.job_description_id))
-        jd = jd_res.scalar_one()
-        
-        import json
-        context_dict = json.loads(session.context_data) if session.context_data else {}
-        ctx = context_dict.get("analysis_context", "")
-        diff = context_dict.get("difficulty", "mid")
-        itype = context_dict.get("interview_type", "mixed")
+        jd = jd_res.scalar_one_or_none()
 
-        prompt = f"""You are a professional interviewer for: {jd.title}.
-CONTEXT: {ctx}
-PREVIOUS ANSWER: {last_ans_text}
-DIFFICULTY: {diff}
-INTERVIEW TYPE: {itype}
+        if jd:
+            context_dict = json.loads(session.context_data) if session.context_data else {}
+            ctx = context_dict.get("analysis_context", "")
+            diff = context_dict.get("difficulty", "mid")
+            itype = context_dict.get("interview_type", "mixed")
 
-TASK: Generate the NEXT adaptive interview question (Question {count + 1} of 5). 
-Focus on probing deeper or moving to a related skill gap.
-Return ONLY the question text."""
-        
-        q = await llm_client.generate(prompt=prompt, task_type="fast", temperature=0.7)
-        if q:
-            next_q_text = q.strip()
+            prompt = f"""You are a professional interviewer for the position: {jd.title}.
+DIFFICULTY: {diff} | TYPE: {itype}
+CANDIDATE SKILL GAPS: {ctx if ctx else "Not specified"}
+
+FULL INTERVIEW CONVERSATION SO FAR:
+{history_text if history_text else "This is the first question."}
+
+TASK: Generate Question {count + 1} of 5.
+Rules:
+- Build NATURALLY on what the candidate has already said
+- If a previous answer was weak (Needs improvement), probe deeper on that topic
+- If a previous answer was strong, move to a new related skill area
+- Do NOT repeat topics already covered well
+- Keep it conversational and progressive
+Return ONLY the question text, no preamble."""
+
+            q_text = await llm_client.generate(prompt=prompt, task_type="fast", temperature=0.7)
+            if q_text:
+                next_q_text = q_text.strip()
     except Exception as e:
         logger.warning(f"Next question generation failed: {e}")
 
@@ -591,12 +685,12 @@ Return ONLY the question text."""
     )
     db.add(next_q)
     await db.commit()
-    
+
     return {
         "id": str(next_q.id),
         "text": next_q.question_text,
         "type": "adaptive",
-        "question": next_q.question_text # For compatibility
+        "question": next_q.question_text
     }
 
 
@@ -722,7 +816,6 @@ async def get_interview_sessions(
         )
         question_count = q_count_result.scalar_one()
         
-        import json
         context_dict = json.loads(session.context_data) if session.context_data else {}
         
         items.append({

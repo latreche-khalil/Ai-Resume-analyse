@@ -19,6 +19,7 @@ from app.models.analysis_record import AnalysisRecord
 from app.models.gap_report import GapReport
 from app.models.xai_report import XAIReport
 from app.models.job_description import JobDescription
+from app.models.batch_ranking_result import BatchRankingResult
 from app.services.agents.multi_agent_orchestrator import multi_agent_orchestrator
 from app.schemas.analysis import (
     AnalysisRequest,
@@ -356,7 +357,7 @@ async def batch_rank_uploaded_candidates(
         for skill in candidate.get("missing_skills", [])
     })
 
-    return {
+    response_data = {
         **ranking_result,
         "comparison": {
             "best_candidate": best,
@@ -376,6 +377,100 @@ async def batch_rank_uploaded_candidates(
         },
         "sort_options": ["rank", "composite_score", "skills_match", "semantic_similarity", "experience_level"],
     }
+
+    # Save to database
+    db_result = BatchRankingResult(
+        recruiter_id=current_user.id,
+        jd_id=job_description.id,
+        jd_title=job_description.title,
+        cv_count=len(unique_cv_ids),
+        best_candidate=best.get("filename") if best else None,
+        best_score=best.get("composite_score") if best else None,
+        result_data=response_data
+    )
+    db.add(db_result)
+    await db.commit()
+    await db.refresh(db_result)
+
+    response_data["id"] = str(db_result.id)
+    response_data["created_at"] = db_result.created_at.isoformat()
+
+    return response_data
+
+
+@router.get(
+    "/batch-rank",
+    response_model=List[Dict[str, Any]],
+    summary="List recruiter's batch ranking history"
+)
+async def list_batch_ranking_history(
+    current_user: User = Depends(require_role("recruiter")),
+    db: AsyncSession = Depends(get_db)
+) -> List[Dict[str, Any]]:
+    """Get the recruiter's batch ranking history from the database."""
+    query = select(BatchRankingResult).where(
+        BatchRankingResult.recruiter_id == current_user.id
+    ).order_by(BatchRankingResult.created_at.desc())
+    
+    result = await db.execute(query)
+    records = result.scalars().all()
+    
+    return [
+        {
+            "id": str(r.id),
+            "jd_id": str(r.jd_id) if r.jd_id else None,
+            "jd_title": r.jd_title,
+            "cv_count": r.cv_count,
+            "best_candidate": r.best_candidate,
+            "best_score": r.best_score,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "result_data": r.result_data
+        }
+        for r in records
+    ]
+
+
+@router.post(
+    "/batch-rank/clear",
+    summary="Clear all batch ranking history"
+)
+async def clear_batch_ranking_history(
+    current_user: User = Depends(require_role("recruiter")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete all batch ranking history records for the current recruiter."""
+    from sqlalchemy import delete
+    await db.execute(
+        delete(BatchRankingResult).where(BatchRankingResult.recruiter_id == current_user.id)
+    )
+    await db.commit()
+    return {"message": "Batch ranking history cleared successfully"}
+
+
+@router.delete(
+    "/batch-rank/{result_id}",
+    summary="Delete a specific batch ranking history entry"
+)
+async def delete_batch_ranking_entry(
+    result_id: UUID,
+    current_user: User = Depends(require_role("recruiter")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete a specific batch ranking result by ID."""
+    query = select(BatchRankingResult).where(
+        BatchRankingResult.id == result_id,
+        BatchRankingResult.recruiter_id == current_user.id
+    )
+    result = await db.execute(query)
+    record = result.scalar_one_or_none()
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Batch ranking result not found"
+        )
+    await db.delete(record)
+    await db.commit()
+    return {"message": "Batch ranking entry deleted successfully"}
 
 
 @router.get(
