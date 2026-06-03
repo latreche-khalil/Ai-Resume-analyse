@@ -7,12 +7,11 @@ from alembic import context
 from app.models.base import Base
 from app.core.config import settings
 
-# Import all models to ensure they're registered with Base
 from app.models import (
     User, CVDocument, PIIMapping, SkillReport, JobDescription,
     AnalysisRecord, GapReport, XAIReport, AuditLog,
     ChatSession, ChatMessage, InterviewSession, InterviewQuestion, InterviewAnswer,
-    CeleryTask, DeadLetterQueue, Feedback
+    CeleryTask, DeadLetterQueue, Feedback, Testimonial, BatchRankingResult
 )
 
 # this is the Alembic Config object

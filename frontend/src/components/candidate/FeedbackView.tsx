@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { MessageSquare, Send, CheckCircle, AlertCircle, Star } from 'lucide-react'
+import { MessageSquare, Send, CheckCircle, AlertCircle, Star, Pencil, Clock } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
 import { toast } from 'sonner'
@@ -25,6 +25,7 @@ export function FeedbackView() {
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
   const [myFeedback, setMyFeedback] = useState<FeedbackItem[]>([])
+  const [editingFeedbackId, setEditingFeedbackId] = useState<string | null>(null)
 
   const feedbackTypes = [
     { value: 'general', label: 'General Feedback', icon: '💬', description: 'Share your thoughts about the platform' },
@@ -33,26 +34,74 @@ export function FeedbackView() {
     { value: 'matching', label: 'Matching Issue', icon: '🔍', description: 'Report job matching issues' }
   ]
 
+  const loadFeedbacks = async () => {
+    try {
+      const data = await apiClient.getMyFeedback()
+      setMyFeedback(Array.isArray(data) ? data : [])
+    } catch (e) {
+      console.error('Failed to load my feedback:', e)
+    }
+  }
+
+  useEffect(() => {
+    loadFeedbacks()
+  }, [])
+
+  const isEditable = (createdAtStr: string) => {
+    const created = new Date(createdAtStr)
+    const diffTime = Math.abs(new Date().getTime() - created.getTime())
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays <= 15
+  }
+
+  const handleEditClick = (item: FeedbackItem) => {
+    setEditingFeedbackId(item.id)
+    setFormData({
+      feedback_type: item.feedback_type,
+      rating: item.rating || 5,
+      feedback_text: item.feedback_text || ''
+    })
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleCancelEdit = () => {
+    setEditingFeedbackId(null)
+    setFormData({
+      feedback_type: 'general',
+      rating: 5,
+      feedback_text: ''
+    })
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
 
     try {
-      await apiClient.submitFeedback({
-        accuracy_rating: formData.rating,
-        feedback_text: formData.feedback_text,
-        is_dispute: false
-      })
+      if (editingFeedbackId) {
+        await apiClient.updateFeedback(editingFeedbackId, {
+          accuracy_rating: formData.rating,
+          feedback_text: formData.feedback_text
+        })
+        toast.success('Your feedback has been updated successfully.')
+        setEditingFeedbackId(null)
+      } else {
+        await apiClient.submitFeedback({
+          accuracy_rating: formData.rating,
+          feedback_text: formData.feedback_text,
+          is_dispute: false
+        })
+        toast.success('Thank you! Your feedback has been submitted successfully.')
+      }
 
       setSuccess(true)
-      toast.success('Thank you! Your feedback has been submitted successfully.')
-      
       setFormData({
         feedback_type: 'general',
         rating: 5,
         feedback_text: ''
       })
+      loadFeedbacks()
 
       setTimeout(() => {
         setSuccess(false)
@@ -99,9 +148,13 @@ export function FeedbackView() {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold theme-text mb-2">Send Feedback</h1>
+          <h1 className="text-3xl font-bold theme-text mb-2">
+            {editingFeedbackId ? 'Edit Your Feedback' : 'Send Feedback'}
+          </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Help us improve by sharing your feedback, suggestions, or reporting issues
+            {editingFeedbackId 
+              ? 'Update your feedback ratings and details below.' 
+              : 'Help us improve by sharing your feedback, suggestions, or reporting issues'}
           </p>
         </div>
 
@@ -198,23 +251,35 @@ export function FeedbackView() {
                 </div>
 
                 {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={loading || success}
-                  className="w-full px-6 py-4 bg-gradient-to-r from-sky-500 to-blue-600 text-white font-semibold rounded-lg hover:from-sky-600 hover:to-blue-700 focus:ring-4 focus:ring-sky-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-                >
-                  {loading ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Submitting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-5 h-5" />
-                      <span>Submit Feedback</span>
-                    </>
+                <div className="flex gap-3">
+                  <button
+                    type="submit"
+                    disabled={loading || success}
+                    className="flex-1 px-6 py-4 bg-gradient-to-r from-sky-500 to-blue-600 text-white font-semibold rounded-lg hover:from-sky-600 hover:to-blue-700 focus:ring-4 focus:ring-sky-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                  >
+                    {loading ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>{editingFeedbackId ? 'Updating...' : 'Submitting...'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-5 h-5" />
+                        <span>{editingFeedbackId ? 'Update Feedback' : 'Submit Feedback'}</span>
+                      </>
+                    )}
+                  </button>
+
+                  {editingFeedbackId && (
+                    <button
+                      type="button"
+                      onClick={handleCancelEdit}
+                      className="px-6 py-4 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-650 text-gray-700 dark:text-neutral-300 font-semibold rounded-lg transition-all"
+                    >
+                      Cancel
+                    </button>
                   )}
-                </button>
+                </div>
 
                 <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
                   Your feedback is private and will only be visible to our team.
@@ -277,6 +342,54 @@ export function FeedbackView() {
             </div>
           </div>
         </div>
+
+        {/* Feedback History List */}
+        {myFeedback.length > 0 && (
+          <div className="mt-12 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-gray-200 dark:border-slate-700 p-8">
+            <h2 className="text-2xl font-bold theme-text mb-6">My Feedback History</h2>
+            <div className="space-y-4">
+              {myFeedback.map((item) => (
+                <div key={item.id} className="p-5 border border-gray-100 dark:border-slate-700 rounded-xl bg-gray-50/50 dark:bg-slate-900/30">
+                  <div className="flex items-start justify-between gap-4 flex-wrap mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold px-2 py-1 bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 rounded capitalize">
+                        {item.feedback_type}
+                      </span>
+                      <div className="flex items-center">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <Star
+                            key={s}
+                            className={`w-4 h-4 ${
+                              s <= (item.rating || 0)
+                                ? 'fill-yellow-400 text-yellow-400'
+                                : 'fill-gray-200 dark:fill-gray-700 text-gray-200 dark:text-gray-700'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <span className="text-xs text-gray-400">
+                      {new Date(item.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">{item.feedback_text}</p>
+                  
+                  {isEditable(item.created_at) && (
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => handleEditClick(item)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 text-sky-600 dark:text-sky-400 rounded-lg transition-all border border-gray-200 dark:border-slate-700"
+                      >
+                        <Pencil size={12} />
+                        Edit Feedback
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

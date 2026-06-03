@@ -24,10 +24,6 @@ class JobDescription(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         required_skills: List of required skills
         preferred_skills: List of preferred/nice-to-have skills
         experience_level: Required experience level
-        education_requirements: Education requirements
-        work_arrangement: Work arrangement type
-        salary_range_min: Minimum salary
-        salary_range_max: Maximum salary
         is_active: Whether JD is currently active
         is_archived: Whether JD has been archived
     """
@@ -62,53 +58,7 @@ class JobDescription(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         comment="Full job description text"
     )
     
-    # Skills
-    required_skills = Column(
-        JSON,
-        nullable=False,
-        default=list,
-        comment="List of required skills"
-    )
-    
-    preferred_skills = Column(
-        JSON,
-        nullable=False,
-        default=list,
-        comment="List of preferred/nice-to-have skills"
-    )
-    
-    # Requirements
-    experience_level = Column(
-        String(20),
-        nullable=True,
-        comment="Required experience level: entry, mid, senior, or expert"
-    )
-    
-    education_requirements = Column(
-        JSON,
-        nullable=True,
-        comment="Education requirements"
-    )
-    
-    work_arrangement = Column(
-        String(20),
-        nullable=True,
-        comment="Work arrangement: remote, hybrid, or onsite"
-    )
-    
-    # Compensation
-    salary_range_min = Column(
-        Integer,
-        nullable=True,
-        comment="Minimum salary"
-    )
-    
-    salary_range_max = Column(
-        Integer,
-        nullable=True,
-        comment="Maximum salary"
-    )
-    
+
     # Status
     is_active = Column(
         Boolean,
@@ -175,10 +125,4 @@ class JobDescription(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     
     def __repr__(self) -> str:
         return f"<JobDescription(id={self.id}, title={self.title})>"
-    
-    @property
-    def total_skills(self) -> int:
-        """Get total number of required and preferred skills."""
-        required = len(self.required_skills) if self.required_skills else 0
-        preferred = len(self.preferred_skills) if self.preferred_skills else 0
-        return required + preferred
+

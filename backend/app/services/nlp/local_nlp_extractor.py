@@ -9,6 +9,7 @@ from typing import Dict, List, Any, Optional
 from app.utils.logger import logger
 
 try:
+    # pyrefly: ignore [missing-import]
     from gliner import GLiNER
     GLINER_AVAILABLE = True
 except ImportError:
@@ -140,24 +141,8 @@ class LocalNLPExtractor:
         return min(max(span * 12, 0), 600)
 
     def _fallback_extract(self, text: str) -> Dict[str, Any]:
-        """Keyword-based fallback if GLiNER model fails."""
-        from app.core.constants import POPULAR_SKILLS
-        
-        # 1. Extract skills from a known list
-        text_lower = text.lower()
-        found_skills = []
-        for skill in POPULAR_SKILLS:
-            # Use word boundaries to avoid partial matches (e.g., 'C' in 'Cloud')
-            pattern = r'\b' + re.escape(skill.lower()) + r'\b'
-            if re.search(pattern, text_lower):
-                found_skills.append({
-                    "name": skill,
-                    "level": 70,
-                    "category": "Detected",
-                    "demand": 75
-                })
-        
-        # 2. Extract job titles (simple patterns)
+        """Fallback if GLiNER model is not available. Rely entirely on LLM for skills."""
+        # Extract job titles (simple patterns)
         titles = set()
         title_patterns = [
             r'\b(?:Senior|Junior|Lead|Principal)?\s*(?:Software|Data|Systems|DevOps|Frontend|Backend|Fullstack|Cloud)\s*(?:Engineer|Developer|Architect|Analyst)\b',
@@ -171,13 +156,13 @@ class LocalNLPExtractor:
                 titles.add(m.title())
 
         return {
-            "skills": found_skills[:25],
+            "skills": [],
             "job_titles": list(titles)[:5],
             "companies": [], 
             "education": [], 
             "certifications": [],
             "total_experience_months": self._estimate_experience(text),
-            "extraction_confidence": 0.3,
+            "extraction_confidence": 0.0,
             "flagged_for_review": True
         }
 

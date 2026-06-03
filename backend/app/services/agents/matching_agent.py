@@ -73,35 +73,113 @@ class MatchingAgent:
             # cached_result = await redis_client.get_cache(cache_key)
             # if cached_result: return cached_result
             
-            # Try to use RAG for intelligent CV chunk retrieval - ONLY if text is short
+            # --- RAG strategy for CV ---
             cv_context = masked_cv
-            
+            CV_RAG_THRESHOLD = 5000  # chars
+
             try:
-                # Optimized RAG: only run if CV is short or if we need specific evidence
-                if len(masked_cv) < 2000:
-                    jd_summary = job_description[:300]
+                cv_len = len(masked_cv)
+                if cv_len >= CV_RAG_THRESHOLD:
+                    logger.info(f"Large CV detected ({cv_len} chars) — activating RAG retrieval")
+                    jd_summary = job_description[:500]
                     cv_chunks = await rag_pipeline.semantic_search(
                         query=jd_summary,
                         document_ids=[cv_document_id],
-                        top_k=4 # Reduced for speed
+                        top_k=8
                     )
                     if cv_chunks:
+                        # Use retrieved chunks as primary context + first 1000 chars for overview
+                        overview = masked_cv[:1000]
                         relevant_text = "\n\n".join([chunk['text'] for chunk in cv_chunks])
-                        cv_context = f"{masked_cv[:self.CV_TEXT_LIMIT]}\n\n--- KEY EVIDENCE ---\n\n{relevant_text}"
+                        cv_context = (
+                            f"--- CV OVERVIEW ---\n{overview}\n\n"
+                            f"--- MOST RELEVANT SECTIONS (RAG) ---\n{relevant_text}"
+                        )
+                        logger.info(f"RAG (CV): retrieved {len(cv_chunks)} chunks ({len(cv_context)} chars total)")
+                    else:
+                        cv_context = masked_cv[:self.CV_TEXT_LIMIT]
+                        logger.info("RAG (CV): no chunks found, using truncated text")
+                else:
+                    cv_context = masked_cv
             except Exception as rag_err:
-                logger.warning(f"Matching Agent RAG skipped: {rag_err}")
-                cv_context = masked_cv
+                logger.warning(f"RAG (CV) retrieval failed, using full text: {rag_err}")
+                cv_context = masked_cv[:self.CV_TEXT_LIMIT]
+
+            # --- RAG strategy for Job Description (JD) ---
+            jd_context = job_description
+            JD_RAG_THRESHOLD = 5000  # chars
+
+            try:
+                jd_len = len(job_description)
+                if jd_len >= JD_RAG_THRESHOLD:
+                    logger.info(f"Large JD detected ({jd_len} chars) — activating dynamic RAG retrieval")
+                    import asyncio
+                    await asyncio.to_thread(rag_pipeline._ensure_initialized)
+                    
+                    if rag_pipeline.embedding_model:
+                        # Chunk the JD
+                        jd_chunks = rag_pipeline.chunk_text(job_description, language)
+                        if len(jd_chunks) > 1:
+                            jd_texts = [chunk['text'] for chunk in jd_chunks]
+                            
+                            # Embed JD chunks
+                            jd_embs = await asyncio.to_thread(
+                                rag_pipeline.embedding_model.encode,
+                                jd_texts,
+                                show_progress_bar=False,
+                                convert_to_numpy=True
+                            )
+                            
+                            # Embed query (CV overview / first 1000 chars of masked CV)
+                            cv_query = masked_cv[:1000]
+                            query_emb = await asyncio.to_thread(
+                                rag_pipeline.embedding_model.encode,
+                                [cv_query],
+                                show_progress_bar=False,
+                                convert_to_numpy=True
+                            )[0]
+                            
+                            # Calculate cosine similarity
+                            import numpy as np
+                            jd_embs_norm = jd_embs / np.linalg.norm(jd_embs, axis=1, keepdims=True)
+                            query_emb_norm = query_emb / np.linalg.norm(query_emb)
+                            similarities = np.dot(jd_embs_norm, query_emb_norm)
+                            
+                            # Sort descending
+                            sorted_indices = np.argsort(similarities)[::-1]
+                            
+                            # Take top K chunks (e.g. 4 chunks)
+                            top_k = min(4, len(jd_chunks))
+                            top_indices = sorted(sorted_indices[:top_k])
+                            
+                            relevant_jd_chunks = [jd_texts[idx] for idx in top_indices]
+                            jd_context = (
+                                "--- JOB DESCRIPTION OVERVIEW ---\n"
+                                f"{job_description[:800]}\n\n"
+                                "--- MOST RELEVANT JOB DESCRIPTION SECTIONS (RAG) ---\n"
+                                + "\n\n".join(relevant_jd_chunks)
+                            )
+                            logger.info(f"RAG (JD): retrieved {top_k} chunks ({len(jd_context)} chars total)")
+                        else:
+                            logger.info("RAG (JD): only 1 chunk, using full description")
+                    else:
+                        jd_context = job_description[:self.JD_TEXT_LIMIT]
+                else:
+                    jd_context = job_description
+            except Exception as jd_rag_err:
+                logger.warning(f"RAG (JD) retrieval failed, using fallback/truncated: {jd_rag_err}")
+                jd_context = job_description[:self.JD_TEXT_LIMIT]
             
             # Validate inputs
             if not cv_context or len(cv_context.strip()) < 50:
                 raise ValueError(f"CV context is too short or empty ({len(cv_context) if cv_context else 0} chars). Extraction might have failed.")
-            if not job_description or len(job_description.strip()) < 20:
-                raise ValueError(f"Job description is too short or empty ({len(job_description) if job_description else 0} chars).")
+            if not jd_context or len(jd_context.strip()) < 20:
+                raise ValueError(f"Job description context is too short or empty ({len(jd_context) if jd_context else 0} chars).")
 
             # Create matching prompt
             prompt = self._create_matching_prompt(
                 cv_text=cv_context,
-                jd_text=job_description,
+                jd_text=jd_context,
                 language=language
             )
             
@@ -115,12 +193,6 @@ class MatchingAgent:
             
             if not response:
                 raise Exception("Failed to get response from LLM")
-            
-            # Debug log for reasoning/response analysis
-            with open("debug_llm_response.txt", "a", encoding="utf-8") as f:
-                f.write(f"\n--- ANALYSIS {cv_document_id} ---\n")
-                f.write(response)
-                f.write("\n---------------------------\n")
             
             # Parse response
             match_result = self._parse_matching_response(response)
@@ -161,12 +233,10 @@ THINK STEP-BY-STEP:
 3. CROSS-REFERENCE: Where are the direct matches? Where are the semantic overlaps (Transferable)? What is strictly missing?
 4. CALCULATE: Match score should be 100% only if ALL critical requirements are met with proven impact.
 
-BE CONCISE and use high-density professional language in your summary. Focus on the candidate's Value Proposition.
-
 OUTPUT LANGUAGE: MUST be {lang}.
 
 JOB DESCRIPTION:
-{jd_text[:self.JD_TEXT_LIMIT]}
+{jd_text}
 
 CANDIDATE CV:
 {cv_text[:self.CV_TEXT_LIMIT]}
@@ -181,18 +251,36 @@ OUTPUT FORMAT (Strict JSON):
   "recommendation": "shortlist/interview/reject",
   "confidence": "high/medium/low",
   "seniority_alignment": {{
-    "cv_level": "Level detected",
-    "jd_level": "Level required",
+    "cv_level": "Level detected from CV",
+    "jd_level": "Level required by JD",
     "match": "matched/underqualified/overqualified",
-    "explanation": "Depth of experience vs years required."
+    "explanation": "Brief explanation of seniority fit."
   }},
+  "evidence_for_hire": [
+    "Specific evidence from CV that supports hiring (e.g., 'Led team of 8 engineers at X company')",
+    "Quantified achievement directly relevant to the role",
+    "Directly verified skill with proof of use"
+  ],
+  "evidence_against_hire": [
+    "Specific gap or concern from CV (e.g., 'No experience with Kubernetes despite it being required')",
+    "Missing critical qualification",
+    "Potential red flag with explanation"
+  ],
+  "interview_questions": [
+    "Technical question targeting a key gap or claimed skill",
+    "Behavioral question based on a red flag or uncertainty",
+    "Role-specific scenario question"
+  ],
+  "hiring_recommendation": "1-2 sentences for the hiring manager: whether to proceed, what to probe in interview, and any conditions.",
   "red_flags": ["Gaps, lack of impact, or missing mandatory stack"],
   "hiring_urgency": "low/medium/high"
 }}
 
 RULES:
 - Be CRITICAL. Low-quality matches must have low scores (<0.40).
-- summary must NOT contain the numeric score value.
+- summary and hiring_recommendation must NOT contain the numeric score value.
+- evidence_for_hire and evidence_against_hire must reference SPECIFIC content from the CV, not generic statements.
+- interview_questions must be role-specific and actionable.
 - Only return the JSON object."""
     
     def _parse_matching_response(self, response: str) -> Dict[str, Any]:
@@ -234,7 +322,12 @@ RULES:
                     'cv_level': 'unknown', 'jd_level': 'unknown', 'match': 'unknown', 'explanation': ''
                 }),
                 'red_flags': result.get('red_flags', [])[:self.MAX_RED_FLAGS],
-                'hiring_urgency': result.get('hiring_urgency', 'standard')
+                'hiring_urgency': result.get('hiring_urgency', 'standard'),
+                # New recruiter-specific fields
+                'evidence_for_hire':     result.get('evidence_for_hire', [])[:6],
+                'evidence_against_hire': result.get('evidence_against_hire', [])[:6],
+                'interview_questions':   result.get('interview_questions', [])[:5],
+                'hiring_recommendation': result.get('hiring_recommendation', ''),
             }
             
         except Exception as e:

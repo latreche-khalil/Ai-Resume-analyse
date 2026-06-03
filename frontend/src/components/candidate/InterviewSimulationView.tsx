@@ -13,7 +13,12 @@ import {
 
 type Phase = 'setup' | 'interview' | 'complete' | 'history'
 interface Question { id: string; text: string; type: string }
-interface Evaluation { scores: { relevance: number; completeness: number; clarity: number }; feedback: string }
+interface Evaluation {
+  scores: { relevance: number; completeness: number; clarity: number }
+  feedback: string
+  strengths?: string[]
+  improvements?: string[]
+}
 interface InterviewSession {
   id: string
   status: string
@@ -330,6 +335,8 @@ export function InterviewSimulationView() {
               {evaluation ? (
                 <motion.div key="eval" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                   className="bg-white dark:bg-[#0f0f11] border border-emerald-200 dark:border-emerald-500/20 rounded-2xl p-7 shadow-sm space-y-5">
+                  
+                  {/* Header + Scores */}
                   <div className="flex items-center justify-between flex-wrap gap-4">
                     <div className="flex items-center gap-2">
                       <CheckCircle2 size={18} className="text-emerald-500" />
@@ -338,13 +345,63 @@ export function InterviewSimulationView() {
                     <div className="flex gap-5">
                       {Object.entries(evaluation.scores).map(([k, v]) => (
                         <div key={k} className="text-center">
-                          <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{Math.round(v * 100)}%</div>
+                          <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{Math.round((v as number) * 100)}%</div>
                           <div className="text-[10px] text-gray-400 dark:text-neutral-500 capitalize">{k}</div>
                         </div>
                       ))}
                     </div>
                   </div>
-                  <p className="text-sm text-gray-700 dark:text-neutral-300 leading-relaxed">{evaluation.feedback}</p>
+
+                  {/* Feedback */}
+                  <p className="text-sm text-gray-700 dark:text-neutral-300 leading-relaxed border-l-2 border-emerald-400 pl-3">
+                    {evaluation.feedback}
+                  </p>
+
+                  {/* Strengths & Improvements */}
+                  {((evaluation.strengths && evaluation.strengths.length > 0) || (evaluation.improvements && evaluation.improvements.length > 0)) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Strengths */}
+                      {evaluation.strengths && evaluation.strengths.length > 0 && (
+                        <div className="bg-emerald-50 dark:bg-emerald-500/5 border border-emerald-200 dark:border-emerald-500/20 rounded-xl p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="w-5 h-5 rounded-md bg-emerald-500/20 flex items-center justify-center">
+                              <CheckCircle2 size={12} className="text-emerald-600 dark:text-emerald-400" />
+                            </div>
+                            <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 tracking-wide uppercase">Strengths</span>
+                          </div>
+                          <ul className="space-y-1.5">
+                            {evaluation.strengths.map((s: string, i: number) => (
+                              <li key={i} className="flex items-start gap-2 text-xs text-emerald-800 dark:text-emerald-300">
+                                <span className="mt-0.5 shrink-0 w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                {s}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Improvements */}
+                      {evaluation.improvements && evaluation.improvements.length > 0 && (
+                        <div className="bg-amber-50 dark:bg-amber-500/5 border border-amber-200 dark:border-amber-500/20 rounded-xl p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="w-5 h-5 rounded-md bg-amber-500/20 flex items-center justify-center">
+                              <Target size={12} className="text-amber-600 dark:text-amber-400" />
+                            </div>
+                            <span className="text-xs font-bold text-amber-700 dark:text-amber-400 tracking-wide uppercase">Improve</span>
+                          </div>
+                          <ul className="space-y-1.5">
+                            {evaluation.improvements.map((imp: string, i: number) => (
+                              <li key={i} className="flex items-start gap-2 text-xs text-amber-800 dark:text-amber-300">
+                                <span className="mt-0.5 shrink-0 w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                {imp}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex justify-end">
                     <button onClick={nextQuestion} disabled={loading}
                       className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-md shadow-blue-500/20 transition-all disabled:opacity-50">
@@ -446,24 +503,34 @@ export function InterviewSimulationView() {
             {/* Performance breakdown */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {[
-                { label: 'Communication', score: 0.82, icon: '💬', color: 'blue' },
-                { label: 'Technical Depth', score: 0.78, icon: '🔧', color: 'violet' },
-                { label: 'Problem Solving', score: 0.85, icon: '🧩', color: 'emerald' }
+                { label: 'Communication', score: 0.82, icon: '💬', color: 'blue', from: 'from-blue-400', to: 'to-blue-600', text: 'text-blue-600 dark:text-blue-400' },
+                { label: 'Technical Depth', score: 0.78, icon: '🔧', color: 'violet', from: 'from-violet-400', to: 'to-violet-600', text: 'text-violet-600 dark:text-violet-400' },
+                { label: 'Problem Solving', score: 0.85, icon: '🧩', color: 'emerald', from: 'from-emerald-400', to: 'to-emerald-600', text: 'text-emerald-600 dark:text-emerald-400' }
               ].map((metric, i) => (
-                <motion.div key={i} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}
+                <motion.div key={i}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.15 + 0.3 }}
                   className="bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] rounded-xl p-5 shadow-sm">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">{metric.icon}</span>
                       <span className="text-sm font-bold text-slate-700 dark:text-neutral-300">{metric.label}</span>
                     </div>
-                    <span className={`text-xl font-extrabold text-${metric.color}-600 dark:text-${metric.color}-400`}>
+                    <motion.span
+                      className={`text-xl font-extrabold ${metric.text}`}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: i * 0.15 + 0.6 }}>
                       {Math.round(metric.score * 100)}%
-                    </span>
+                    </motion.span>
                   </div>
-                  <div className="w-full h-2 bg-gray-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                    <motion.div initial={{ width: 0 }} animate={{ width: `${metric.score * 100}%` }} transition={{ duration: 0.8, delay: i * 0.1 }}
-                      className={`h-full bg-gradient-to-r from-${metric.color}-400 to-${metric.color}-600 rounded-full`} />
+                  <div className="w-full h-2.5 bg-gray-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: '0%' }}
+                      animate={{ width: `${metric.score * 100}%` }}
+                      transition={{ duration: 1.2, delay: i * 0.15 + 0.5, ease: 'easeOut' }}
+                      className={`h-full bg-gradient-to-r ${metric.from} ${metric.to} rounded-full`} />
                   </div>
                 </motion.div>
               ))}
@@ -668,7 +735,12 @@ export function InterviewSimulationView() {
                     </span>
                   </div>
                   <p className="text-sm font-medium text-slate-600 dark:text-neutral-400">
-                    Completed on {new Date(selectedSession.completed_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    {selectedSession.completed_at
+                      ? `Completed on ${new Date(selectedSession.completed_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`
+                      : selectedSession.status === 'in_progress'
+                        ? '⏳ Interview in progress — not yet completed'
+                        : `Started on ${new Date(selectedSession.started_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`
+                    }
                   </p>
                 </div>
               </div>
@@ -746,7 +818,48 @@ export function InterviewSimulationView() {
             </div>
 
             {/* Actions */}
-            <div className="flex gap-3 justify-center pt-2">
+            <div className="flex flex-wrap gap-3 justify-center pt-2">
+              {/* Resume button for in_progress sessions */}
+              {selectedSession.status === 'in_progress' && (
+                <button
+                  onClick={async () => {
+                    setLoading(true)
+                    try {
+                      const sid = selectedSession.session_id || selectedSession.id
+                      const res = await apiClient.getInterviewNextQuestion(sid)
+
+                      if (res.id && (res.text || res.question)) {
+                        // Stop any active microphone
+                        if (isListening) { recognition?.stop(); setIsListening(false) }
+                        window.speechSynthesis?.cancel()
+
+                        // Reset ALL interview state before switching phase
+                        setSessionId(sid)
+                        setQuestion({ id: res.id, text: res.text || res.question, type: res.type || 'adaptive' })
+                        setQuestionNum((selectedSession.questions_answers?.length || 0) + 1)
+                        setAnswer('')
+                        setEvaluation(null)
+                        setReport(null)
+                        setTimeSeconds(0)
+                        setSelectedSession(null)
+                        setPhase('interview')
+                      } else if (res.status === 'completed') {
+                        toast.info('This interview is already complete. View the report above.')
+                      } else {
+                        toast.error('Could not load next question. Please try again.')
+                      }
+                    } catch (e: any) {
+                      toast.error(e?.message || 'Could not resume interview.')
+                    } finally {
+                      setLoading(false)
+                    }
+                  }}
+                  disabled={loading}
+                  className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50">
+                  {loading ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Resuming...</> : <><Activity size={15} /> Resume Interview</>}
+                </button>
+              )}
+
               <button onClick={() => { setPhase('setup'); setSelectedSession(null); setReport(null); setQuestionNum(1); setAnswer(''); setEvaluation(null); setTimeSeconds(0) }}
                 className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm shadow-lg shadow-blue-500/20 transition-all">
                 <RefreshCcw size={15} />

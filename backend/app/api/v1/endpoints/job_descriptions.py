@@ -60,13 +60,6 @@ async def create_job_description(
             title=jd_data.title,
             company=getattr(jd_data, 'company', None),
             description=jd_data.description,
-            required_skills=jd_data.required_skills or [],
-            preferred_skills=jd_data.preferred_skills or [],
-            experience_level=jd_data.experience_level,
-            education_requirements=jd_data.education_requirements,
-            work_arrangement=jd_data.work_arrangement,
-            salary_range_min=jd_data.salary_range_min,
-            salary_range_max=jd_data.salary_range_max,
             is_active=True,
             is_archived=False,
             word_count=word_count,
@@ -414,9 +407,9 @@ async def extract_skills_from_jd(
         return {
             "jd_id": str(jd_id),
             "extracted_skills": extracted_skills,
-            "current_required_skills": jd.required_skills,
-            "current_preferred_skills": jd.preferred_skills,
-            "message": "Skills extracted successfully. You can now add/remove skills manually."
+            "current_required_skills": [],
+            "current_preferred_skills": [],
+            "message": "Skills extracted successfully. Manual editing is deprecated."
         }
         
     except Exception as e:
@@ -462,19 +455,12 @@ async def update_jd_skills(
         )
     
     try:
-        # Update skills
-        if required_skills is not None:
-            jd.required_skills = required_skills
-        
-        if preferred_skills is not None:
-            jd.preferred_skills = preferred_skills
-        
         jd.updated_at = datetime.now(timezone.utc)
         
         await db.commit()
         await db.refresh(jd)
         
-        logger.info(f"Skills updated for JD {jd_id} by {current_user.email}")
+        logger.info(f"Skills update ignored for JD {jd_id} by {current_user.email}")
         
         return JobDescriptionResponse.model_validate(jd)
         
@@ -536,9 +522,6 @@ async def bulk_import_jds(
                     recruiter_id=current_user.id,
                     title=row['title'],
                     description=row['description'],
-                    required_skills=required_skills,
-                    preferred_skills=preferred_skills,
-                    experience_level=row.get('experience_level'),
                     is_active=True,
                     is_archived=False
                 )

@@ -17,12 +17,19 @@ interface WhatIfSimulatorProps {
   currentScore: number
   matchingSkills: string[]
   missingSkills: string[]
+  whatIfScenarios?: Array<{
+    change: string
+    expected_score: number
+    explanation: string
+    feasibility?: string
+  }>
 }
 
 export function WhatIfSimulator({ 
   currentScore, 
   matchingSkills = [], 
-  missingSkills = [] 
+  missingSkills = [],
+  whatIfScenarios = []
 }: WhatIfSimulatorProps) {
   const [inputSkill, setInputSkill] = useState('')
   const [simulatedScore, setSimulatedScore] = useState<number | null>(null)
@@ -35,21 +42,39 @@ export function WhatIfSimulator({
     
     // Simulate AI processing delay
     setTimeout(() => {
-      // Simple simulation logic
       const skillLower = inputSkill.toLowerCase().trim()
       const isMissing = missingSkills.some(s => s.toLowerCase().includes(skillLower))
       const isExisting = matchingSkills.some(s => s.toLowerCase().includes(skillLower))
       
-      let boost = 0
-      if (isMissing) {
-        boost = 0.05 + Math.random() * 0.10 // 5-15%
-      } else if (isExisting) {
-        boost = 0.01 + Math.random() * 0.02 // 1-3%
+      // Check if this skill matches a static recommendation from the AI
+      const matchedScenario = whatIfScenarios.find(sc => {
+        const changeLower = sc.change.toLowerCase()
+        return changeLower.includes(skillLower) || skillLower.includes(changeLower)
+      })
+
+      let newScore = currentScore
+
+      if (matchedScenario) {
+        newScore = Math.max(currentScore, Number(matchedScenario.expected_score))
       } else {
-        boost = 0.03 + Math.random() * 0.05 // 3-8%
+        // Deterministic hash to ensure typing the same skill yields the same boost
+        let hash = 0
+        for (let i = 0; i < skillLower.length; i++) {
+          hash = skillLower.charCodeAt(i) + ((hash << 5) - hash)
+        }
+        const hashVal = Math.abs(hash % 100) / 100
+
+        let boost = 0
+        if (isMissing) {
+          boost = 0.05 + hashVal * 0.10 // 5-15%
+        } else if (isExisting) {
+          boost = 0.01 + hashVal * 0.02 // 1-3%
+        } else {
+          boost = 0.03 + hashVal * 0.05 // 3-8%
+        }
+        newScore = Math.min(1, currentScore + boost)
       }
       
-      const newScore = Math.min(1, currentScore + boost)
       setSimulatedScore(newScore)
       setIsSimulating(false)
     }, 1500)

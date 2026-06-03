@@ -8,15 +8,23 @@ import { toast } from 'sonner'
 
 interface TestimonialFormProps {
   onSuccess?: () => void
+  editData?: {
+    id: number
+    name: string
+    role: string | null
+    company: string | null
+    content: string
+    rating: number
+  } | null
 }
 
-export function TestimonialForm({ onSuccess }: TestimonialFormProps) {
+export function TestimonialForm({ onSuccess, editData }: TestimonialFormProps) {
   const [formData, setFormData] = useState({
-    name: '',
-    role: '',
-    company: '',
-    content: '',
-    rating: 5
+    name: editData?.name || '',
+    role: editData?.role || '',
+    company: editData?.company || '',
+    content: editData?.content || '',
+    rating: editData?.rating || 5
   })
   const [hoveredRating, setHoveredRating] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -29,17 +37,28 @@ export function TestimonialForm({ onSuccess }: TestimonialFormProps) {
     setError('')
 
     try {
-      await apiClient.createTestimonial({
-        name: formData.name,
-        role: formData.role || null,
-        company: formData.company || null,
-        content: formData.content,
-        rating: formData.rating,
-      })
+      if (editData) {
+        await apiClient.updateTestimonial(editData.id, {
+          name: formData.name,
+          role: formData.role || null,
+          company: formData.company || null,
+          content: formData.content,
+          rating: formData.rating,
+        })
+        toast.success('Testimonial updated successfully! It will be reviewed before publishing.')
+      } else {
+        await apiClient.createTestimonial({
+          name: formData.name,
+          role: formData.role || null,
+          company: formData.company || null,
+          content: formData.content,
+          rating: formData.rating,
+        })
+        toast.success('Testimonial submitted! It will be reviewed before publishing.')
+        setFormData({ name: '', role: '', company: '', content: '', rating: 5 })
+      }
 
       setSuccess(true)
-      toast.success('Testimonial submitted! It will be reviewed before publishing.')
-      setFormData({ name: '', role: '', company: '', content: '', rating: 5 })
 
       setTimeout(() => {
         setSuccess(false)
@@ -87,10 +106,12 @@ export function TestimonialForm({ onSuccess }: TestimonialFormProps) {
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-gray-200 dark:border-slate-700 p-8">
         <div className="mb-6">
           <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            Share Your Experience
+            {editData ? 'Edit Your Testimonial' : 'Share Your Experience'}
           </h2>
           <p className="text-gray-600 dark:text-gray-300">
-            Help others by sharing your experience with our platform. Your testimonial will be reviewed before being published.
+            {editData 
+              ? 'Update your feedback and rating below. Your changes will be reviewed.'
+              : 'Help others by sharing your experience with our platform. Your testimonial will be reviewed before being published.'}
           </p>
         </div>
 
@@ -207,12 +228,12 @@ export function TestimonialForm({ onSuccess }: TestimonialFormProps) {
             {loading ? (
               <>
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>Submitting...</span>
+                <span>{editData ? 'Updating...' : 'Submitting...'}</span>
               </>
             ) : (
               <>
                 <Send className="w-5 h-5" />
-                <span>Submit Testimonial</span>
+                <span>{editData ? 'Update Testimonial' : 'Submit Testimonial'}</span>
               </>
             )}
           </button>

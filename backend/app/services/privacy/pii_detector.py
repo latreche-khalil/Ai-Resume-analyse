@@ -40,6 +40,41 @@ class PIIDetector:
         'medicine', 'surgery', 'engineering', 'science', 'accounting', 'legal', 'management'
     }
 
+    TECHNICAL_KEYWORDS = {
+        # Programming Languages
+        'python', 'javascript', 'typescript', 'java', 'kotlin', 'swift', 'ruby', 'rails',
+        'php', 'rust', 'go', 'golang', 'html', 'css', 'sql', 'nosql', 'scala', 'scalar',
+        'bash', 'powershell', 'perl', 'julia', 'matlab',
+        
+        # AI/ML/Data Science
+        'tensorflow', 'keras', 'pytorch', 'numpy', 'pandas', 'scipy', 'sklearn', 'scikit',
+        'scikit-learn', 'matplotlib', 'seaborn', 'nltk', 'spacy', 'opencv', 'huggingface',
+        'hugging', 'transformers', 'langchain', 'langgraph', 'llamaindex', 'llama',
+        'openai', 'gpt', 'claude', 'gemini', 'ollama', 'chromadb', 'chroma', 'milvus',
+        'pinecone', 'qdrant', 'weaviate', 'elasticsearch', 'elastic', 'solr', 'rag',
+        
+        # Cloud/Platforms/Services
+        'aws', 'azure', 'gcp', 'google', 'amazon', 'cloud', 'bedrock', 'vertex',
+        'vertexai', 'sagemaker', 'lambda', 'active', 'directory', 'studio', 'portal',
+        'office', '365', 'firebase', 'supabase', 'heroku', 'vercel', 'netlify',
+        
+        # Libraries/Frameworks
+        'react', 'angular', 'vue', 'nextjs', 'next', 'nuxt', 'svelte', 'nodejs',
+        'node', 'express', 'nestjs', 'django', 'flask', 'fastapi', 'streamlit',
+        'spring', 'springboot', 'hibernate', 'laravel', 'symfony', 'asp', 'net',
+        'bootstrap', 'tailwind', 'jquery', 'redux', 'ngrx', 'webpack', 'vite',
+        
+        # Databases & Cache
+        'postgres', 'postgresql', 'mysql', 'mongodb', 'sqlite', 'redis', 'memcached',
+        'cassandra', 'dynamodb', 'neo4j', 'couchdb', 'mariadb', 'oracle',
+        
+        # DevOps & Tools
+        'docker', 'kubernetes', 'k8s', 'terraform', 'ansible', 'jenkins', 'git',
+        'github', 'gitlab', 'actions', 'circleci', 'argocd', 'helm', 'nginx',
+        'apache', 'graphql', 'grpc', 'postman', 'oauth', 'jwt', 'auth0', 'stripe',
+        'jira', 'confluence', 'slack', 'figma'
+    }
+
     def __init__(self):
         self._engine = None
         logger.info("PII Detector initialized (Smart Local Analysis)")
@@ -76,11 +111,13 @@ class PIIDetector:
             return entities
 
         try:
+            # Leverage Presidio's native allow_list feature with our technical keywords
             results = engine.analyze(
                 text=text,
                 language=language,
                 entities=['PERSON', 'LOCATION'],
-                score_threshold=0.45
+                score_threshold=0.45,
+                allow_list=list(self.TECHNICAL_KEYWORDS)
             )
 
             for res in results:
@@ -115,6 +152,10 @@ class PIIDetector:
                 if entity_text.lower() in self.PROFESSIONAL_KEYWORDS:
                     continue
 
+                # Rule 6b: Smart Dynamic Technology Check (prevents masking of technical skills/tools)
+                if self._is_probably_technology(entity_text, res.start, text):
+                    continue
+
                 # Rule 7: Minimum length (Names < 3 chars are rare in this context)
                 if len(entity_text) < 3:
                     continue
@@ -133,6 +174,76 @@ class PIIDetector:
         except Exception as e:
             logger.error(f"Local PII analysis error: {e}")
             return entities
+
+    def _is_probably_technology(self, entity_text: str, start_idx: int, text: str) -> bool:
+        """
+        Dynamically determine if a detected entity is actually a technical skill, 
+        library, or tool rather than a person's name or location using context clues.
+        """
+        entity_lower = entity_text.lower().strip()
+        
+        # 1. Prefix/Suffix rules for libraries/tools (e.g., nodejs, PyTorch, MongoDB, LangChain)
+        tech_suffixes = ('js', 'db', 'flow', 'learn', 'torch', 'chain', 'graph', 'stack', 'cloud', 'hub', 'kit', 'sdk', 'cli', 'api', 'net')
+        tech_prefixes = ('open', 'tensor', 'kube', 'k8s', 'micro', 'git', 'web')
+        
+        if entity_lower.endswith(tech_suffixes) or entity_lower.startswith(tech_prefixes):
+            return True
+            
+        # 2. Section Context Analysis (e.g., inside "Skills" or "Technologies" section)
+        text_before = text[:start_idx].lower()
+        section_headers = [
+            'skills', 'technologies', 'technical skills', 'core competencies', 
+            'tools', 'expertise', 'tech stack', 'languages & frameworks', 'frameworks'
+        ]
+        
+        last_header_idx = -1
+        for header in section_headers:
+            idx = text_before.rfind(header)
+            if idx > last_header_idx:
+                last_header_idx = idx
+                
+        if last_header_idx != -1:
+            # Check if any major non-tech section started after the skills header
+            experience_headers = ['experience', 'work', 'employment', 'education', 'projects', 'history', 'professional history']
+            after_skills_text = text_before[last_header_idx:]
+            has_experience_after = any(eh in after_skills_text for eh in experience_headers)
+            
+            # If we are inside the skills section and no new section has started yet (within 600 chars)
+            if not has_experience_after and (start_idx - last_header_idx) < 600:
+                logger.info(f"PII Detector: Bypassed '{entity_text}' - found inside skills/technologies section.")
+                return True
+                
+        # 3. Contextual Grammar & Surrounding Words Check
+        # Only verify context if the entity is further down in the CV (name is at the top)
+        if start_idx > 400:
+            text_immediately_before = text[max(0, start_idx - 25):start_idx].lower()
+            text_immediately_after = text[start_idx + len(entity_text):min(len(text), start_idx + len(entity_text) + 25)].lower()
+            
+            tech_triggers_before = [
+                'using', 'with', 'leveraging', 'utilizing', 'in ', 'experience in',
+                'built on', 'built with', 'developed in', 'developed with', 'written in',
+                'proficient in', 'expert in', 'knowledge of'
+            ]
+            
+            tech_triggers_after = [
+                'developer', 'engineer', 'framework', 'library', 'database', 'api', 
+                'tool', 'sdk', 'stack', 'platform', 'system', 'architecture'
+            ]
+            
+            if any(trigger in text_immediately_before for trigger in tech_triggers_before):
+                logger.info(f"PII Detector: Bypassed '{entity_text}' - technical context trigger before.")
+                return True
+                
+            if any(trigger in text_immediately_after for trigger in tech_triggers_after):
+                logger.info(f"PII Detector: Bypassed '{entity_text}' - technical context trigger after.")
+                return True
+                
+        # 4. Fallback core tech list check
+        words = entity_lower.split()
+        if any(w in self.TECHNICAL_KEYWORDS for w in words) or entity_lower in self.TECHNICAL_KEYWORDS:
+            return True
+            
+        return False
 
     def _fallback_detection(self, text: str) -> List[PIIEntity]:
         """Regex-based detection for fixed patterns."""

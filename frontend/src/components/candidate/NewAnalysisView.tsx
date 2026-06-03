@@ -85,8 +85,6 @@ export function NewAnalysisView() {
           title: newJDTitle,
           company: newJDCompany || 'Direct Opportunity',
           description: newJDText,
-          required_skills: [],
-          preferred_skills: [],
         })
         finalJDId = jd.id
       }

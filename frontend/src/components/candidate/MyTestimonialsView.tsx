@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Star, MessageSquare, Clock, CheckCircle, Plus } from 'lucide-react'
+import { Star, MessageSquare, Clock, CheckCircle, Plus, Pencil } from 'lucide-react'
 import { TestimonialForm } from './TestimonialForm'
 import { motion } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
@@ -35,6 +35,7 @@ export function MyTestimonialsView() {
   const [testimonials, setTestimonials] = useState<Testimonial[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [editingTestimonial, setEditingTestimonial] = useState<Testimonial | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -48,6 +49,13 @@ export function MyTestimonialsView() {
     }
   }
 
+  const isEditable = (createdAtStr: string) => {
+    const created = new Date(createdAtStr)
+    const diffTime = Math.abs(new Date().getTime() - created.getTime())
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays <= 15
+  }
+
   useEffect(() => { load() }, [])
 
   const getStatus = (t: Testimonial) => {
@@ -58,14 +66,17 @@ export function MyTestimonialsView() {
     return <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400"><Clock size={11} /> Pending Review</span>
   }
 
-  if (showForm) {
+  if (showForm || editingTestimonial) {
     return (
       <div className="max-w-2xl mx-auto py-6">
-        <button onClick={() => setShowForm(false)}
+        <button onClick={() => { setShowForm(false); setEditingTestimonial(null) }}
           className="mb-6 text-sm text-sky-500 hover:text-sky-600 font-medium flex items-center gap-1">
           ← Back to My Testimonials
         </button>
-        <TestimonialForm onSuccess={() => { setShowForm(false); load() }} />
+        <TestimonialForm 
+          editData={editingTestimonial}
+          onSuccess={() => { setShowForm(false); setEditingTestimonial(null); load() }} 
+        />
       </div>
     )
   }
@@ -141,6 +152,18 @@ export function MyTestimonialsView() {
               {t.is_approved && !t.is_featured && (
                 <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-lg text-sm text-blue-700 dark:text-blue-300">
                   <strong>Approved!</strong> Your testimonial has been approved. It will be featured on the landing page soon.
+                </div>
+              )}
+
+              {isEditable(t.created_at) && (
+                <div className="mt-4 flex justify-end">
+                  <button
+                    onClick={() => setEditingTestimonial(t)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-neutral-300 rounded-lg transition-all border border-gray-200 dark:border-slate-700"
+                  >
+                    <Pencil size={12} />
+                    Edit Testimonial
+                  </button>
                 </div>
               )}
             </motion.div>

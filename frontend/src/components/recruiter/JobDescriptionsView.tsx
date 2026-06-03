@@ -16,10 +16,6 @@ interface JobDescription {
   title: string
   company?: string
   description: string
-  required_skills: string[]
-  preferred_skills: string[]
-  experience_level?: string
-  work_arrangement?: string
   created_at: string
 }
 
@@ -133,38 +129,7 @@ function JDCard({
         {jd.description}
       </p>
 
-      {/* Badges */}
-      <div className="flex flex-wrap gap-1.5 mb-4">
-        {jd.experience_level && (
-          <span className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg text-xs font-medium">
-            <Star size={10} /> {jd.experience_level}
-          </span>
-        )}
-        {jd.work_arrangement && (
-          <span className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg text-xs font-medium">
-            {jd.work_arrangement}
-          </span>
-        )}
-      </div>
 
-      {/* Required Skills */}
-      {jd.required_skills?.length > 0 && (
-        <div className="mb-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">Required</p>
-          <div className="flex flex-wrap gap-1">
-            {jd.required_skills.slice(0, 4).map((skill, i) => (
-              <span key={i} className="px-2 py-0.5 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20 rounded-md text-xs font-medium">
-                {skill}
-              </span>
-            ))}
-            {jd.required_skills.length > 4 && (
-              <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-md text-xs">
-                +{jd.required_skills.length - 4}
-              </span>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Footer */}
       <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-700 mt-auto">
@@ -185,7 +150,7 @@ export function JobDescriptionsView() {
   const [jds, setJds]           = useState<JobDescription[]>([])
   const [loading, setLoading]   = useState(true)
   const [search, setSearch]     = useState('')
-  const [filter, setFilter]     = useState<'all' | 'remote' | 'hybrid' | 'on-site'>('all')
+  const [filter, setFilter]     = useState<'all'>('all')
   const [pendingDelete, setPendingDelete] = useState<JobDescription | null>(null)
   const [deleting, setDeleting]           = useState(false)
 
@@ -214,11 +179,8 @@ export function JobDescriptionsView() {
   const filtered = jds.filter(jd => {
     const matchSearch = !search ||
       jd.title.toLowerCase().includes(search.toLowerCase()) ||
-      jd.description.toLowerCase().includes(search.toLowerCase()) ||
-      jd.required_skills?.some(s => s.toLowerCase().includes(search.toLowerCase()))
-    const matchFilter = filter === 'all' ||
-      (jd.work_arrangement?.toLowerCase() ?? '') === filter.toLowerCase()
-    return matchSearch && matchFilter
+      jd.description.toLowerCase().includes(search.toLowerCase())
+    return matchSearch
   })
 
   return (

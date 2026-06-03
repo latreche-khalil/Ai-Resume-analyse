@@ -51,6 +51,7 @@ function getPreviewUrl(path: string) {
 }
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string; icon: any; spin?: boolean }> = {
+  analyzed:   { label: 'Analyzed',   color: 'text-blue-700 dark:text-blue-400',       bg: 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20',           icon: Sparkles     },
   completed:  { label: 'Ready',      color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20', icon: CheckCircle2 },
   failed:     { label: 'Failed',     color: 'text-red-700 dark:text-red-400',         bg: 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20',               icon: XCircle      },
   processing: { label: 'Processing', color: 'text-amber-700 dark:text-amber-400',     bg: 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20',       icon: Clock, spin: true },
@@ -284,10 +285,10 @@ function CVCard({ doc, index, onDelete, isDeleting, onClick, isAnalyzing }: {
   isAnalyzing?: boolean
 }) {
   const baseStatus = doc.processing_status || doc.status || 'pending'
-  const status     = isAnalyzing ? 'analyzing' : baseStatus
+  const hasAnalysis = !!doc.latest_analysis_id
+  const status     = isAnalyzing ? 'analyzing' : (hasAnalysis && baseStatus === 'completed' ? 'analyzed' : baseStatus)
   const cfg        = STATUS_CFG[status] ?? STATUS_CFG.pending
   const Icon       = cfg.icon
-  const hasAnalysis = !!doc.latest_analysis_id
   const name       = doc.original_filename || doc.filename
   const score      = doc.match_score != null ? Math.round(doc.match_score <= 1 ? doc.match_score * 100 : doc.match_score) : null
 
@@ -626,10 +627,10 @@ export function DocumentsView() {
                   {filtered.map(doc => {
                     const baseStatus = doc.processing_status || doc.status || 'pending'
                     const isAnalyzing = analyzingCVs.has(doc.id)
-                    const s   = isAnalyzing ? 'analyzing' : baseStatus
+                    const hasA = !!doc.latest_analysis_id
+                    const s   = isAnalyzing ? 'analyzing' : (hasA && baseStatus === 'completed' ? 'analyzed' : baseStatus)
                     const cfg = STATUS_CFG[s] ?? STATUS_CFG.pending
                     const Icon = cfg.icon
-                    const hasA = !!doc.latest_analysis_id
                     const name = doc.original_filename || doc.filename
                     const score = doc.match_score != null ? Math.round(doc.match_score <= 1 ? doc.match_score * 100 : doc.match_score) : null
                     return (

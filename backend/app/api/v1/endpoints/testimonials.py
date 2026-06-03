@@ -113,11 +113,12 @@ async def get_testimonial(
 async def update_testimonial(
     testimonial_id: int,
     testimonial_data: TestimonialUpdate,
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Update a testimonial (admin only)
+    Update a testimonial. Admins have unrestricted access.
+    Testimonial owners can edit within 15 days of creation.
     """
     result = await db.execute(
         select(Testimonial).where(Testimonial.id == testimonial_id)
@@ -126,7 +127,40 @@ async def update_testimonial(
     if not testimonial:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Testimonial not found")
 
+    is_admin = current_user.role == "admin"
+
+    # Check permission
+    if not is_admin and testimonial.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to update this testimonial"
+        )
+
+    # Check 15-day limit for non-admin owners
+    if not is_admin:
+        from datetime import datetime, timezone
+        now = datetime.utcnow()
+        created_at = testimonial.created_at
+        if created_at.tzinfo is not None:
+            created_at = created_at.astimezone(timezone.utc).replace(tzinfo=None)
+
+        if (now - created_at).days >= 15:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You cannot edit your testimonial after 15 days from creation"
+            )
+
     update_data = testimonial_data.model_dump(exclude_unset=True)
+
+    # Prevent non-admins from updating admin-only fields
+    if not is_admin:
+        for field in ["is_featured", "is_approved", "is_verified"]:
+            if field in update_data:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Only administrators can modify the {field} field"
+                )
+
     for field, value in update_data.items():
         setattr(testimonial, field, value)
 

@@ -543,20 +543,22 @@ export function TalentPoolView() {
   // batch history for enriching candidates
   const [batchMap, setBatchMap] = useState<Record<string, any>>({})
 
-  // Load batch history from localStorage to enrich candidates
+  // Load batch history from DB to enrich candidates
   useEffect(() => {
-    try {
-      const history = JSON.parse(localStorage.getItem('recruiter_analysis_history') || '[]')
-      const map: Record<string, any> = {}
-      history.forEach((entry: any) => {
-        ;(entry.result?.leaderboard || []).forEach((c: any) => {
-          if (!map[c.cv_id] || (c.composite_score || 0) > (map[c.cv_id].composite_score || 0)) {
-            map[c.cv_id] = { ...c, jd_title: entry.jd_title }
-          }
+    apiClient.listBatchRankingHistory()
+      .then((historyRes) => {
+        const map: Record<string, any> = {}
+        ;(historyRes || []).forEach((entry: any) => {
+          const resultObj = entry.result_data || entry.result
+          ;(resultObj?.leaderboard || []).forEach((c: any) => {
+            if (!map[c.cv_id] || (c.composite_score || 0) > (map[c.cv_id].composite_score || 0)) {
+              map[c.cv_id] = { ...c, jd_title: entry.jd_title }
+            }
+          })
         })
+        setBatchMap(map)
       })
-      setBatchMap(map)
-    } catch {}
+      .catch(() => {})
   }, [])
 
   // Load initial data

@@ -359,7 +359,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
         </header>
 
         {/* Page content */}
-        <div className="flex-1 p-3 lg:p-4">
+        <div className="flex-1 px-4 lg:px-5 py-4 lg:py-5">
           {children}
         </div>
       </div>

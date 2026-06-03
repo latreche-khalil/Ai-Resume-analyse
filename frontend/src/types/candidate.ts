@@ -32,13 +32,6 @@ export interface JobDescription {
   title: string
   company: string
   description: string
-  required_skills: string[]
-  preferred_skills: string[]
-  experience_level?: string
-  education_requirements?: string
-  work_arrangement?: string
-  salary_range_min?: number
-  salary_range_max?: number
   created_at: string
 }
 
@@ -341,13 +334,6 @@ export interface JobDescriptionFormData {
   title: string
   company: string
   description: string
-  required_skills: string[]
-  preferred_skills: string[]
-  experience_level?: string
-  education_requirements?: string
-  work_arrangement?: string
-  salary_range_min?: number
-  salary_range_max?: number
 }
 
 export interface AnalysisFormData {

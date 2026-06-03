@@ -116,7 +116,8 @@ class PrivacyGateway:
         document_id: Optional[UUID],
         language: str,
         db: AsyncSession,
-        ip_address: Optional[str] = None
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None
     ) -> Tuple[str, List[PIIMapping]]:
         """
         Detect and mask PII in text.
@@ -189,7 +190,9 @@ class PrivacyGateway:
                         purpose="Document Ingestion",
                         document_id=document_id,
                         mapping_id=mapping.id,
-                        ip_address=ip_address
+                        legal_basis="legitimate_interest",
+                        ip_address=ip_address,
+                        user_agent=user_agent
                     )
                 except Exception as audit_err:
                     logger.warning(f"PII audit log failed (non-critical): {audit_err}")
