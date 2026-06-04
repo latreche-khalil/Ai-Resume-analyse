@@ -122,15 +122,12 @@ function Sidebar({ role, collapsed, pathname, userInitial, userName, userId, log
       {/* Brand */}
       <div className={`h-16 flex items-center shrink-0 border-b border-gray-200 dark:border-slate-600/50 ${collapsed ? 'px-4 justify-center' : 'px-5 gap-3'}`}>
         <Link href="/" className="flex items-center gap-3 group">
-          <div className="w-8 h-8 rounded-lg bg-gray-900 dark:bg-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
-              <path d="M10 2L18 6V14L10 18L2 14V6L10 2Z" stroke="currentColor" className="text-white dark:text-gray-900" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M10 10L14 8" stroke="currentColor" className="text-white dark:text-gray-900" strokeWidth="1.5" strokeLinecap="round"/>
-              <path d="M10 10V14" stroke="currentColor" className="text-white dark:text-gray-900" strokeWidth="1.5" strokeLinecap="round"/>
-              <path d="M10 10L6 8" stroke="currentColor" className="text-white dark:text-gray-900" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-          </div>
-          {!collapsed && <span className="font-semibold text-base text-gray-900 dark:text-white">ResumeAI</span>}
+          <img
+            src="/logo-new.svg"
+            alt="ResumeAI"
+            className="w-10 h-10 shrink-0 group-hover:scale-105 transition-transform"
+          />
+          {!collapsed && <span className="font-bold text-base bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 bg-clip-text text-transparent">ResumeAI</span>}
         </Link>
       </div>
 
@@ -324,12 +321,12 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
               />
             </div>
             <Link href="/analysis/new" className="hidden sm:block">
-              <motion.button
+              <motion.span
                 whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 text-white text-xs font-semibold shadow-md shadow-sky-500/20 hover:shadow-sky-500/30 transition-shadow"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 text-white text-xs font-semibold shadow-md shadow-sky-500/20 hover:shadow-sky-500/30 transition-shadow cursor-pointer"
               >
                 <Plus size={13} />New Analysis
-              </motion.button>
+              </motion.span>
             </Link>
             <div className="w-px h-5 bg-gray-200 dark:bg-slate-600/50" />
             <ThemeToggle />

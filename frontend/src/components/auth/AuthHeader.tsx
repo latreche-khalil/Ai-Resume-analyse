@@ -21,16 +21,13 @@ export function AuthHeader() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              <div className="w-8 h-8 rounded-lg bg-gray-900 dark:bg-white flex items-center justify-center">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M10 2L18 6V14L10 18L2 14V6L10 2Z" stroke="currentColor" className="text-white dark:text-gray-900" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M10 10L14 8" stroke="currentColor" className="text-white dark:text-gray-900" strokeWidth="1.5" strokeLinecap="round"/>
-                  <path d="M10 10V14" stroke="currentColor" className="text-white dark:text-gray-900" strokeWidth="1.5" strokeLinecap="round"/>
-                  <path d="M10 10L6 8" stroke="currentColor" className="text-white dark:text-gray-900" strokeWidth="1.5" strokeLinecap="round"/>
-                </svg>
-              </div>
+              <img
+                src="/logo-new.svg"
+                alt="ResumeAI"
+                className="w-10 h-10"
+              />
             </motion.div>
-            <span className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
+            <span className="text-xl font-bold bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
               ResumeAI
             </span>
           </Link>

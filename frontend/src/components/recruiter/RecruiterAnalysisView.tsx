@@ -788,14 +788,12 @@ export function RecruiterAnalysisView() {
 
             {/* Ranking spinner */}
             {step === 'ranking' && (
-              <div className="flex flex-col items-center justify-center py-20 gap-6">
-                <motion.div animate={{ rotate: 360 }} transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
-                  className="w-20 h-20 rounded-full border-2 border-dashed border-blue-300 dark:border-blue-500/30 flex items-center justify-center">
-                  <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 2, repeat: Infinity }}
-                    className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
-                    <Zap size={18} className="text-white" />
-                  </motion.div>
-                </motion.div>
+              <div className="flex flex-col items-center justify-center py-10 gap-6">
+                <img
+                  src="/resume-scan.gif"
+                  alt="Analyzing CVs..."
+                  className="w-64 h-64 object-contain rounded-2xl"
+                />
                 <div className="text-center">
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white">Ranking Candidates...</h3>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">

@@ -276,16 +276,17 @@ class ApiClient {
     })
   }
 
+  // Batch Ranking History (DB-persisted via /analysis/batch-rank)
   async listBatchRankingHistory(): Promise<any[]> {
     return this.request('GET', '/analysis/batch-rank')
   }
 
-  async deleteBatchRankingEntry(id: string): Promise<any> {
-    return this.request('DELETE', `/analysis/batch-rank/${id}`)
+  async deleteBatchRankingEntry(id: string): Promise<void> {
+    await this.request('DELETE', `/analysis/batch-rank/${id}`)
   }
 
-  async clearBatchRankingHistory(): Promise<any> {
-    return this.request('POST', '/analysis/batch-rank/clear')
+  async clearBatchRankingHistory(): Promise<void> {
+    await this.request('POST', '/analysis/batch-rank/clear')
   }
 
   async deleteAnalysis(id: string): Promise<void> {

@@ -3,7 +3,7 @@
 import { useRef, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { motion, useInView } from 'framer-motion'
-import { ArrowRight, Sparkles, Zap, Shield, CheckCircle2, TrendingUp, Brain } from 'lucide-react'
+import { ArrowRight, Zap, Shield, Brain } from 'lucide-react'
 
 export function HeroSection() {
   const ref = useRef(null)
@@ -205,137 +205,34 @@ export function HeroSection() {
             className="relative perspective-1000 hidden lg:block"
           >
             <motion.div
-              className="relative rounded-2xl overflow-hidden border border-gray-200 dark:border-slate-600/50 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-700/60 dark:to-slate-700/40 backdrop-blur-xl shadow-2xl"
+              className="relative rounded-2xl overflow-hidden border border-gray-200 dark:border-slate-600/50 shadow-2xl bg-black"
               whileHover={{ rotateX: 2, rotateY: 2, scale: 1.02 }}
               transition={{ duration: 0.3 }}
               style={{ transformStyle: 'preserve-3d' }}
             >
-              {/* Mock Dashboard Preview with Animations */}
-              <div className="aspect-[4/3] p-6">
-                <div className="h-full rounded-xl bg-gradient-to-br from-white to-gray-50 dark:from-slate-700 dark:to-slate-750 border border-gray-200 dark:border-slate-600/30 p-4 flex flex-col">
-                  {/* Header */}
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-500 to-blue-600" />
-                      <div>
-                        <motion.div
-                          className="h-2 w-24 bg-gray-200 dark:bg-white/10 rounded"
-                          animate={{ opacity: [0.5, 1, 0.5] }}
-                          transition={{ duration: 2, repeat: Infinity }}
-                        />
-                        <motion.div
-                          className="h-1.5 w-16 bg-gray-100 dark:bg-white/5 rounded mt-1"
-                          animate={{ opacity: [0.3, 0.7, 0.3] }}
-                          transition={{ duration: 2, repeat: Infinity, delay: 0.5 }}
-                        />
-                      </div>
-                    </div>
-                    <div className="flex space-x-1.5">
-                      <motion.div
-                        className="w-6 h-6 rounded-lg bg-gray-100 dark:bg-white/5"
-                        whileHover={{ scale: 1.1, rotate: 5 }}
-                      />
-                      <motion.div
-                        className="w-6 h-6 rounded-lg bg-gray-100 dark:bg-white/5"
-                        whileHover={{ scale: 1.1, rotate: -5 }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Content Grid with Stagger Animation */}
-                  <div className="grid grid-cols-3 gap-3 flex-1">
-                    <motion.div
-                      className="col-span-2 rounded-lg bg-gradient-to-br from-sky-500/10 to-blue-500/10 border border-sky-500/20 p-3 relative overflow-hidden"
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.5 }}
-                    >
-                      <motion.div
-                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"
-                        animate={{ x: ['-100%', '200%'] }}
-                        transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                      />
-                      <div className="h-2 w-28 bg-sky-200 dark:bg-white/20 rounded mb-2" />
-                      <div className="h-1.5 w-full bg-sky-100 dark:bg-white/10 rounded mb-1.5" />
-                      <div className="h-1.5 w-3/4 bg-sky-100 dark:bg-white/10 rounded" />
-                    </motion.div>
-                    
-                    <motion.div
-                      className="rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 p-3"
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 0.6 }}
-                    >
-                      <div className="h-2 w-14 bg-gray-200 dark:bg-white/10 rounded mb-2" />
-                      <motion.div
-                        className="h-6 w-full bg-gradient-to-r from-green-400 to-emerald-500 rounded flex items-center justify-center text-white font-bold text-base"
-                        animate={{ scale: [1, 1.05, 1] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                      >
-                        95%
-                      </motion.div>
-                    </motion.div>
-                    
-                    <motion.div
-                      className="rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 p-3"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.7 }}
-                    >
-                      <div className="h-2 w-16 bg-gray-200 dark:bg-white/10 rounded mb-2" />
-                      <div className="space-y-1.5">
-                        {[...Array(3)].map((_, i) => (
-                          <motion.div
-                            key={i}
-                            className="h-1.5 bg-gray-200 dark:bg-white/5 rounded"
-                            initial={{ scaleX: 0 }}
-                            animate={{ scaleX: 1 }}
-                            transition={{ delay: 0.8 + i * 0.1, duration: 0.5 }}
-                            style={{ width: `${100 - i * 20}%` }}
-                          />
-                        ))}
-                      </div>
-                    </motion.div>
-                    
-                    <motion.div
-                      className="col-span-2 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 p-3"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.8 }}
-                    >
-                      <div className="h-2 w-24 bg-gray-200 dark:bg-white/10 rounded mb-2" />
-                      <div className="flex flex-wrap gap-1.5">
-                        {['React', 'Node.js', 'Python', 'AWS', 'Docker', 'AI'].map((skill, i) => (
-                          <div
-                            key={i}
-                            className="px-2 py-0.5 bg-gradient-to-r from-sky-500 to-blue-600 text-white text-[10px] rounded-full font-medium"
-                          >
-                            {skill}
-                          </div>
-                        ))}
-                      </div>
-                    </motion.div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Static Glow */}
-              <div className="absolute inset-0 bg-gradient-to-t from-sky-500/10 via-transparent to-transparent pointer-events-none rounded-2xl" />
+              <video
+                src="/videohero.mp4"
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="w-full h-full object-cover aspect-[4/3]"
+              />
+              {/* Gradient overlay for polish */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent pointer-events-none" />
             </motion.div>
 
-            {/* Static Floating Elements */}
-            <div className="absolute -top-4 -right-4 w-16 h-16 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 shadow-xl shadow-sky-500/30 flex items-center justify-center">
-              <CheckCircle2 className="w-8 h-8 text-white" />
-            </div>
-            
-            <div className="absolute -bottom-4 -left-4 w-14 h-14 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 shadow-xl shadow-purple-500/30 flex items-center justify-center">
-              <TrendingUp className="w-7 h-7 text-white" />
-            </div>
-
-            <div className="absolute top-1/2 -right-6 w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 shadow-xl shadow-emerald-500/30 flex items-center justify-center">
-              <Sparkles className="w-6 h-6 text-white" />
-            </div>
+            {/* Floating badge */}
+            <motion.div
+              className="absolute -top-4 -right-4 bg-white dark:bg-slate-800 rounded-xl px-4 py-2 shadow-lg border border-gray-100 dark:border-slate-700 flex items-center gap-2"
+              animate={{ y: [0, -6, 0] }}
+              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">AI Analysis Live</span>
+            </motion.div>
           </motion.div>
+
         </div>
       </motion.div>
 

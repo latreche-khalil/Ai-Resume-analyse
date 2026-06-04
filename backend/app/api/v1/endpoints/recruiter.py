@@ -21,7 +21,6 @@ router = APIRouter(prefix="/recruiter")
 
 
 # ── Dashboard Stats ────────────────────────────────────────────────────────────
-
 @router.get("/dashboard-stats")
 async def get_dashboard_stats(
     current_user: User = Depends(require_role("recruiter")),
@@ -102,7 +101,7 @@ async def get_dashboard_stats(
     completed = [a for a in analyses if a["analysis_status"] in ("completed", "partial_done") and a["match_score"] is not None]
     scores = [a["match_score"] * 100 if a["match_score"] <= 1 else a["match_score"] for a in completed]
     avg = round(sum(scores) / len(scores)) if scores else 0
-    top = sum(1 for s in scores if s >= 80)
+    top = sum(1 for s in scores if s >= 70)
     pending = sum(1 for a in completed if a["requires_human_review"])
 
     # CV count — all CVs accessible to recruiter (own + via JDs)

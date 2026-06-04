@@ -339,20 +339,17 @@ export function NewAnalysisView() {
         {/* ── Step 3: Analyzing ── */}
         {step === 'analyzing' && (
           <motion.div key="analyzing" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="py-8">
-            <div className="relative max-w-xl mx-auto p-10 rounded-2xl bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] shadow-sm text-center space-y-8 overflow-hidden">
+            <div className="relative max-w-xl mx-auto p-10 rounded-2xl bg-white dark:bg-[#0f0f11] border border-gray-200 dark:border-[#1e1e24] shadow-sm text-center space-y-6 overflow-hidden">
               <div className="absolute inset-0 pointer-events-none"
                 style={{ background: 'radial-gradient(circle at 50% 0%, rgba(59,130,246,0.06) 0%, transparent 60%)' }} />
 
-              {/* Spinner */}
-              <div className="relative">
-                <motion.div animate={{ rotate: 360 }} transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
-                  className="w-28 h-28 mx-auto rounded-full border-2 border-dashed border-blue-300 dark:border-blue-500/30 flex items-center justify-center">
-                  <motion.div animate={{ scale: [1, 1.12, 1] }} transition={{ duration: 2, repeat: Infinity }}
-                    className="w-14 h-14 rounded-2xl bg-blue-600 shadow-xl shadow-blue-500/30 flex items-center justify-center">
-                    <Zap className="w-7 h-7 text-white" />
-                  </motion.div>
-                </motion.div>
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl" />
+              {/* GIF Animation */}
+              <div className="relative flex justify-center">
+                <img
+                  src="/resume-scan-2.gif"
+                  alt="Analyzing your CV..."
+                  className="w-56 h-56 object-contain rounded-2xl"
+                />
               </div>
 
               <div className="space-y-3 relative z-10">
