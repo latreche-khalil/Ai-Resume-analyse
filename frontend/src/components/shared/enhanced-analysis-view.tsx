@@ -87,23 +87,14 @@ export function EnhancedAnalysisView() {
 
   /* ── Loading ── */
   if (loading) return (
-    <div className="h-[75vh] flex flex-col items-center justify-center text-center space-y-10 relative overflow-hidden bg-white dark:bg-[#0a0a0a] rounded-3xl border border-gray-200 dark:border-neutral-900 shadow-sm" style={R}>
+    <div className="h-[75vh] flex flex-col items-center justify-center text-center space-y-8 relative overflow-hidden bg-white dark:bg-[#0a0a0a] rounded-3xl border border-gray-200 dark:border-neutral-900 shadow-sm" style={R}>
       <div className="absolute inset-0 bg-gradient-to-br from-blue-500/[0.03] via-transparent to-indigo-600/[0.03] pointer-events-none" />
       <div className="relative">
-        <motion.div 
-          animate={{ rotate: 360 }}
-          transition={{ duration: 12, repeat: Infinity, ease: 'linear' }}
-          className="w-32 h-32 mx-auto rounded-full border-2 border-dashed border-blue-500/20 dark:border-neutral-800 flex items-center justify-center"
-        >
-          <motion.div 
-            animate={{ scale: [1, 1.1, 1] }}
-            transition={{ duration: 3, repeat: Infinity }}
-            className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-xl shadow-blue-500/20 flex items-center justify-center border border-white/10"
-          >
-            <Cpu className="w-8 h-8 text-white" />
-          </motion.div>
-        </motion.div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl opacity-60" />
+        <img
+          src="/resume-scan.gif"
+          alt="Analyzing..."
+          className="w-48 h-48 object-contain mx-auto rounded-2xl"
+        />
       </div>
       <div className="space-y-4 relative z-10">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white tracking-tight">{steps[loadingStep]}</h2>

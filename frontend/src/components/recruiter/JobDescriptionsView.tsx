@@ -8,7 +8,7 @@ import { formatDateTime } from '@/lib/utils'
 import { toast } from 'sonner'
 import {
   Briefcase, Plus, Search, Trash2, Edit3, ChevronRight,
-  Loader2, Star, Clock, Filter, AlertTriangle, X
+  Loader2, Star, Clock, AlertTriangle, X
 } from 'lucide-react'
 
 interface JobDescription {
@@ -150,7 +150,6 @@ export function JobDescriptionsView() {
   const [jds, setJds]           = useState<JobDescription[]>([])
   const [loading, setLoading]   = useState(true)
   const [search, setSearch]     = useState('')
-  const [filter, setFilter]     = useState<'all'>('all')
   const [pendingDelete, setPendingDelete] = useState<JobDescription | null>(null)
   const [deleting, setDeleting]           = useState(false)
 
@@ -226,18 +225,6 @@ export function JobDescriptionsView() {
             placeholder="Search by title, description or skills..."
             className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
           />
-        </div>
-        <div className="flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
-          {(['all', 'remote', 'hybrid', 'on-site'] as const).map(f => (
-            <button key={f} onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all ${
-                filter === f
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-              }`}>
-              {f}
-            </button>
-          ))}
         </div>
       </motion.div>
 

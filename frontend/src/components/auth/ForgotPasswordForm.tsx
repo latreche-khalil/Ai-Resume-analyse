@@ -124,8 +124,7 @@ export function ForgotPasswordForm() {
                     <span className="text-sky-500 font-bold text-sm tracking-widest uppercase">Step 0{step}</span>
                     <h1 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-gray-900 dark:text-white leading-tight">
                       {info.title}
-                    </h1>
-                    <p className="text-base lg:text-lg text-gray-700 dark:text-gray-300 leading-relaxed max-w-md">
+                    </h1>                    <p className="text-base lg:text-lg text-gray-700 dark:text-gray-300 leading-relaxed max-w-md">
                       {info.desc}
                     </p>
                   </div>

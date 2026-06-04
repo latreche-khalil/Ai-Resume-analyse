@@ -25,10 +25,11 @@ export function Navigation() {
     : '/dashboard'
 
   const navLinks = [
-    { href: '#features', label: 'Features' },
-    { href: '#how-it-works', label: 'How it works' },
-    { href: '#xai', label: 'Explainable AI' },
-    { href: '#faq', label: 'FAQ' },
+    { href: '#features',     label: 'Features'        },
+    { href: '#how-it-works', label: 'How It Works'    },
+    { href: '#xai',          label: 'Explainable AI'  },
+    { href: '#testimonials', label: 'Testimonials'    },
+    { href: '#faq',          label: 'FAQ'             },
   ]
 
   return (
@@ -47,22 +48,18 @@ export function Navigation() {
           <div className="flex items-center justify-between h-14 sm:h-16">
             {/* Logo */}
             <Link href="/" className="flex items-center space-x-2 group">
-              <motion.div 
+              <motion.div
                 className="relative"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
-                {/* Simple Geometric Logo */}
-                <div className="w-8 h-8 rounded-lg bg-gray-900 dark:bg-white flex items-center justify-center">
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M10 2L18 6V14L10 18L2 14V6L10 2Z" stroke="currentColor" className="text-white dark:text-gray-900" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M10 10L14 8" stroke="currentColor" className="text-white dark:text-gray-900" strokeWidth="1.5" strokeLinecap="round"/>
-                    <path d="M10 10V14" stroke="currentColor" className="text-white dark:text-gray-900" strokeWidth="1.5" strokeLinecap="round"/>
-                    <path d="M10 10L6 8" stroke="currentColor" className="text-white dark:text-gray-900" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
-                </div>
+                <img
+                  src="/logo-new.svg"
+                  alt="ResumeAI Logo"
+                  className="h-10 w-10 sm:h-12 sm:w-12"
+                />
               </motion.div>
-              <span className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
+              <span className="text-base sm:text-lg font-semibold bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
                 ResumeAI
               </span>
             </Link>

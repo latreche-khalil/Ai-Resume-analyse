@@ -64,6 +64,11 @@ export function LoginForm() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2, duration: 0.8 }}
                   >
+                    {/* Logo mark */}
+                    <div className="flex items-center gap-3 mb-6">
+                      <img src="/logo-new.svg" alt="ResumeAI" className="w-12 h-12" />
+                      <span className="text-2xl font-bold bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 bg-clip-text text-transparent">ResumeAI</span>
+                    </div>
                     <h1 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-gray-900 dark:text-white mb-3 leading-tight">
                       Welcome back!
                     </h1>

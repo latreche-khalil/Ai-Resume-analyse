@@ -434,22 +434,32 @@ export function RecruiterDashboardView() {
       setTopCandidates(enriched)
       setAllAnalyses(allData)
 
-      // Stats: prefer batch data if DB has nothing
+      // Stats: normalize all scores to 0-100 range
       const completed = unique
-      const scores = completed.map(a => a.match_score! <= 1 ? a.match_score! * 100 : a.match_score!)
+      const scores = completed.map(a => {
+        const s = a.match_score ?? 0
+        // composite_score from batch ranking is 0-1, DB match_score can be 0-100
+        return s <= 1 ? Math.round(s * 100) : Math.round(s)
+      })
       const avg = scores.length ? Math.round(scores.reduce((s, v) => s + v, 0) / scores.length) : 0
-      const topMatches = scores.filter(s => s >= 80).length
+      const topMatches = scores.filter(s => s >= 70).length  // 70%+ considered high match
 
       // Count unique CVs across all sources
       const allCvIds = new Set(allData.map(a => a.cv_document_id))
 
+      // Job descriptions — also count from batch history JDs
+      const batchJdIds = new Set(batchHistory.map((h: any) => h.jd_id).filter(Boolean))
+      const totalJds = statsRes?.total_jds > 0
+        ? statsRes.total_jds
+        : batchJdIds.size
+
       setStats({
-        totalCandidates: completed.length > 0 ? completed.length : (statsRes?.total_analyses ?? 0),
+        totalCandidates: Math.max(completed.length, statsRes?.total_analyses ?? 0),
         avgMatchScore:   avg > 0 ? avg : (statsRes?.avg_match_score ?? 0),
-        topMatches:      topMatches > 0 ? topMatches : (statsRes?.top_matches ?? 0),
+        topMatches:      Math.max(topMatches, statsRes?.top_matches ?? 0),
         pendingReviews:  statsRes?.pending_reviews ?? 0,
-        totalCvs:        statsRes?.total_cvs ?? allCvIds.size,
-        totalJds:        statsRes?.total_jds ?? 0,
+        totalCvs:        statsRes?.total_cvs > 0 ? statsRes.total_cvs : allCvIds.size,
+        totalJds,
         poolCount:       statsRes?.pool_count ?? pools.length,
       })
 
@@ -471,7 +481,7 @@ export function RecruiterDashboardView() {
   )
 
   const analyzedToday = allAnalyses.filter(c =>
-    new Date(c.created_at).toDateString() === new Date().toDateString()
+    c.created_at && new Date(c.created_at).toDateString() === new Date().toDateString()
   ).length
 
   return (
@@ -529,7 +539,7 @@ export function RecruiterDashboardView() {
           trend={{ value: `${stats.totalCandidates} total`, up: stats.totalCandidates > 0 }} />
         <StatCard label="Avg Match Score"  value={`${stats.avgMatchScore}%`} icon={Target} loading={loading} color="#10b981"
           trend={{ value: stats.avgMatchScore >= 70 ? 'Good' : 'Fair', up: stats.avgMatchScore >= 70 }} />
-        <StatCard label="Top Matches ≥80%" value={stats.topMatches}    icon={Award}        loading={loading} color="#f59e0b"
+        <StatCard label="Top Matches ≥70%" value={stats.topMatches}    icon={Award}        loading={loading} color="#f59e0b"
           trend={{ value: `${stats.topMatches} candidates`, up: stats.topMatches > 0 }} />
         <StatCard label="Pending Reviews"  value={stats.pendingReviews} icon={AlertCircle} loading={loading} color="#8b5cf6"
           trend={{ value: stats.pendingReviews > 0 ? 'Action needed' : 'All clear', up: false }} />
@@ -715,7 +725,9 @@ export function RecruiterDashboardView() {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-slate-600 dark:text-slate-400">Success Rate</span>
                 <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                  {stats.totalCandidates > 0 ? Math.round((stats.topMatches / stats.totalCandidates) * 100) : 0}%
+                  {stats.totalCandidates > 0 && stats.topMatches > 0
+                    ? Math.round((stats.topMatches / stats.totalCandidates) * 100)
+                    : stats.avgMatchScore > 0 ? Math.round(stats.avgMatchScore) : 0}%
                 </span>
               </div>
               <div className="flex items-center justify-between">
