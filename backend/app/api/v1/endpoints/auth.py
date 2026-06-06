@@ -44,10 +44,11 @@ security = HTTPBearer(auto_error=False)
 # ── Rate limiter (uses client IP as key) ──────────────────────────────────────
 limiter = Limiter(key_func=get_remote_address)
 
-# Cookie settings
+# Cookie settings — secure=True in production (HTTPS), False in local dev
+from app.core.config import settings as _settings
 _COOKIE_OPTS = dict(
     httponly=True,
-    secure=False,   # Set to True in production (HTTPS)
+    secure=_settings.ENVIRONMENT == "production",  # True on HTTPS, False in dev
     samesite="lax",
     path="/",
 )

@@ -10,7 +10,7 @@ import {
   LayoutDashboard, FileText, Target, Settings, LogOut,
   ChevronLeft, Search, Bell, Users, Briefcase, Mic, Zap,
   MessageSquare, HeartHandshake, ShieldCheck, Upload,
-  Menu, X, ChevronRight, Plus,
+  Menu, X, ChevronRight, Plus, Bot, Home, History,
 } from 'lucide-react'
 
 interface DashboardLayoutProps {
@@ -23,23 +23,24 @@ const NAV_GROUPS = {
     {
       label: 'Main',
       items: [
-        { icon: LayoutDashboard, label: 'Dashboard',    href: '/dashboard',    id: 'dashboard'    },
-        { icon: FileText,        label: 'Resumes',      href: '/documents',    id: 'documents'    },
+        { icon: LayoutDashboard, label: 'Dashboard',        href: '/dashboard',    id: 'dashboard',    color: '#6366f1', bg: 'bg-indigo-50 dark:bg-indigo-500/10'  },
+        { icon: FileText,        label: 'Resumes',          href: '/documents',    id: 'documents',    color: '#0ea5e9', bg: 'bg-sky-50 dark:bg-sky-500/10'         },
       ],
     },
     {
       label: 'AI Tools',
       items: [
-        { icon: Zap,           label: 'New Analysis', href: '/analysis/new', id: 'analysis-new' },
-        { icon: Mic,           label: 'Interview',    href: '/interview',    id: 'interview'    },
-        { icon: MessageSquare, label: 'AI Coach',     href: '/coaching',     id: 'coaching'     },
+        { icon: Zap,           label: 'New Analysis',      href: '/analysis/new', id: 'analysis-new', color: '#f59e0b', bg: 'bg-amber-50 dark:bg-amber-500/10'     },
+        { icon: History,       label: 'Analysis History',  href: '/analysis',     id: 'analysis',     color: '#8b5cf6', bg: 'bg-violet-50 dark:bg-violet-500/10'   },
+        { icon: Mic,           label: 'Interview',         href: '/interview',    id: 'interview',    color: '#ef4444', bg: 'bg-red-50 dark:bg-red-500/10'         },
+        { icon: MessageSquare, label: 'AI Coach',          href: '/coaching',     id: 'coaching',     color: '#10b981', bg: 'bg-emerald-50 dark:bg-emerald-500/10' },
       ],
     },
     {
       label: 'Community',
       items: [
-        { icon: MessageSquare,  label: 'Testimonials', href: '/testimonials', id: 'testimonials' },
-        { icon: HeartHandshake, label: 'Feedback',     href: '/feedback',     id: 'feedback'     },
+        { icon: MessageSquare,  label: 'Testimonials', href: '/testimonials', id: 'testimonials', color: '#06b6d4', bg: 'bg-cyan-50 dark:bg-cyan-500/10'        },
+        { icon: HeartHandshake, label: 'Feedback',     href: '/feedback',     id: 'feedback',     color: '#ec4899', bg: 'bg-pink-50 dark:bg-pink-500/10'        },
       ],
     },
   ],
@@ -47,10 +48,10 @@ const NAV_GROUPS = {
     {
       label: 'System',
       items: [
-        { icon: LayoutDashboard, label: 'Dashboard',    href: '/admin',              id: 'admin'        },
-        { icon: ShieldCheck,     label: 'Audit Logs',   href: '/admin/audit-logs',   id: 'audit-logs'   },
-        { icon: HeartHandshake,  label: 'Feedback',     href: '/admin/feedback',     id: 'feedback'     },
-        { icon: MessageSquare,   label: 'Testimonials', href: '/admin/testimonials', id: 'testimonials' },
+        { icon: LayoutDashboard, label: 'Dashboard',    href: '/admin',              id: 'admin',         color: '#6366f1', bg: 'bg-indigo-50 dark:bg-indigo-500/10' },
+        { icon: ShieldCheck,     label: 'Audit Logs',   href: '/admin/audit-logs',   id: 'audit-logs',    color: '#ef4444', bg: 'bg-red-50 dark:bg-red-500/10'       },
+        { icon: HeartHandshake,  label: 'Feedback',     href: '/admin/feedback',     id: 'feedback',      color: '#ec4899', bg: 'bg-pink-50 dark:bg-pink-500/10'     },
+        { icon: MessageSquare,   label: 'Testimonials', href: '/admin/testimonials', id: 'testimonials',  color: '#06b6d4', bg: 'bg-cyan-50 dark:bg-cyan-500/10'     },
       ],
     },
   ],
@@ -58,25 +59,27 @@ const NAV_GROUPS = {
     {
       label: 'Recruiting',
       items: [
-        { icon: LayoutDashboard, label: 'Dashboard',        href: '/recruiter',          id: 'recruiter'           },
-        { icon: Users,           label: 'Talent Pool',      href: '/talent-pool',        id: 'talent-pool'         },
-        { icon: Target,          label: 'Compare',          href: '/compare-candidates', id: 'compare-candidates'  },
+        { icon: LayoutDashboard, label: 'Dashboard',    href: '/recruiter',          id: 'recruiter',          color: '#6366f1', bg: 'bg-indigo-50 dark:bg-indigo-500/10' },
+        { icon: Users,           label: 'Talent Pool',  href: '/talent-pool',        id: 'talent-pool',        color: '#0ea5e9', bg: 'bg-sky-50 dark:bg-sky-500/10'       },
+        { icon: Target,          label: 'Compare',      href: '/compare-candidates', id: 'compare-candidates', color: '#f59e0b', bg: 'bg-amber-50 dark:bg-amber-500/10'   },
+        { icon: Bot,             label: 'AI Assistant', href: '/coaching',           id: 'coaching',           color: '#10b981', bg: 'bg-emerald-50 dark:bg-emerald-500/10'},
       ],
     },
     {
       label: 'Analysis',
       items: [
-        { icon: Briefcase,       label: 'Job Descriptions', href: '/jobs',         id: 'jobs'         },
-        { icon: Upload,          label: 'Upload CVs',       href: '/upload',       id: 'upload'       },
-        { icon: Zap,             label: 'New Analysis',     href: '/analysis/new', id: 'analysis-new' },
-        { icon: FileText,        label: 'Documents',        href: '/documents',    id: 'documents'    },
+        { icon: Briefcase, label: 'Job Descriptions', href: '/jobs',         id: 'jobs',         color: '#8b5cf6', bg: 'bg-violet-50 dark:bg-violet-500/10'  },
+        { icon: Upload,    label: 'Upload CVs',       href: '/upload',       id: 'upload',       color: '#ef4444', bg: 'bg-red-50 dark:bg-red-500/10'         },
+        { icon: Zap,       label: 'New Analysis',     href: '/analysis/new', id: 'analysis-new', color: '#f59e0b', bg: 'bg-amber-50 dark:bg-amber-500/10'    },
+        { icon: History,   label: 'Analysis History', href: '/analysis/new?tab=history', id: 'analysis-history', color: '#8b5cf6', bg: 'bg-violet-50 dark:bg-violet-500/10' },
+        { icon: FileText,  label: 'Documents',        href: '/documents',    id: 'documents',    color: '#06b6d4', bg: 'bg-cyan-50 dark:bg-cyan-500/10'       },
       ],
     },
     {
       label: 'Community',
       items: [
-        { icon: MessageSquare,  label: 'Testimonials', href: '/testimonials', id: 'testimonials' },
-        { icon: HeartHandshake, label: 'Feedback',     href: '/feedback',     id: 'feedback'     },
+        { icon: MessageSquare,  label: 'Testimonials', href: '/testimonials', id: 'testimonials', color: '#06b6d4', bg: 'bg-cyan-50 dark:bg-cyan-500/10' },
+        { icon: HeartHandshake, label: 'Feedback',     href: '/feedback',     id: 'feedback',     color: '#ec4899', bg: 'bg-pink-50 dark:bg-pink-500/10' },
       ],
     },
   ],
@@ -108,12 +111,13 @@ function Sidebar({ role, collapsed, pathname, userInitial, userName, userId, log
     if (id === 'admin'        && pathname === '/admin')        return true
     if (id === 'recruiter'    && pathname === '/recruiter')    return true
     if (id === 'analysis-new' && pathname === '/analysis/new') return true
+    if (id === 'analysis-history' && pathname === '/analysis/new') return false // never auto-active
     if (id === 'analysis' && pathname?.startsWith('/analysis') && !pathname?.includes('/new')) return true
     if (id === 'jobs' && pathname?.startsWith('/jobs')) return true
     return (
       pathname?.startsWith(href) &&
       href !== '/' &&
-      !['dashboard', 'admin', 'recruiter', 'analysis', 'analysis-new', 'jobs'].includes(id)
+      !['dashboard', 'admin', 'recruiter', 'analysis', 'analysis-new', 'analysis-history', 'jobs'].includes(id)
     )
   }
 
@@ -143,29 +147,43 @@ function Sidebar({ role, collapsed, pathname, userInitial, userName, userId, log
             <div className="space-y-0.5">
               {group.items.map((navItem) => {
                 const active = isActive(navItem.id, navItem.href)
+                const iconColor = (navItem as any).color || '#6366f1'
+                const iconBg   = (navItem as any).bg   || 'bg-slate-100 dark:bg-slate-700'
                 return (
                   <Link key={navItem.id} href={navItem.href} prefetch={true}>
                     <div
                       title={collapsed ? navItem.label : undefined}
                       className={`
                         relative flex items-center rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer
-                        ${collapsed ? 'justify-center py-2.5 px-2' : 'gap-2.5 px-3 py-2.5'}
+                        ${collapsed ? 'justify-center py-2 px-2' : 'gap-2.5 px-2.5 py-2'}
                         ${active
-                          ? 'bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400'
-                          : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'
+                          ? 'bg-slate-100 dark:bg-slate-700/70 text-gray-900 dark:text-white'
+                          : 'text-gray-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'
                         }
                       `}
                     >
                       {active && (
                         <motion.span
                           layoutId="sidebar-indicator"
-                          className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-sky-500 rounded-r-full"
+                          className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full"
+                          style={{ backgroundColor: iconColor }}
                         />
                       )}
-                      <navItem.icon size={16} className={`shrink-0 ${active ? 'text-sky-500' : 'text-gray-400 dark:text-slate-500'}`} />
+                      {/* Coloured icon box */}
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${active ? iconBg : 'bg-transparent'} transition-all`}>
+                        <navItem.icon
+                          size={15}
+                          style={{ color: active ? iconColor : undefined }}
+                          className={`shrink-0 ${!active ? 'text-gray-400 dark:text-slate-500' : ''}`}
+                        />
+                      </div>
                       {!collapsed && <span className="truncate">{navItem.label}</span>}
                       {active && !collapsed && (
-                        <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="ml-auto w-1.5 h-1.5 rounded-full bg-sky-500" />
+                        <motion.span
+                          initial={{ scale: 0 }} animate={{ scale: 1 }}
+                          className="ml-auto w-1.5 h-1.5 rounded-full"
+                          style={{ backgroundColor: iconColor }}
+                        />
                       )}
                     </div>
                   </Link>
@@ -182,10 +200,14 @@ function Sidebar({ role, collapsed, pathname, userInitial, userName, userId, log
           <div
             title={collapsed ? 'Settings' : undefined}
             className={`flex items-center rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer
-              ${collapsed ? 'justify-center py-2.5 px-2' : 'gap-2.5 px-3 py-2.5'}
-              ${pathname === '/settings' ? 'bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400' : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}
+              ${collapsed ? 'justify-center py-2 px-2' : 'gap-2.5 px-2.5 py-2'}
+              ${pathname === '/settings'
+                ? 'bg-slate-100 dark:bg-slate-700/70 text-gray-900 dark:text-white'
+                : 'text-gray-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}
           >
-            <Settings size={16} className={`shrink-0 ${pathname === '/settings' ? 'text-sky-500' : 'text-gray-400 dark:text-slate-500'}`} />
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-all ${pathname === '/settings' ? 'bg-slate-200 dark:bg-slate-600' : ''}`}>
+              <Settings size={15} style={{ color: pathname === '/settings' ? '#6366f1' : undefined }} className={`shrink-0 ${pathname !== '/settings' ? 'text-gray-400 dark:text-slate-500' : ''}`} />
+            </div>
             {!collapsed && <span>Settings</span>}
           </div>
         </Link>
@@ -193,10 +215,12 @@ function Sidebar({ role, collapsed, pathname, userInitial, userName, userId, log
           onClick={logout}
           title={collapsed ? 'Sign out' : undefined}
           className={`w-full flex items-center rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer
-            ${collapsed ? 'justify-center py-2.5 px-2' : 'gap-2.5 px-3 py-2.5'}
+            ${collapsed ? 'justify-center py-2 px-2' : 'gap-2.5 px-2.5 py-2'}
             text-gray-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-500 dark:hover:text-red-400`}
         >
-          <LogOut size={16} className="shrink-0" />
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0">
+            <LogOut size={15} className="shrink-0" />
+          </div>
           {!collapsed && <span>Sign out</span>}
         </button>
         {!collapsed && (
@@ -330,6 +354,12 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
             </Link>
             <div className="w-px h-5 bg-gray-200 dark:bg-slate-600/50" />
             <ThemeToggle />
+            <Link href="/">
+              <div className="p-1.5 rounded-lg text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 transition-colors cursor-pointer flex items-center gap-1" title="Go to Home">
+                <Home size={17} />
+                <span className="hidden md:inline text-xs font-semibold">Home</span>
+              </div>
+            </Link>
             <button className="relative p-1.5 rounded-lg text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
               <Bell size={17} />
               <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-sky-500 rounded-full ring-2 ring-white dark:ring-slate-800" />

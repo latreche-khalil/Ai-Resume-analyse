@@ -98,6 +98,13 @@ class AnalysisRecord(Base, UUIDMixin, TimestampMixin):
         nullable=True,
         comment="Hiring urgency: move-fast, standard, take-time"
     )
+
+    initiated_by_role = Column(
+        String(20),
+        nullable=True,
+        default="candidate",
+        comment="Role of user who initiated the analysis: candidate or recruiter"
+    )
     
     # Human-in-the-Loop fields
     is_binding = Column(

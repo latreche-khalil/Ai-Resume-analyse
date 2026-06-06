@@ -31,26 +31,54 @@ router = APIRouter(prefix="/coaching")
 @router.post("/chat/session", status_code=status.HTTP_201_CREATED)
 @router.post("/chat/sessions", status_code=status.HTTP_201_CREATED)
 async def create_chat_session(
+    cv_document_id: Optional[UUID] = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Create new chat session. Requirements: 12.1"""
     from app.models.cv_document import CVDocument
 
-    # Check CV exists (diagram: No CV Found → 400)
-    cv_result = await db.execute(
-        select(CVDocument).where(
-            CVDocument.user_id == current_user.id,
+    is_recruiter = current_user.role == 'recruiter'
+
+    if cv_document_id:
+        # Recruiters can access any candidate's CV by ID (they are screening it)
+        # Candidates can only access their own CVs
+        filters = [
+            CVDocument.id == cv_document_id,
             CVDocument.processing_status == 'completed',
             CVDocument.deleted_at.is_(None)
-        ).order_by(CVDocument.created_at.desc()).limit(1)
-    )
-    cv = cv_result.scalar_one_or_none()
-    if not cv:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No processed CV found. Please upload your CV first."
+        ]
+        if not is_recruiter:
+            filters.append(CVDocument.user_id == current_user.id)
+
+        cv_result = await db.execute(select(CVDocument).where(*filters))
+        cv = cv_result.scalar_one_or_none()
+        if not cv:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="CV document not found or access denied."
+            )
+    else:
+        if is_recruiter:
+            # Recruiters must provide a cv_document_id (they don't have their own CVs)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Recruiters must provide a cv_document_id to start a selection assistant session."
+            )
+        # Candidate: find their latest processed CV
+        cv_result = await db.execute(
+            select(CVDocument).where(
+                CVDocument.user_id == current_user.id,
+                CVDocument.processing_status == 'completed',
+                CVDocument.deleted_at.is_(None)
+            ).order_by(CVDocument.created_at.desc()).limit(1)
         )
+        cv = cv_result.scalar_one_or_none()
+        if not cv:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No processed CV found. Please upload your CV first."
+            )
 
     session = ChatSession(
         user_id=current_user.id,
@@ -160,7 +188,29 @@ AI EXPLANATION (XAI):
     history_text = "\n".join(f"{m.role}: {m.content}" for m in history[-6:])
 
     # ── Build prompt: History + CV Chunks + Analysis + Message ─────────────
-    prompt = f"""You are an expert AI Career Coach and Personal Consultant. 
+    if current_user.role == 'recruiter':
+        prompt = f"""You are an expert AI Recruiter Assistant and Talent Acquisition Consultant. 
+You have FULL ACCESS to the candidate's CV and their latest AI-powered match analysis results.
+Your goal is to assist the recruiter in evaluating this candidate, understanding their skill gaps, suggesting interview questions/probes, and deciding whether they are a good fit for selection.
+
+CANDIDATE CV CONTEXT (Relevant chunks from CV):
+{rag_context if rag_context else "No specific CV chunks found for this query."}
+
+{analysis_context if analysis_context else "LATEST ANALYSIS: No detailed analysis found for this candidate yet."}
+
+CONVERSATION HISTORY:
+{history_text if history_text else "This is the start of your conversation."}
+
+RECRUITER MESSAGE: {message}
+
+INSTRUCTIONS:
+1. Provide highly specific, recruiter-focused, data-driven advice based on the provided ANALYSIS and CV.
+2. Help the recruiter assess the candidate's strengths, weaknesses, seniority fit, and suitability for the job.
+3. Suggest concrete interview questions or trial project ideas targeting the candidate's gaps.
+4. Keep answers highly professional, analytical, objective, and concise. Avoid generic coaching platitudes.
+"""
+    else:
+        prompt = f"""You are an expert AI Career Coach and Personal Consultant. 
 You have FULL ACCESS to the candidate's CV and their latest AI-powered analysis results.
 
 CANDIDATE CV CONTEXT (Relevant chunks from CV):

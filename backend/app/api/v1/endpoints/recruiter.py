@@ -71,7 +71,7 @@ async def get_dashboard_stats(
             "pool_count": pool_count_result.scalar() or 0, "analyses": []
         }
 
-    # Get all analyses matching the filter
+    # Get all analyses matching the filter — only recruiter-initiated ones
     analyses_result = await db.execute(
         select(
             AnalysisRecord,
@@ -79,7 +79,11 @@ async def get_dashboard_stats(
         ).outerjoin(
             JobDescription, AnalysisRecord.job_description_id == JobDescription.id
         ).where(
-            or_(*analysis_filter)
+            or_(*analysis_filter),
+            or_(
+                AnalysisRecord.initiated_by_role == 'recruiter',
+                AnalysisRecord.initiated_by_role.is_(None)  # keep legacy records
+            )
         ).order_by(AnalysisRecord.created_at.desc()).limit(100)
     )
     rows = analyses_result.all()
@@ -225,133 +229,7 @@ async def reveal_candidate_identity(
     }
 
 
-# Bulk CV upload
-@router.post("/bulk-upload")
-async def bulk_upload_cvs(
-    files: List[UploadFile] = File(...),
-    jd_id: Optional[UUID] = None,
-    current_user: User = Depends(require_role("recruiter")),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Bulk upload CVs (up to 50 files).
-    Requirements: 14.1, 14.2
-    """
-    if len(files) > 50:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Maximum 50 files allowed"
-        )
-    
-    task_id = "bulk_" + str(uuid4())
-    
-    # Queue processing (simplified)
-    logger.info(f"Bulk upload: {len(files)} files queued for processing")
-    
-    return {
-        "task_id": task_id,
-        "files_count": len(files),
-        "status": "queued",
-        "message": f"Processing {len(files)} CVs"
-    }
-
-
-@router.get("/bulk-upload/{task_id}/status")
-async def get_bulk_upload_status(
-    task_id: str,
-    current_user: User = Depends(require_role("recruiter"))
-):
-    """
-    Get bulk upload progress.
-    Requirements: 14.4
-    """
-    return {
-        "task_id": task_id,
-        "status": "processing",
-        "progress": 75,
-        "completed": 38,
-        "total": 50
-    }
-
-
-# Talent pool ranking
-@router.post("/talent-pool/rank")
-async def rank_candidates(
-    jd_id: UUID,
-    min_score: Optional[float] = Query(0.0, ge=0.0, le=1.0),
-    required_skills: Optional[List[str]] = None,
-    experience_level: Optional[str] = None,
-    education: Optional[str] = None,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(require_role("recruiter")),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Rank candidates by match score.
-    Requirements: 15.1, 15.2, 15.3
-    """
-    # Simplified ranking
-    return {
-        "jd_id": str(jd_id),
-        "candidates": [],
-        "total": 0,
-        "filters_applied": {
-            "min_score": min_score,
-            "required_skills": required_skills
-        }
-    }
-
-
-# Candidate details
-@router.get("/candidates/{cv_document_id}/details")
-async def get_candidate_details(
-    cv_document_id: UUID,
-    jd_id: UUID,
-    unmask_pii: bool = False,
-    legal_basis: Optional[str] = None,
-    current_user: User = Depends(require_role("recruiter")),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Get candidate details with XAI report.
-    Requirements: 16.1, 16.2, 16.6
-    """
-    if unmask_pii and not legal_basis:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Legal basis required for PII unmasking"
-        )
-    
-    return {
-        "cv_document_id": str(cv_document_id),
-        "match_score": 0.85,
-        "skills": [],
-        "xai_report": {}
-    }
-
-
-# Export
-@router.post("/export")
-async def export_candidates(
-    format: str = Query("pdf", pattern="^(pdf|csv)$"),
-    candidate_ids: Optional[List[UUID]] = None,
-    anonymized: bool = False,
-    current_user: User = Depends(require_role("recruiter")),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Export candidate data.
-    Requirements: 17.1, 17.2, 17.4
-    """
-    if candidate_ids is None:
-        candidate_ids = []
-
-    logger.info(f"Export requested: {len(candidate_ids)} candidates, format: {format}")
-    
-    return {
-        "export_id": str(uuid4()),
-        "format": format,
-        "status": "generating",
-        "message": "Export will be ready shortly"
-    }
+# ── Note: Bulk upload, talent-pool ranking, candidate details, and export ──────
+# These endpoints are deferred to Phase 2 and have been removed to avoid
+# exposing stub routes that return hardcoded/fake data in production.
+# The frontend handles bulk upload via the standard /documents/upload endpoint.

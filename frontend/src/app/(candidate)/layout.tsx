@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { DashboardLayout } from '@/components/shared/DashboardLayout'
 
 // These paths are shared between candidate and recruiter
-const SHARED_PATHS = ['/settings', '/feedback', '/testimonials']
+const SHARED_PATHS = ['/settings', '/feedback', '/testimonials', '/coaching']
 
 export default function CandidateLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()

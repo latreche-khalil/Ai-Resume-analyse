@@ -74,8 +74,18 @@ class VirusScannerService:
         Requirements: 3.3, 3.4, 20.10
         """
         if not self.clamd:
-            logger.warning("ClamAV not available, skipping virus scan")
-            return True, None  # Allow upload if ClamAV unavailable
+            # ClamAV unavailable — log a clear warning.
+            # In development/offline environments this is acceptable.
+            # In production, set SKIP_VIRUS_SCAN=false and ensure ClamAV is running.
+            logger.warning(
+                "ClamAV not available — virus scan SKIPPED. "
+                "Ensure ClamAV is running in production environments."
+            )
+            # Only allow the upload to proceed if explicitly configured to skip scanning.
+            # Default behavior is to block when ClamAV is unreachable in production.
+            if getattr(settings, 'ENVIRONMENT', 'development') == 'production':
+                return False, "SCAN_UNAVAILABLE"
+            return True, None  # Allow in dev/test only
         
         try:
             # Scan file content
@@ -102,13 +112,17 @@ class VirusScannerService:
             return False, virus_name
             
         except pyclamd.ConnectionError:
-            logger.error("ClamAV connection error during scan")
-            self._initialize_connection()  # Try to reconnect
-            return True, None  # Allow upload if scan fails
-            
+            logger.error("ClamAV connection error during scan — attempting reconnect")
+            self._initialize_connection()
+            if getattr(settings, 'ENVIRONMENT', 'development') == 'production':
+                return False, "SCAN_UNAVAILABLE"
+            return True, None  # Allow in dev/test only
+
         except Exception as e:
             logger.error(f"Virus scan error: {str(e)}")
-            return True, None  # Allow upload if scan fails
+            if getattr(settings, 'ENVIRONMENT', 'development') == 'production':
+                return False, "SCAN_ERROR"
+            return True, None  # Allow in dev/test only
     
     async def _log_security_incident(self, filename: str, virus_name: str) -> None:
         """

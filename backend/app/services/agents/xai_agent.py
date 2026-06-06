@@ -127,7 +127,12 @@ class XAIAgent:
                 return None
             
             # Parse response
-            xai_explanation = self._parse_xai_response(response, language, match_score=match_result['match_score'])
+            xai_explanation = self._parse_xai_response(
+                response, language,
+                match_score=match_result['match_score'],
+                matching_skills=match_result.get('matching_skills', []),
+                missing_skills=match_result.get('missing_skills', [])
+            )
             
             # Store in database
             await self._store_xai_report(
@@ -258,7 +263,14 @@ RULES:
 - Return ONLY the JSON object."""
 
     
-    def _parse_xai_response(self, response: str, language: str, match_score: float = 0.5) -> Dict[str, Any]:
+    def _parse_xai_response(
+        self,
+        response: str,
+        language: str,
+        match_score: float = 0.5,
+        matching_skills: List[str] = None,
+        missing_skills: List[str] = None
+    ) -> Dict[str, Any]:
         """
         Parse XAI response.
         
@@ -425,7 +437,10 @@ RULES:
                     'waterfall', waterfall_explanation, evidence_for, evidence_against, detail_level
                 ),
                 'summary_plot_data': self._prepare_summary_plot_data(
-                    evidence_for, evidence_against
+                    evidence_for, evidence_against,
+                    matching_skills=matching_skills or [],
+                    missing_skills=missing_skills or [],
+                    match_score=match_score
                 ) if detail_level == "advanced" else None
             }
             
@@ -667,39 +682,46 @@ RULES:
     def _prepare_summary_plot_data(
         self,
         evidence_for: List[Dict],
-        evidence_against: List[Dict]
+        evidence_against: List[Dict],
+        matching_skills: List[str] = None,
+        missing_skills: List[str] = None,
+        match_score: float = 0.5
     ) -> Dict[str, Any]:
         """
-        Prepare data for SHAP-style summary plot from evidence.
-        
-        Shows feature importance with impact direction.
-        
-        Args:
-            evidence_for: Positive evidence
-            evidence_against: Negative evidence
-            
-        Returns:
-            Summary plot data
+        Prepare SHAP-style summary plot from real matching/missing skills.
+
+        Uses actual matching and missing skills rather than evidence text blobs,
+        so the feature names are real skill names and the importance values are
+        derived from the match score and skill counts — not hardcoded weights.
         """
-        if not evidence_for and not evidence_against:
+        matching_skills = matching_skills or []
+        missing_skills  = missing_skills  or []
+
+        if not matching_skills and not evidence_for and not evidence_against:
             return None
-        
-        features = []
+
+        features          = []
         importance_values = []
         impact_directions = []
-        
-        # Add positive evidence
-        for item in evidence_for[:5]:
-            features.append(item.get('claim', 'Unknown')[:30])
-            importance_values.append(item.get('weight', 0))
+
+        # Positive: matching skills — importance proportional to match_score share
+        for skill in matching_skills[:6]:
+            features.append(skill[:30])
+            # Each matching skill contributes equally to the match score
+            imp = round(match_score / max(len(matching_skills), 1), 3)
+            importance_values.append(imp)
             impact_directions.append('positive')
-        
-        # Add negative evidence
-        for item in evidence_against[:5]:
-            features.append(item.get('gap', 'Unknown')[:30])
-            importance_values.append(item.get('weight', 0))
+
+        # Negative: missing skills — importance proportional to (1 - match_score) share
+        for skill in missing_skills[:4]:
+            features.append(skill[:30])
+            imp = round((1.0 - match_score) / max(len(missing_skills), 1), 3)
+            importance_values.append(imp)
             impact_directions.append('negative')
-        
+
+        if not features:
+            return None
+
         return {
             'type': 'summary',
             'features': features,
