@@ -54,6 +54,7 @@ class GapAgent:
         analysis_record_id: UUID,
         db: AsyncSession,
         cv_document_id: Optional[UUID] = None,
+        is_recruiter: bool = False
     ) -> Dict[str, Any]:
         start_time = time.time()
         try:
@@ -77,6 +78,7 @@ class GapAgent:
                 jd_text=jd_text,
                 match_score=match_result.get("match_score", 0.0),
                 rag_context=rag_context,
+                is_recruiter=is_recruiter
             )
             
             # Call LLM with optimized settings
@@ -110,11 +112,54 @@ class GapAgent:
         jd_text: str,
         match_score: float,
         rag_context: str = "",
-        language: str = "English"
+        language: str = "English",
+        is_recruiter: bool = False
     ) -> str:
         """Create gap analysis prompt with Vercel-grade precision and English language."""
         rag_section = f"\n\nCANDIDATE BACKGROUND:\n{rag_context[:self.RAG_CONTEXT_LIMIT]}\n" if rag_context else ""
         
+        if is_recruiter:
+            return f"""You are a Strategic Tech Recruiter and Hiring Manager. Analyze the candidate's skill gaps and weaknesses relative to the job requirements.
+            
+OUTPUT LANGUAGE: MUST be {language}.
+
+JOB REQUIREMENTS:
+{jd_text[:self.JD_TEXT_LIMIT]}
+
+MISSING SKILLS:
+{', '.join(missing_skills[:self.MISSING_SKILLS_LIMIT])}
+
+CURRENT MATCH SCORE: {match_score:.0%}
+{rag_section}
+
+INSTRUCTIONS:
+1. Identify CRITICAL gaps (Blocking technical requirements).
+2. Identify IMPORTANT gaps (Performance differentiators).
+3. Identify NICE-TO-HAVE (Tooling/Secondary additions).
+4. Create a quick action list for the recruiter to verify during the interview.
+5. Set "learning_roadmap" to [] (Empty list) as this view is for recruiters, not candidates.
+
+OUTPUT FORMAT (JSON only):
+{{
+  "critical_gaps": [
+    {{
+      "skill": "Name",
+      "reason": "Recruiter-focused technical gap justification",
+      "impact": "High",
+      "priority": 1
+    }}
+  ],
+  "learning_roadmap": [],
+  "quick_wins": [
+    {{ "action": "Actionable interview question/probe regarding this gap", "timeline": "Interview" }}
+  ]
+}}
+
+RULES:
+- RESPONSE MUST BE IN {language}.
+- learning_roadmap MUST BE EMPTY [].
+- Return ONLY the JSON object."""
+
         return f"""You are a Strategic Engineering Lead and Career Mentor. Create a high-density, ACCELERATED learning roadmap.
 
 OUTPUT LANGUAGE: MUST be {language}.

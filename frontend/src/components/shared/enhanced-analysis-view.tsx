@@ -33,6 +33,7 @@ import { GapsTab } from '@/components/candidate/GapsTab'
 import { LearningTimeline } from '@/components/candidate/LearningTimeline'
 import { AIInsightsTab } from '@/components/candidate/AIInsightsTab'
 import { InterviewTab } from '@/components/candidate/InterviewTab'
+import { RecruiterEvaluationTab } from '@/components/recruiter/RecruiterEvaluationTab'
 
 const R = { fontFamily: 'Roboto, sans-serif' }
 
@@ -136,9 +137,16 @@ export function EnhancedAnalysisView() {
   const TABS_CONFIG: { id: Tab; label: string; icon: any }[] = [
     { id: 'overview', label: 'Overview',   icon: BarChart3     },
     { id: 'gaps',     label: 'Skill Gaps', icon: Target        },
-    { id: 'roadmap',  label: 'Roadmap',    icon: MapIcon       },
+    ...(user?.role === 'recruiter' ? [
+      { id: 'evaluation' as const, label: 'Evaluation', icon: ShieldCheck }
+    ] : []),
+    ...(user?.role !== 'recruiter' ? [
+      { id: 'roadmap' as const,  label: 'Roadmap',    icon: MapIcon       },
+    ] : []),
     { id: 'xai',      label: 'AI Insights',icon: BrainCircuit  },
-    { id: 'prep',     label: 'Interview',  icon: MessageSquare },
+    ...(user?.role !== 'recruiter' ? [
+      { id: 'prep' as const,     label: 'Interview',  icon: MessageSquare },
+    ] : []),
   ]
 
   return (
@@ -269,7 +277,8 @@ export function EnhancedAnalysisView() {
                   exit={{ opacity: 0, y: -6 }}
                   transition={{ duration: 0.18 }}
                 >
-                  {tab === 'overview' && <OverviewTab data={data} onTabChange={setTab} />}
+                   {tab === 'overview' && <OverviewTab data={data} onTabChange={setTab} />}
+                  {tab === 'evaluation' && <RecruiterEvaluationTab data={data} />}
                   {tab === 'gaps' && (
                     <GapsTab 
                       gapReport={data.gap_report} 
@@ -343,16 +352,28 @@ export function EnhancedAnalysisView() {
                 </button>
               )}
               {user?.role === 'recruiter' && (
-                <button
-                  onClick={() => router.push('/talent-pool')}
-                  className="w-full p-3.5 rounded-xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-gray-800 dark:text-white font-medium text-sm flex items-center justify-between group hover:bg-gray-50 dark:hover:bg-neutral-800/60 hover:border-gray-300 dark:hover:border-neutral-700 transition-all"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Zap className="w-4 h-4 text-blue-500" />
-                    <span>Add to Talent Pool</span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:translate-x-0.5 transition-transform" />
-                </button>
+                <>
+                  <button 
+                    onClick={() => router.push(`/coaching?cv_id=${data.cv_document_id}`)}
+                    className="w-full p-3.5 rounded-xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-gray-800 dark:text-white font-medium text-sm flex items-center justify-between group hover:bg-gray-50 dark:hover:bg-neutral-800/60 hover:border-gray-300 dark:hover:border-neutral-700 transition-all"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <MessageSquare className="w-4 h-4 text-violet-500" />
+                      <span>Consult AI Selection Assistant</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-400 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+                  <button
+                    onClick={() => router.push('/talent-pool')}
+                    className="w-full p-3.5 rounded-xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-gray-800 dark:text-white font-medium text-sm flex items-center justify-between group hover:bg-gray-50 dark:hover:bg-neutral-800/60 hover:border-gray-300 dark:hover:border-neutral-700 transition-all"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Zap className="w-4 h-4 text-blue-500" />
+                      <span>Add to Talent Pool</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-400 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+                </>
               )}
               {user?.role === 'recruiter' && (
                 <button

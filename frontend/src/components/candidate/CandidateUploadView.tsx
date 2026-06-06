@@ -29,8 +29,8 @@ export default function CandidateUploadView() {
 
   const validate = (f: File): string | null => {
     const ext = f.name.substring(f.name.lastIndexOf('.')).toLowerCase()
-    if (!['.pdf', '.docx', '.doc'].includes(ext))
-      return 'Invalid file type. Please upload a PDF or Word document.'
+    if (!['.pdf', '.docx', '.doc', '.jpg', '.jpeg', '.png'].includes(ext))
+      return 'Invalid file type. Please upload a PDF, Word document, or image (JPG/PNG).'
     if (f.size > MAX_MB * 1024 * 1024)
       return `File too large. Maximum size is ${MAX_MB}MB.`
     return null
@@ -78,7 +78,7 @@ export default function CandidateUploadView() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Upload Resume</h1>
-          <p className="text-sm text-gray-500 dark:text-neutral-400 mt-0.5">PDF, DOCX or DOC · Max {MAX_MB}MB</p>
+          <p className="text-sm text-gray-500 dark:text-neutral-400 mt-0.5">PDF, DOCX, DOC, JPG, JPEG, PNG · Max {MAX_MB}MB</p>
         </div>
       </div>
 
@@ -97,7 +97,7 @@ export default function CandidateUploadView() {
               : 'border-gray-300 dark:border-slate-700 bg-white dark:bg-[#0f0f11] hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/30 dark:hover:bg-blue-500/5'
         }`}
       >
-        <input ref={inputRef} type="file" className="hidden" accept=".pdf,.docx,.doc"
+        <input ref={inputRef} type="file" className="hidden" accept=".pdf,.docx,.doc,.jpg,.jpeg,.png"
           onChange={e => { if (e.target.files?.[0]) pick(e.target.files[0]) }} />
 
         <div className="p-12 flex flex-col items-center gap-6 text-center">
@@ -119,9 +119,9 @@ export default function CandidateUploadView() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-gray-400 dark:text-neutral-500 bg-gray-50 dark:bg-slate-800 px-4 py-2 rounded-lg border border-gray-200 dark:border-slate-700">
-                  <span className="flex items-center gap-1"><FileType size={12} /> PDF</span>
+                  <span className="flex items-center gap-1"><FileType size={12} /> PDF / DOCX</span>
                   <span>·</span>
-                  <span className="flex items-center gap-1"><FileType size={12} /> DOCX</span>
+                  <span className="flex items-center gap-1"><FileType size={12} /> JPG / PNG (OCR)</span>
                   <span>·</span>
                   <span>Max {MAX_MB}MB</span>
                 </div>
@@ -178,6 +178,17 @@ export default function CandidateUploadView() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* OCR/Scanned PDF Notice */}
+      <div className="p-4 bg-violet-500/5 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 rounded-2xl flex items-start gap-3 text-left">
+        <Cpu className="text-violet-600 dark:text-violet-400 shrink-0 mt-0.5" size={16} />
+        <div>
+          <p className="text-xs font-bold text-violet-900 dark:text-violet-200 uppercase tracking-wider">Scanned CV & Image OCR Support</p>
+          <p className="text-xs text-violet-700 dark:text-violet-300 mt-1 leading-relaxed">
+            Our ingestion system uses state-of-the-art <strong>Optical Character Recognition (OCR)</strong> and structural parsing (via IBM Docling & EasyOCR) to extract text from scanned documents, PDFs, and image formats (JPG/PNG) exactly as they are.
+          </p>
+        </div>
+      </div>
 
       {/* Upload button */}
       <button onClick={handleUpload} disabled={!file || uploading}

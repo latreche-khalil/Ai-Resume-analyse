@@ -91,23 +91,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const publicPaths = ['/', '/login', '/register', '/forgot-password', '/reset-password']
     const currentPath = window.location.pathname
-
-    // On public pages: don't fetch, just clear loading
-    if (publicPaths.some(p => currentPath === p || currentPath.startsWith(p + '/'))) {
-      setLoading(false)
-      return
-    }
+    const isPublic = publicPaths.some(p => currentPath === p || currentPath.startsWith(p + '/'))
 
     const cached = getCachedUser()
     if (cached) {
-      // لدينا cache — نعرضه فوراً بدون spinner
+      // Always restore from cache immediately — on any page
       setUser(cached)
       setLoading(false)
-      // ثم نتحقق في الخلفية بدون تغيير loading
-      refreshUser(true).catch(() => {})
-    } else {
-      // لا cache — نجلب من API
+      // On protected pages: verify in background silently
+      // On public pages: skip API call to avoid unnecessary network requests
+      if (!isPublic) {
+        refreshUser(true).catch(() => {})
+      }
+    } else if (!isPublic) {
+      // No cache on protected page — fetch from API
       refreshUser(false)
+    } else {
+      // No cache on public page — just mark loading done
+      setLoading(false)
     }
   }, [refreshUser])
 

@@ -231,12 +231,36 @@ class MultiAgentOrchestrator:
             analysis_record.matching_skills = match_result['matching_skills']
             analysis_record.missing_skills = match_result['missing_skills']
             analysis_record.transferable_skills = match_result['transferable_skills']
-            analysis_record.seniority_alignment = match_result.get('seniority_alignment')
+            # Prepare seniority alignment metadata
+            seniority_data = match_result.get('seniority_alignment') or {}
+            if not isinstance(seniority_data, dict):
+                seniority_data = {
+                    'cv_level': 'unknown',
+                    'jd_level': 'unknown',
+                    'match': 'unknown',
+                    'explanation': str(seniority_data)
+                }
+            
+            # Embed recruiter-specific AI insights directly in seniority_alignment JSON to avoid DB schema migration
+            seniority_data['evidence_for_hire'] = match_result.get('evidence_for_hire', [])
+            seniority_data['evidence_against_hire'] = match_result.get('evidence_against_hire', [])
+            seniority_data['interview_questions'] = match_result.get('interview_questions', [])
+            seniority_data['hiring_recommendation'] = match_result.get('hiring_recommendation', '')
+            
+            analysis_record.seniority_alignment = seniority_data
             analysis_record.red_flags = match_result.get('red_flags')
             analysis_record.hiring_urgency = match_result.get('hiring_urgency')
             analysis_record.processing_status = 'processing'
 
-            # ── Human-in-the-Loop: always non-binding ──────────────────────
+            # ── Optimise token consumption by checking user role ──────────────
+            from app.models.user import User
+            user_result = await db.execute(
+                select(User.role).where(User.id == user_id)
+            )
+            user_role = user_result.scalar_one_or_none() or "candidate"
+
+            # Persist who initiated the analysis so recruiter/candidate views stay separated
+            analysis_record.initiated_by_role = user_role
             from app.models.analysis_record import HUMAN_REVIEW_CONFIDENCE_THRESHOLD
             
             # Convert string confidence (high/medium/low) to float
@@ -259,69 +283,84 @@ class MultiAgentOrchestrator:
 
             await db.commit()
             
-            # Step 5 & 6: Gap and XAI Agents in parallel
-            logger.info("Step 2/3: Running Gap and XAI Agents in parallel")
-            
-            async def run_gap():
+            if user_role == "recruiter":
+                logger.info(f"Initiator is a recruiter. Running recruiter-optimized Gap analysis via LLM, and generating programmatic XAI report to save tokens.")
                 try:
-                    return await gap_agent.analyze_gaps(
+                    gap_result = await gap_agent.analyze_gaps(
                         match_result=match_result,
-                        cv_skills=[],  
+                        cv_skills=[],
                         jd_text=job_description.description,
                         analysis_record_id=analysis_record.id,
                         db=db,
                         cv_document_id=cv_document_id,
+                        is_recruiter=True
                     )
                 except Exception as gap_err:
-                    logger.warning(f"Gap agent failed ({gap_err}), using empty result")
-                    return {'critical_gaps': [], 'important_gaps': [], 'nice_to_have_gaps': [], 'learning_roadmap': [], 'quick_wins': []}
+                    logger.warning(f"Recruiter Gap agent failed ({gap_err}), using fallback")
+                    gap_result = await self._generate_programmatic_gap_report(analysis_record.id, match_result, db)
+                
+                xai_result = await self._generate_programmatic_xai_report(analysis_record.id, match_result, cv_document, db)
+                xai_failed = False
+                gap_failed = not any([
+                    gap_result.get('critical_gaps'),
+                    gap_result.get('important_gaps'),
+                    gap_result.get('nice_to_have_gaps')
+                ])
+            else:
+                # Step 5 & 6: Gap and XAI Agents in parallel via LLM for candidates
+                logger.info("Step 2/3: Running Gap and XAI Agents in parallel via LLM for candidate")
+                
+                async def run_gap():
+                    try:
+                        return await gap_agent.analyze_gaps(
+                            match_result=match_result,
+                            cv_skills=[],  
+                            jd_text=job_description.description,
+                            analysis_record_id=analysis_record.id,
+                            db=db,
+                            cv_document_id=cv_document_id,
+                        )
+                    except Exception as gap_err:
+                        logger.warning(f"Gap agent failed ({gap_err}), using empty result")
+                        return {'critical_gaps': [], 'important_gaps': [], 'nice_to_have_gaps': [], 'learning_roadmap': [], 'quick_wins': []}
 
-            async def run_xai():
-                try:
-                    return await xai_agent.explain(
-                        match_result=match_result,
-                        cv_text=cv_document.masked_text,
-                        jd_text=job_description.description,
-                        analysis_record_id=analysis_record.id,
-                        language=cv_document.detected_language or 'en',
-                        db=db,
-                        cv_document_id=cv_document_id
-                    )
-                except Exception as xai_err:
-                    logger.warning(f"XAI agent failed ({xai_err}), returning empty results.")
-                    return {
-                        'summary': 'AI Explanation unavailable.',
-                        'overall_explanation': 'Could not generate AI explanation at this time.',
-                        'evidence_for_match': [],
-                        'evidence_against_match': [],
-                        'counterfactuals': []
-                    }
+                async def run_xai():
+                    try:
+                        return await xai_agent.explain(
+                            match_result=match_result,
+                            cv_text=cv_document.masked_text,
+                            jd_text=job_description.description,
+                            analysis_record_id=analysis_record.id,
+                            language=cv_document.detected_language or 'en',
+                            db=db,
+                            cv_document_id=cv_document_id
+                        )
+                    except Exception as xai_err:
+                        logger.warning(f"XAI agent failed ({xai_err}), returning empty results.")
+                        return {
+                            'summary': 'AI Explanation unavailable.',
+                            'overall_explanation': 'Could not generate AI explanation at this time.',
+                            'evidence_for_match': [],
+                            'evidence_against_match': [],
+                            'counterfactuals': []
+                        }
 
-            # Run agents sequentially to avoid free tier rate limits/concurrency issues
-            gap_result = await run_gap()
-            xai_result = await run_xai()
+                # Run agents sequentially to avoid free tier rate limits/concurrency issues
+                gap_result = await run_gap()
+                xai_result = await run_xai()
+
+                xai_failed = xai_result.get('summary') == 'AI Explanation unavailable.'
+                gap_data_found = any([
+                    gap_result.get('critical_gaps'),
+                    gap_result.get('important_gaps'),
+                    gap_result.get('nice_to_have_gaps'),
+                    gap_result.get('learning_roadmap')
+                ])
+                gap_failed = not gap_data_found
 
             # Flush to ensure everything is saved
             await db.commit()
             await db.refresh(analysis_record)
-
-            xai_failed = xai_result.get('summary') == 'AI Explanation unavailable.'
-            gap_data_found = any([
-                gap_result.get('critical_gaps'),
-                gap_result.get('important_gaps'),
-                gap_result.get('nice_to_have_gaps'),
-                gap_result.get('learning_roadmap')
-            ])
-            gap_failed = not gap_data_found
-
-            # Update analysis status — partial_done if any agent failed
-            gap_data_found = any([
-                gap_result.get('critical_gaps'),
-                gap_result.get('important_gaps'),
-                gap_result.get('nice_to_have_gaps'),
-                gap_result.get('learning_roadmap')
-            ])
-            gap_failed = not gap_data_found
             
             if xai_failed or gap_failed:
                 analysis_record.processing_status = 'partial_done'
@@ -358,6 +397,219 @@ class MultiAgentOrchestrator:
                 await db.commit()
             
             raise
+
+    async def _generate_programmatic_gap_report(
+        self,
+        analysis_record_id: UUID,
+        match_result: Dict[str, Any],
+        db: AsyncSession
+    ) -> Dict[str, Any]:
+        """Generate a zero-token programmatic GapReport for recruiter views."""
+        from app.models.gap_report import GapReport
+        
+        missing_skills = match_result.get('missing_skills', [])
+        critical_gaps = []
+        for idx, skill in enumerate(missing_skills[:5], 1):
+            critical_gaps.append({
+                "skill": skill,
+                "reason": "Required competency for this job description.",
+                "impact": "High",
+                "priority": idx
+            })
+        
+        important_gaps = []
+        for idx, skill in enumerate(missing_skills[5:10], 1):
+            important_gaps.append({
+                "skill": skill,
+                "reason": "Desired competency for optimal performance.",
+                "impact": "Medium",
+                "priority": idx
+            })
+        
+        nice_to_have_gaps = []
+        for idx, skill in enumerate(missing_skills[10:15], 1):
+            nice_to_have_gaps.append({
+                "skill": skill,
+                "reason": "Nice-to-have addition.",
+                "impact": "Low",
+                "priority": idx
+            })
+
+        # Keep learning roadmap empty for recruiters to save space and context
+        learning_roadmap = []
+        quick_wins = []
+        if missing_skills:
+            quick_wins.append({
+                "action": f"Review candidate familiarity with {missing_skills[0]}",
+                "timeline": "1-2 days"
+            })
+
+        gap_analysis = {
+            "critical_gaps": critical_gaps,
+            "important_gaps": important_gaps,
+            "nice_to_have_gaps": nice_to_have_gaps,
+            "learning_roadmap": learning_roadmap,
+            "quick_wins": quick_wins,
+        }
+
+        # Check for existing
+        stmt = select(GapReport).where(GapReport.analysis_record_id == analysis_record_id)
+        res = await db.execute(stmt)
+        gap_report = res.scalar_one_or_none()
+        
+        if gap_report:
+            gap_report.critical_gaps = critical_gaps
+            gap_report.important_gaps = important_gaps
+            gap_report.nice_to_have_gaps = nice_to_have_gaps
+            gap_report.learning_roadmap = learning_roadmap
+            gap_report.quick_wins = quick_wins
+        else:
+            gap_report = GapReport(
+                analysis_record_id=analysis_record_id,
+                critical_gaps=critical_gaps,
+                important_gaps=important_gaps,
+                nice_to_have_gaps=nice_to_have_gaps,
+                learning_roadmap=learning_roadmap,
+                quick_wins=quick_wins,
+            )
+            db.add(gap_report)
+        
+        return gap_analysis
+
+    async def _generate_programmatic_xai_report(
+        self,
+        analysis_record_id: UUID,
+        match_result: Dict[str, Any],
+        cv_document,
+        db: AsyncSession
+    ) -> Dict[str, Any]:
+        """Generate a zero-token programmatic XAIReport for recruiter views."""
+        from app.models.xai_report import XAIReport
+        from app.core.database import AsyncSessionLocal
+        
+        matching_skills = match_result.get('matching_skills', [])
+        missing_skills = match_result.get('missing_skills', [])
+        match_score = match_result.get('match_score', 0.0)
+        
+        # Prepare evidence
+        evidence_for_match = []
+        for skill in matching_skills[:5]:
+            evidence_for_match.append({
+                "claim": skill,
+                "evidence": f"Proven experience with {skill} found in the CV.",
+                "credibility": "high",
+                "weight": 0.8
+            })
+            
+        evidence_against_match = []
+        for skill in missing_skills[:5]:
+            evidence_against_match.append({
+                "gap": skill,
+                "required": f"Knowledge of {skill}",
+                "current": "Missing from CV",
+                "impact": "medium",
+                "weight": 0.6
+            })
+            
+        # Reconcile SHAP contributions to equal match_score
+        base_score = 0.5
+        
+        # Build normalized feature contributions
+        feature_contributions = []
+        for item in evidence_for_match:
+            feature_contributions.append({
+                "feature": item["claim"],
+                "contribution": 0.05,
+                "reason": item["evidence"]
+            })
+        for item in evidence_against_match:
+            feature_contributions.append({
+                "feature": item["gap"],
+                "contribution": -0.05,
+                "reason": f"Required: {item['required']}"
+            })
+            
+        # Scaling
+        pos_count = len(evidence_for_match)
+        neg_count = len(evidence_against_match)
+        total_delta = match_score - base_score
+        
+        if pos_count + neg_count > 0:
+            avg_contrib = total_delta / (pos_count + neg_count)
+            for c in feature_contributions:
+                c["contribution"] = round(avg_contrib, 3)
+                
+        shap_analysis = {
+            "base_score": base_score,
+            "feature_contributions": feature_contributions,
+            "final_score": match_score
+        }
+        
+        # Build waterfall steps
+        steps = [{'name': 'Base Score', 'value': base_score, 'cumulative': base_score}]
+        cumulative = base_score
+        for c in feature_contributions:
+            cumulative += c["contribution"]
+            steps.append({
+                'step': c['feature'],
+                'delta': c['contribution'],
+                'score_after': min(1.0, max(0.0, cumulative)),
+                'reason': c['reason']
+            })
+        steps.append({'name': 'Final Score', 'value': 0, 'cumulative': match_score})
+        
+        waterfall_explanation = {'steps': steps}
+        
+        # What-if scenarios
+        what_if_scenarios = []
+        for idx, skill in enumerate(missing_skills[:3]):
+            what_if_scenarios.append({
+                "change": f"Gain certification or complete project in {skill}",
+                "expected_score": round(min(0.99, float(match_score) + 0.05 * (idx + 1)), 2),
+                "explanation": f"Adding {skill} directly addresses a core job description gap.",
+                "feasibility": "medium"
+            })
+            
+        xai_explanation = {
+            'overall_explanation': f"The candidate has a match score of {match_score:.0%}. Core strengths include: {', '.join(matching_skills[:3])}.",
+            'summary': f"Programmatic recruiter analysis summary showing {match_score:.0%} match.",
+            'shap_analysis': shap_analysis,
+            'what_if_scenarios': what_if_scenarios,
+            'waterfall_explanation': waterfall_explanation,
+            'evidence_for_match': evidence_for_match,
+            'evidence_against_match': evidence_against_match,
+            'key_achievements': [f"Candidate possesses {s}" for s in matching_skills[:3]],
+            'counterfactuals': what_if_scenarios,
+        }
+        
+        # Store in db (uses fresh session)
+        async with AsyncSessionLocal() as fresh_db:
+            xai_report = XAIReport(
+                analysis_record_id=analysis_record_id,
+                overall_explanation=xai_explanation['overall_explanation'],
+                evidence_for_match=evidence_for_match,
+                evidence_against_match=evidence_against_match,
+                key_achievements=xai_explanation['key_achievements'],
+                counterfactuals=what_if_scenarios,
+                force_plot_data={
+                    'type': 'force_plot',
+                    'base_value': base_score,
+                    'features': [c['feature'] for c in feature_contributions],
+                    'values': [c['contribution'] for c in feature_contributions],
+                    'colors': ['#4CAF50' if c['contribution'] > 0 else '#F44336' for c in feature_contributions],
+                    'final_score': match_score
+                },
+                waterfall_data={
+                    'type': 'waterfall',
+                    'steps': steps,
+                    'base_score': base_score,
+                    'final_score': match_score
+                }
+            )
+            fresh_db.add(xai_report)
+            await fresh_db.commit()
+            
+        return xai_explanation
 
     def _local_match_fallback(
         self,

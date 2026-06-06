@@ -61,10 +61,11 @@ export function CandidateComparisonView() {
       const enriched = await Promise.all(
         top30.map(async (a: any) => {
           try {
-            const [full, doc] = await Promise.all([
+            const [fullRes, doc] = await Promise.all([
               apiClient.getAnalysis(a.id),
               apiClient.getDocument(a.cv_document_id).catch(() => null),
             ])
+            const full = fullRes as any
             return {
               id: a.id,
               cv_document_id: a.cv_document_id,
@@ -73,7 +74,7 @@ export function CandidateComparisonView() {
               matching_skills: full.matching_skills || [],
               missing_skills: full.missing_skills || [],
               transferable_skills: full.transferable_skills || [],
-              experience_level: (full as any).experience_level || 'N/A',
+              experience_level: full.experience_level || 'N/A',
               red_flags: full.red_flags || [],
               confidence_score: full.confidence_score ?? 0.8,
             } as ComparisonCandidate

@@ -7,8 +7,8 @@ celery_app = Celery(
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
     include=[
-        "app.services.tasks",
-        "app.services.worker_maintenance",
+        "app.services.infrastructure.tasks",
+        "app.services.infrastructure.worker_maintenance",
     ]
 )
 

@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion'
 import { SkillMatrix } from './SkillMatrix'
 import { WhatIfSimulator } from './WhatIfSimulator'
+import { useAuth } from '@/contexts/auth-context'
 import { 
   AlertCircle, 
   Map as MapIcon, 
@@ -18,6 +19,8 @@ interface OverviewTabProps {
 }
 
 export function OverviewTab({ data, onTabChange }: OverviewTabProps) {
+  const { user } = useAuth()
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -95,7 +98,7 @@ export function OverviewTab({ data, onTabChange }: OverviewTabProps) {
       </div>
 
       {/* Navigation Shortcuts */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className={`grid gap-4 ${user?.role === 'recruiter' ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
         <motion.button
           onClick={() => onTabChange('gaps')}
           className="group p-6 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-left hover:border-rose-300 dark:hover:border-rose-500/30 hover:shadow-lg transition-all shadow-md"
@@ -110,29 +113,31 @@ export function OverviewTab({ data, onTabChange }: OverviewTabProps) {
               <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-slate-400" />
             </div>
             <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-              Identify obstacles holding you back.
+              {user?.role === 'recruiter' ? 'Analyze skill mismatches and gap details.' : 'Identify obstacles holding you back.'}
             </p>
           </div>
         </motion.button>
 
-        <motion.button
-          onClick={() => onTabChange('roadmap')}
-          className="group p-6 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-left hover:border-sky-300 dark:hover:border-sky-500/30 hover:shadow-lg transition-all shadow-md"
-          whileHover={{ y: -2 }}
-        >
-          <div className="w-10 h-10 rounded-xl bg-sky-50 dark:bg-sky-500/10 flex items-center justify-center mb-4 border border-sky-100 dark:border-sky-500/20">
-            <MapIcon className="w-5 h-5 text-sky-600 dark:text-sky-400" />
-          </div>
-          <div className="space-y-2">
-            <div className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              Learning Roadmap
-              <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-slate-400" />
+        {user?.role !== 'recruiter' && (
+          <motion.button
+            onClick={() => onTabChange('roadmap')}
+            className="group p-6 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-left hover:border-sky-300 dark:hover:border-sky-500/30 hover:shadow-lg transition-all shadow-md"
+            whileHover={{ y: -2 }}
+          >
+            <div className="w-10 h-10 rounded-xl bg-sky-50 dark:bg-sky-500/10 flex items-center justify-center mb-4 border border-sky-100 dark:border-sky-500/20">
+              <MapIcon className="w-5 h-5 text-sky-600 dark:text-sky-400" />
             </div>
-            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-              Bridging expertise gaps.
-            </p>
-          </div>
-        </motion.button>
+            <div className="space-y-2">
+              <div className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                Learning Roadmap
+                <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-slate-400" />
+              </div>
+              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                Bridging expertise gaps.
+              </p>
+            </div>
+          </motion.button>
+        )}
       </div>
     </motion.div>
   )

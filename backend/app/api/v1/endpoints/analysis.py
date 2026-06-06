@@ -9,7 +9,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, literal
+from sqlalchemy import select, func, literal, or_
 
 from app.core.database import get_db, AsyncSessionLocal
 from app.services.auth.dependencies import get_current_user, require_role
@@ -26,7 +26,6 @@ from app.schemas.analysis import (
     AnalysisResponse,
     AnalysisListResponse
 )
-from app.services.infrastructure.tasks import match_cv_to_jd_async
 from app.utils.logger import logger
 
 
@@ -74,10 +73,14 @@ async def get_analysis_stats(
                 'recent_analyses': []
             }
         
-        # Get analyses
+        # Get analyses — candidate only sees their own (not recruiter batch)
         analyses_result = await db.execute(
             select(AnalysisRecord).where(
-                AnalysisRecord.cv_document_id.in_(cv_id_list)
+                AnalysisRecord.cv_document_id.in_(cv_id_list),
+                or_(
+                    AnalysisRecord.initiated_by_role == 'candidate',
+                    AnalysisRecord.initiated_by_role.is_(None)
+                )
             ).order_by(AnalysisRecord.created_at.desc()).limit(10)
         )
         analysis_list = analyses_result.scalars().all()
@@ -378,6 +381,25 @@ async def batch_rank_uploaded_candidates(
         "sort_options": ["rank", "composite_score", "skills_match", "semantic_similarity", "experience_level"],
     }
 
+    # Ensure all UUIDs are serialized as strings before storing in JSON column
+    import json as _json
+    from uuid import UUID as _UUID
+    from datetime import datetime as _dt
+
+    def _jsonable(obj):
+        """Recursively convert non-serializable types to strings."""
+        if isinstance(obj, dict):
+            return {k: _jsonable(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [_jsonable(i) for i in obj]
+        if isinstance(obj, _UUID):
+            return str(obj)
+        if isinstance(obj, _dt):
+            return obj.isoformat()
+        return obj
+
+    safe_response_data = _jsonable(response_data)
+
     # Save to database
     db_result = BatchRankingResult(
         recruiter_id=current_user.id,
@@ -386,16 +408,16 @@ async def batch_rank_uploaded_candidates(
         cv_count=len(unique_cv_ids),
         best_candidate=best.get("filename") if best else None,
         best_score=best.get("composite_score") if best else None,
-        result_data=response_data
+        result_data=safe_response_data
     )
     db.add(db_result)
     await db.commit()
     await db.refresh(db_result)
 
-    response_data["id"] = str(db_result.id)
-    response_data["created_at"] = db_result.created_at.isoformat()
+    safe_response_data["id"] = str(db_result.id)
+    safe_response_data["created_at"] = db_result.created_at.isoformat()
 
-    return response_data
+    return safe_response_data
 
 
 @router.get(
@@ -571,6 +593,14 @@ async def get_analysis(
     )
     xai_report = xai_result.scalar_one_or_none()
     
+    # Extract embedded recruiter insights
+    seniority = analysis.seniority_alignment or {}
+    is_dict = isinstance(seniority, dict)
+    evidence_for_hire = seniority.get('evidence_for_hire', []) if is_dict else []
+    evidence_against_hire = seniority.get('evidence_against_hire', []) if is_dict else []
+    interview_questions = seniority.get('interview_questions', []) if is_dict else []
+    hiring_recommendation = seniority.get('hiring_recommendation', '') if is_dict else ''
+
     # Build complete response with SHAP explanations
     return {
         'id': str(analysis.id),
@@ -581,6 +611,10 @@ async def get_analysis(
         'missing_skills': analysis.missing_skills[:15] if analysis.missing_skills else [],
         'transferable_skills': analysis.transferable_skills[:10] if analysis.transferable_skills else [],
         'analysis_status': analysis.processing_status,
+        'evidence_for_hire': evidence_for_hire,
+        'evidence_against_hire': evidence_against_hire,
+        'interview_questions': interview_questions,
+        'hiring_recommendation': hiring_recommendation,
         'gap_report': {
             'critical_gaps': gap_report.critical_gaps if gap_report and gap_report.critical_gaps else [],
             'important_gaps': gap_report.important_gaps if gap_report and gap_report.important_gaps else [],
@@ -715,6 +749,10 @@ async def get_enhanced_analysis(
         'matching_skills': analysis.matching_skills or [],
         'missing_skills': analysis.missing_skills or [],
         'transferable_skills': analysis.transferable_skills or [],
+        'evidence_for_hire': (analysis.seniority_alignment or {}).get('evidence_for_hire', []) if isinstance(analysis.seniority_alignment, dict) else [],
+        'evidence_against_hire': (analysis.seniority_alignment or {}).get('evidence_against_hire', []) if isinstance(analysis.seniority_alignment, dict) else [],
+        'interview_questions': (analysis.seniority_alignment or {}).get('interview_questions', []) if isinstance(analysis.seniority_alignment, dict) else [],
+        'hiring_recommendation': (analysis.seniority_alignment or {}).get('hiring_recommendation', '') if isinstance(analysis.seniority_alignment, dict) else '',
         
         # Reports (provide both underscored and camelCase for maximum compatibility)
         'gap_report': gap_data,
@@ -785,11 +823,20 @@ async def list_analyses(
     ).outerjoin(
         JobDescription, AnalysisRecord.job_description_id == JobDescription.id
     ).where(
-        AnalysisRecord.cv_document_id.in_(cv_ids)
+        AnalysisRecord.cv_document_id.in_(cv_ids),
+        # Candidates only see their own analyses, not recruiter batch analyses
+        or_(
+            AnalysisRecord.initiated_by_role == 'candidate',
+            AnalysisRecord.initiated_by_role.is_(None)
+        )
     )
 
     count_query = select(func.count()).select_from(AnalysisRecord).where(
-        AnalysisRecord.cv_document_id.in_(cv_ids)
+        AnalysisRecord.cv_document_id.in_(cv_ids),
+        or_(
+            AnalysisRecord.initiated_by_role == 'candidate',
+            AnalysisRecord.initiated_by_role.is_(None)
+        )
     )
     total_result = await db.execute(count_query)
     total = total_result.scalar()

@@ -2,12 +2,22 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { apiClient } from '@/lib/api-client'
 import { useAuth } from '@/contexts/auth-context'
+import { toast } from 'sonner'
 import {
   Bot, Send, Sparkles, Lightbulb, Briefcase,
-  Target, User, RefreshCw, MessageSquare
+  Target, User, RefreshCw, MessageSquare, AlertTriangle, Award, Users,
+  Search, Loader2, FileText
 } from 'lucide-react'
+
+interface CVDoc {
+  id: string
+  original_filename: string
+  processing_status: string
+  created_at: string
+}
 
 // Helper function to format AI messages with markdown-like styling
 function formatAIMessage(text: string) {
@@ -139,19 +149,70 @@ const SUGGESTIONS = [
   { text: 'How to improve my CV?',   icon: Sparkles,  color: '#0ea5e9' },
 ]
 
+const RECRUITER_SUGGESTIONS = [
+  { text: 'How well does this candidate fit the role?', icon: Target,    color: '#6366f1' },
+  { text: 'What are the main concerns or red flags?',   icon: AlertTriangle, color: '#f43f5e' },
+  { text: 'Suggest interview questions to probe gaps',  icon: Lightbulb, color: '#f59e0b' },
+  { text: 'Summarize candidate strengths & seniority',  icon: Award,     color: '#8b5cf6' },
+]
+
 export function CareerChatView() {
   const { user, loading: authLoading } = useAuth()
+  const searchParams = useSearchParams()
+  const cvId = searchParams?.get('cv_id') || undefined
+  const router = useRouter()
+
   const [view, setView] = useState<'chat' | 'history' | 'session-detail'>('chat')
   const [sessions, setSessions] = useState<ChatSessionItem[]>([])
   const [selectedSession, setSelectedSession] = useState<ChatSessionItem | null>(null)
   const [sessionMessages, setSessionMessages] = useState<Message[]>([])
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+
+  const [candidates, setCandidates] = useState<CVDoc[]>([])
+  const [loadingCandidates, setLoadingCandidates] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+
+  const getWelcomeMessage = () => {
+    return user?.role === 'recruiter'
+      ? "Welcome to your AI Recruiter Assistant! I can help you analyze this candidate's fit, identify key evidence for or against hire, formulate interview questions, and assist in your selection process. What would you like to know about the candidate?"
+      : "Welcome to your AI Career Coach! I can help you analyze skill gaps, suggest learning paths, prepare for interviews, and guide your career growth. What would you like to work on today?"
+  }
+
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
       content: "Welcome to your AI Career Coach! I can help you analyze skill gaps, suggest learning paths, prepare for interviews, and guide your career growth. What would you like to work on today?"
     }
   ])
+
+  useEffect(() => {
+    if (user) {
+      setMessages([
+        {
+          role: 'assistant',
+          content: getWelcomeMessage()
+        }
+      ])
+      setSessionId(null)
+      setInput('')
+    }
+  }, [user, cvId])
+
+  useEffect(() => {
+    if (user?.role === 'recruiter') {
+      setLoadingCandidates(true)
+      apiClient.getDocuments({ limit: 100 })
+        .then(res => {
+          const completed = (res.documents || []).filter((d: any) => d.processing_status === 'completed')
+          setCandidates(completed)
+        })
+        .catch(err => {
+          console.error('Failed to load candidates:', err)
+        })
+        .finally(() => setLoadingCandidates(false))
+    }
+  }, [user])
+
   const [input, setInput]       = useState('')
   const [loading, setLoading]   = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -159,11 +220,21 @@ export function CareerChatView() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef       = useRef<HTMLInputElement>(null)
 
+  const [noCandidate, setNoCandidate] = useState(false)
+
   const initSession = async () => {
     setInitError(false)
+    setNoCandidate(false)
+
+    // Recruiter without cv_id: show guidance instead of creating a broken session
+    if (user?.role === 'recruiter' && !cvId) {
+      setNoCandidate(true)
+      return
+    }
+
     try {
       console.log('Creating chat session...')
-      const s = await apiClient.createChatSession()
+      const s = await apiClient.createChatSession(cvId)
       console.log('Chat session created:', s.session_id)
       setSessionId(s.session_id)
     } catch (err) {
@@ -173,11 +244,11 @@ export function CareerChatView() {
   }
 
   useEffect(() => {
-    // Only initialize session after user is authenticated
+    // Only initialize session after user is authenticated or cvId changes
     if (!authLoading && user) {
       initSession()
     }
-  }, [authLoading, user])
+  }, [authLoading, user, cvId])
 
   const loadSessions = async () => {
     try {
@@ -246,7 +317,102 @@ export function CareerChatView() {
     }
   }
 
+  const suggestions = user?.role === 'recruiter' ? RECRUITER_SUGGESTIONS : SUGGESTIONS
   const showSuggestions = messages.length <= 1
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // NO CANDIDATE SELECTED (Recruiter via sidebar, no cv_id)
+  // ═══════════════════════════════════════════════════════════════════════
+  if (noCandidate) {
+    const filteredCandidates = candidates.filter(c =>
+      c.original_filename.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+
+    return (
+      <div className="flex flex-col items-center justify-start min-h-[calc(100vh-160px)] py-8 max-w-xl mx-auto text-center" style={{ fontFamily: 'Roboto, sans-serif' }}>
+        <div className="w-16 h-16 rounded-3xl bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 flex items-center justify-center mb-5 shadow-sm">
+          <Bot size={30} className="text-violet-500" />
+        </div>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+          AI Selection Assistant
+        </h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-6 px-4">
+          Select a candidate below to begin your chat session, or navigate to the dashboard to select from your ranked leaderboard.
+        </p>
+
+        {/* Candidate Selector Card */}
+        <div className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 shadow-xl shadow-slate-100 dark:shadow-none mb-6 text-left">
+          <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2.5">
+            Select a Candidate to Begin
+          </label>
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input
+              type="text"
+              placeholder="Search candidate CVs..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all text-slate-900 dark:text-white"
+            />
+          </div>
+
+          {loadingCandidates ? (
+            <div className="flex flex-col items-center justify-center py-8 gap-2">
+              <Loader2 className="animate-spin text-violet-500" size={24} />
+              <span className="text-xs text-slate-400">Loading CV documents...</span>
+            </div>
+          ) : candidates.length === 0 ? (
+            <div className="text-center py-6 text-sm text-slate-400 italic">
+              No completed candidate CVs found. Upload CVs first!
+            </div>
+          ) : filteredCandidates.length === 0 ? (
+            <div className="text-center py-6 text-sm text-slate-400 italic">
+              No candidates matching "{searchTerm}"
+            </div>
+          ) : (
+            <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+              {filteredCandidates.map(c => (
+                <button
+                  key={c.id}
+                  onClick={() => router.push(`/coaching?cv_id=${c.id}`)}
+                  className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-100 dark:border-slate-700/50 hover:border-violet-500 dark:hover:border-violet-500/50 hover:bg-violet-50/50 dark:hover:bg-violet-500/5 text-left transition-all group"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 flex items-center justify-center shrink-0">
+                      <FileText size={15} />
+                    </div>
+                    <span className="font-semibold text-slate-700 dark:text-slate-200 text-sm truncate">
+                      {c.original_filename}
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-bold text-violet-600 dark:text-violet-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                    Start Chat →
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3 w-full px-4">
+          <a
+            href="/recruiter"
+            className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-semibold text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-all hover:scale-[1.01] active:scale-[0.99]"
+          >
+            <Bot size={14} className="text-violet-500" />
+            Go to Dashboard
+          </a>
+          <a
+            href="/talent-pool"
+            className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-semibold text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-all hover:scale-[1.01] active:scale-[0.99]"
+          >
+            <Users size={14} className="text-blue-500" />
+            Browse Talent Pool
+          </a>
+        </div>
+      </div>
+    )
+  }
 
   // ═══════════════════════════════════════════════════════════════════════
   // HISTORY VIEW
@@ -415,7 +581,9 @@ export function CareerChatView() {
             <Bot size={22} className="text-blue-600 dark:text-blue-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">AI Career Coach</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
+              {user?.role === 'recruiter' ? 'AI Recruiter Assistant' : 'AI Career Coach'}
+            </h1>
             <div className="flex items-center gap-2 mt-0.5">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span className="text-xs text-gray-500 dark:text-neutral-400 font-medium">
@@ -441,7 +609,7 @@ export function CareerChatView() {
             onClick={() => {
               setMessages([{
                 role: 'assistant',
-                content: "Welcome to your AI Career Coach! I can help you analyze skill gaps, suggest learning paths, prepare for interviews, and guide your career growth. What would you like to work on today?"
+                content: getWelcomeMessage()
               }])
               setSessionId(null)
               setView('chat')
@@ -533,7 +701,7 @@ export function CareerChatView() {
           {/* Suggestion chips — only on first message */}
           {showSuggestions && (
             <div className="flex flex-wrap gap-2 mb-3">
-              {SUGGESTIONS.map((s, i) => (
+              {suggestions.map((s, i) => (
                 <button key={i} onClick={() => send(s.text)}
                   className="group flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30 text-xs font-medium text-slate-700 dark:text-slate-300 transition-all hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
                 >
@@ -554,7 +722,7 @@ export function CareerChatView() {
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
-                placeholder={sessionId ? 'Ask your AI coach anything...' : 'Connecting...'}
+                placeholder={sessionId ? (user?.role === 'recruiter' ? 'Ask about candidate selection...' : 'Ask your AI coach anything...') : 'Connecting...'}
                 disabled={!sessionId || loading}
                 className="flex-1 bg-transparent border-none outline-none text-[14px] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 disabled:opacity-50"
               />
@@ -569,7 +737,7 @@ export function CareerChatView() {
           </div>
 
           <p className="text-[11px] text-slate-400 dark:text-slate-500 text-center mt-3 font-medium">
-            AI responses are for guidance only. Always verify career advice with professionals.
+            {user?.role === 'recruiter' ? 'AI responses are for screening assistance only. Always verify match details independently.' : 'AI responses are for guidance only. Always verify career advice with professionals.'}
           </p>
         </div>
       </div>

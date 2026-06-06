@@ -8,8 +8,9 @@ import { toast } from 'sonner'
 import {
   FileText, Briefcase, CheckCircle2, ArrowLeft, ArrowRight,
   Zap, Loader2, Users, Target, Search, Award, AlertCircle,
-  BarChart3, X, Clock, History, Plus, TrendingUp
+  BarChart3, X, Clock, History, Plus, TrendingUp, Bot, MessageSquare
 } from 'lucide-react'
+
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface CVDoc { id: string; original_filename: string; processing_status: string; created_at: string }
@@ -156,7 +157,11 @@ function AddToPoolModal({ candidate, onClose }: {
 }
 
 // ── Collapsible Candidate Card ─────────────────────────────────────────────────
-function CandidateCard({ c, onAddToPool }: { c: RankedCandidate; onAddToPool: (c: RankedCandidate) => void }) {
+function CandidateCard({ c, onAddToPool, onChat }: {
+  c: RankedCandidate
+  onAddToPool: (c: RankedCandidate) => void
+  onChat: (c: RankedCandidate) => void
+}) {
   const [expanded, setExpanded] = useState(false)
   const pct = scorePct(c.composite_score)
 
@@ -184,12 +189,20 @@ function CandidateCard({ c, onAddToPool }: { c: RankedCandidate; onAddToPool: (c
           )}
         </div>
 
-        {/* Score + chevron */}
-        <div className="flex items-center gap-3 shrink-0">
+        {/* Score + AI Chat button + chevron */}
+        <div className="flex items-center gap-2 shrink-0">
           <div className={`px-3 py-2 rounded-xl border text-center ${scoreStyle(pct)}`}>
             <div className="text-lg font-black leading-none">{pct}%</div>
             <div className="text-[8px] uppercase font-bold tracking-wide mt-0.5 opacity-60">{c.rank_category}</div>
           </div>
+          {/* AI Chat — one click, no expand needed */}
+          <button
+            onClick={e => { e.stopPropagation(); onChat(c) }}
+            title="Open AI Assistant"
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-violet-100 dark:bg-violet-500/15 border border-violet-200 dark:border-violet-500/25 text-violet-600 dark:text-violet-400 hover:bg-violet-600 hover:text-white hover:border-violet-600 transition-all shrink-0 shadow-sm"
+          >
+            <Bot size={15} />
+          </button>
           <div className={`text-slate-400 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M6 9l6 6 6-6"/>
@@ -335,7 +348,7 @@ function CandidateCard({ c, onAddToPool }: { c: RankedCandidate; onAddToPool: (c
             )}
 
             {/* Action bar */}
-            <div className="px-5 py-3 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex items-center gap-2">
+            <div className="px-5 py-3 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex items-center gap-2 flex-wrap">
               <button onClick={() => onAddToPool(c)}
                 className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm shadow-emerald-500/20">
                 <Plus size={13} /> Add to Talent Pool
@@ -357,11 +370,181 @@ function CandidateCard({ c, onAddToPool }: { c: RankedCandidate; onAddToPool: (c
   )
 }
 
+// ── Recruiter Chat Modal ───────────────────────────────────────────────────────
+function RecruiterChatModal({ candidate, onClose }: { candidate: RankedCandidate; onClose: () => void }) {
+  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
+    { role: 'assistant', content: `👋 Hello! I'm your AI Recruiter Assistant. I have full access to **${candidate.filename}**'s CV and their match analysis. How can I help you evaluate this candidate?` }
+  ])
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [initError, setInitError] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const QUICK = [
+    'Is this candidate a strong fit for the role?',
+    'What are the main skill gaps?',
+    'Suggest 3 interview questions',
+    'Summarize strengths vs. concerns',
+  ]
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const s = await apiClient.createChatSession(candidate.cv_id)
+        setSessionId(s.session_id)
+      } catch {
+        setInitError(true)
+      }
+    })()
+  }, [candidate.cv_id])
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, loading])
+
+  const send = async (text?: string) => {
+    const msg = (text ?? input).trim()
+    if (!msg || loading || !sessionId) return
+    setMessages(prev => [...prev, { role: 'user', content: msg }])
+    setInput('')
+    setLoading(true)
+    try {
+      const res = await apiClient.sendChatMessage(sessionId, msg)
+      setMessages(prev => [...prev, { role: 'assistant', content: res.message }])
+    } catch {
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, an error occurred. Please try again.' }])
+    } finally {
+      setLoading(false)
+      setTimeout(() => inputRef.current?.focus(), 100)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, y: 40, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 40, scale: 0.97 }}
+        transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+        onClick={e => e.stopPropagation()}
+        className="w-full sm:max-w-2xl h-[92vh] sm:h-[680px] flex flex-col bg-white dark:bg-slate-900 sm:rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700"
+      >
+        {/* Header */}
+        <div className="shrink-0 flex items-center gap-3 px-5 py-4 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-violet-600 to-purple-700">
+          <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+            <Bot size={18} className="text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-white text-sm leading-none">AI Selection Assistant</p>
+            <p className="text-violet-200 text-xs mt-0.5 truncate">{candidate.filename}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+              candidate.recommendation === 'shortlist' ? 'bg-emerald-400/20 text-emerald-100 border-emerald-400/30' :
+              candidate.recommendation === 'interview' ? 'bg-blue-400/20 text-blue-100 border-blue-400/30' :
+              'bg-red-400/20 text-red-100 border-red-400/30'
+            } capitalize`}>{candidate.recommendation}</span>
+            <span className="font-black text-white text-lg">{scorePct(candidate.composite_score)}%</span>
+            <button onClick={onClose} className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors">
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto px-4 py-5 space-y-4 min-h-0">
+          {initError && (
+            <div className="text-center py-3 px-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-600 dark:text-red-400">
+              Failed to connect to AI service. Please close and try again.
+            </div>
+          )}
+          {messages.map((msg, i) => (
+            <div key={i} className={`flex gap-2.5 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                msg.role === 'user'
+                  ? 'bg-gradient-to-br from-violet-600 to-purple-700 text-white'
+                  : 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700'
+              }`}>
+                {msg.role === 'user'
+                  ? <Users size={14} className="text-white" />
+                  : <Bot size={14} className="text-violet-500" />}
+              </div>
+              <div className={`max-w-[82%] rounded-2xl text-sm px-4 py-3 leading-relaxed ${
+                msg.role === 'user'
+                  ? 'bg-gradient-to-br from-violet-600 to-purple-700 text-white rounded-tr-sm'
+                  : 'bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-tl-sm'
+              }`}>
+                {msg.content.split('\n').map((line, li) => (
+                  <span key={li}>{line}{li < msg.content.split('\n').length - 1 && <br />}</span>
+                ))}
+              </div>
+            </div>
+          ))}
+          {loading && (
+            <div className="flex gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center shrink-0">
+                <Bot size={14} className="text-violet-500" />
+              </div>
+              <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-3 rounded-2xl rounded-tl-sm flex gap-1 items-center">
+                {[0, 0.15, 0.3].map((d, i) => (
+                  <span key={i} className="w-2 h-2 bg-violet-500 rounded-full animate-bounce" style={{ animationDelay: `${d}s` }} />
+                ))}
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Quick suggestions */}
+        {messages.length <= 1 && (
+          <div className="shrink-0 px-4 pb-2 flex flex-wrap gap-1.5">
+            {QUICK.map((q, i) => (
+              <button key={i} onClick={() => send(q)} disabled={!sessionId || loading}
+                className="px-3 py-1.5 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 text-violet-700 dark:text-violet-300 rounded-xl text-xs font-medium hover:bg-violet-100 dark:hover:bg-violet-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                {q}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Input */}
+        <div className="shrink-0 px-4 py-3 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+          <div className="flex gap-2 items-center">
+            <div className="flex-1 flex items-center bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 focus-within:border-violet-500 focus-within:ring-4 focus-within:ring-violet-500/10 transition-all">
+              <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+                placeholder={sessionId ? 'Ask about this candidate...' : 'Connecting...'}
+                disabled={!sessionId || loading}
+                className="flex-1 bg-transparent outline-none text-sm text-slate-900 dark:text-white placeholder:text-slate-400 disabled:opacity-50"
+              />
+            </div>
+            <button
+              onClick={() => send()}
+              disabled={!input.trim() || loading || !sessionId}
+              className="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-violet-600 to-purple-700 hover:from-violet-700 hover:to-purple-800 text-white rounded-xl shadow-lg shadow-violet-500/25 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shrink-0"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="ml-0.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+          <p className="text-[10px] text-slate-400 text-center mt-2">AI responses are for screening assistance only. Verify independently.</p>
+        </div>
+      </motion.div>
+    </div>
+  )
+}
+
 // ── Leaderboard ────────────────────────────────────────────────────────────────
 function Leaderboard({ result, jdTitle, onNew }: { result: any; jdTitle?: string; onNew?: () => void }) {
   const lb: RankedCandidate[] = result?.leaderboard || []
   const stats = result?.statistics || {}
   const [addingTo, setAddingTo] = useState<RankedCandidate | null>(null)
+  const [chatCandidate, setChatCandidate] = useState<RankedCandidate | null>(null)
 
   return (
     <div className="space-y-5">
@@ -423,9 +606,16 @@ function Leaderboard({ result, jdTitle, onNew }: { result: any; jdTitle?: string
           <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">{lb.length} candidate{lb.length !== 1 ? 's' : ''}</span>
         </div>
         <div>
-          {lb.map(c => <CandidateCard key={c.cv_id} c={c} onAddToPool={setAddingTo} />)}
+          {lb.map(c => <CandidateCard key={c.cv_id} c={c} onAddToPool={setAddingTo} onChat={setChatCandidate} />)}
         </div>
       </div>
+
+      {/* Chat Modal */}
+      <AnimatePresence>
+        {chatCandidate && (
+          <RecruiterChatModal candidate={chatCandidate} onClose={() => setChatCandidate(null)} />
+        )}
+      </AnimatePresence>
 
       {/* Add to Pool Modal */}
       <AnimatePresence>
@@ -524,6 +714,16 @@ export function RecruiterAnalysisView() {
   const [activeTab, setActiveTab]     = useState<Tab>('new')
   const [history, setHistory]         = useState<HistoryEntry[]>([])
   const [viewing, setViewing]         = useState<HistoryEntry | null>(null)
+
+  // Read ?tab=history from URL and activate History tab directly
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('tab') === 'history') {
+        setActiveTab('history')
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (dataLoaded.current) return

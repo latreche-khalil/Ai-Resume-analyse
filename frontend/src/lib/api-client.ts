@@ -514,8 +514,9 @@ class ApiClient {
   }
 
   // Chat/Coaching methods
-  async createChatSession(): Promise<{ session_id: string; created_at: string }> {
-    return this.request('POST', '/coaching/chat/sessions')
+  async createChatSession(cvDocumentId?: string): Promise<{ session_id: string; created_at: string }> {
+    const url = cvDocumentId ? `/coaching/chat/sessions?cv_document_id=${cvDocumentId}` : '/coaching/chat/sessions'
+    return this.request('POST', url)
   }
 
   async sendChatMessage(sessionId: string, message: string): Promise<{ message: string }> {

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { apiClient } from '@/lib/api-client'
 
-export type Tab = 'overview' | 'gaps' | 'roadmap' | 'xai' | 'visualizations' | 'prep' | 'trust'
+export type Tab = 'overview' | 'gaps' | 'roadmap' | 'xai' | 'visualizations' | 'prep' | 'trust' | 'evaluation'
 
 export function useAnalysisData(id: string | undefined) {
   const [data, setData] = useState<any>(null)
@@ -51,11 +51,28 @@ export function useAnalysisData(id: string | undefined) {
 
       if (!mountedRef.current) return
 
+      const seniority = baseData.seniority_alignment || {}
+
+      // evidence_for_hire / evidence_against_hire / interview_questions / hiring_recommendation
+      // are stored inside seniority_alignment JSON by the orchestrator (to avoid DB migration).
+      // Hoist them to the top level so RecruiterEvaluationTab can read them directly.
       const finalData = {
         ...baseData,
         ...enhancedData,
         cv: cv.status === 'fulfilled' ? cv.value : null,
         jd: jd.status === 'fulfilled' ? jd.value : null,
+        // Hoist recruiter fields from seniority_alignment
+        evidence_for_hire:     seniority.evidence_for_hire     ?? baseData.evidence_for_hire     ?? [],
+        evidence_against_hire: seniority.evidence_against_hire ?? baseData.evidence_against_hire ?? [],
+        interview_questions:   seniority.interview_questions   ?? baseData.interview_questions   ?? [],
+        hiring_recommendation: seniority.hiring_recommendation ?? baseData.hiring_recommendation ?? '',
+        // Keep seniority_alignment clean (only core fields)
+        seniority_alignment: {
+          cv_level:    seniority.cv_level    || 'unknown',
+          jd_level:    seniority.jd_level    || 'unknown',
+          match:       seniority.match       || 'unknown',
+          explanation: seniority.explanation || '',
+        },
       }
 
       setData(finalData)

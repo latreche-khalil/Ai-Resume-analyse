@@ -202,10 +202,11 @@ class BatchRankingService:
                     processing_status='completed',
                     processing_started_at=datetime.now(timezone.utc),
                     processing_completed_at=datetime.now(timezone.utc),
-                    confidence_score=0.90, # default confidence
+                    confidence_score=0.90,
                     requires_human_review=False,
                     is_binding=False,
-                    is_partial=False
+                    is_partial=False,
+                    initiated_by_role='recruiter',   # always recruiter for batch ranking
                 )
                 
                 db.add(analysis_record)
@@ -503,7 +504,8 @@ class BatchRankingService:
                     job_description=job_description.description,
                     cv_document_id=cv.id,
                     jd_id=job_description.id,
-                    db=db
+                    db=db,
+                    mode="recruiter"
                 )
                 scores[cv.id] = match_result
                 logger.info(

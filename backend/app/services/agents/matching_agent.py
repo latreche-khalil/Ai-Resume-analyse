@@ -60,7 +60,8 @@ class MatchingAgent:
         cv_document_id: UUID,
         jd_id: UUID,
         db: AsyncSession,
-        language: str = "en"
+        language: str = "en",
+        mode: str = "candidate"   # "candidate" | "recruiter"
     ) -> Dict[str, Any]:
         """
         Match CV with job description with fresh AI analysis.
@@ -176,11 +177,18 @@ class MatchingAgent:
             if not jd_context or len(jd_context.strip()) < 20:
                 raise ValueError(f"Job description context is too short or empty ({len(jd_context) if jd_context else 0} chars).")
 
+            # ── Prompt Injection Sanitizer ────────────────────────────────────
+            # Strip adversarial instruction patterns from user-supplied content
+            # before it is inserted into the LLM prompt template.
+            cv_context  = self._sanitize_prompt_input(cv_context)
+            jd_context  = self._sanitize_prompt_input(jd_context)
+
             # Create matching prompt
             prompt = self._create_matching_prompt(
                 cv_text=cv_context,
                 jd_text=jd_context,
-                language=language
+                language=language,
+                mode=mode
             )
             
             # Call Unified LLM Client
@@ -205,6 +213,23 @@ class MatchingAgent:
             
             # Validate match score range
             match_result['match_score'] = max(0.0, min(1.0, float(match_result.get('match_score', 0.0))))
+
+            # ── Hallucination / Confidence Gate ───────────────────────────────
+            # Flag low-confidence results for human review so they are never
+            # silently passed to recruiters as authoritative assessments.
+            confidence = match_result.get('confidence', 'medium')
+            if confidence == 'low':
+                match_result['requires_human_review'] = True
+                match_result['low_confidence_warning'] = (
+                    "AI confidence is LOW. Results may be unreliable — "
+                    "manual review is required before making any hiring decision."
+                )
+                logger.warning(
+                    f"Low-confidence analysis result — flagged for human review. "
+                    f"score={match_result['match_score']:.2f}"
+                )
+            else:
+                match_result.setdefault('requires_human_review', False)
             
             elapsed_time = time.time() - start_time
             logger.info(f"Fresh AI matching completed in {elapsed_time:.2f}s")
@@ -214,24 +239,83 @@ class MatchingAgent:
         except Exception as e:
             logger.error(f"Matching error: {str(e)}")
             raise
-    
+
+    @staticmethod
+    def _sanitize_prompt_input(text: str) -> str:
+        """
+        Sanitize user-supplied text before insertion into LLM prompts.
+
+        Removes / neutralises common prompt-injection patterns such as:
+          - "Ignore previous instructions …"
+          - "You are now …"
+          - "SYSTEM:", "USER:", "ASSISTANT:" role-spoofing headers
+          - Excessive special-character sequences used to break delimiters
+
+        The original meaning of legitimate CV/JD content is preserved —
+        only adversarial control phrases are neutralised by replacing them
+        with a harmless placeholder so the LLM sees them as plain text.
+        """
+        import re
+
+        # Patterns that attempt to override system instructions
+        injection_patterns = [
+            # Classic jailbreak openers (case-insensitive)
+            r'(?i)\bignore\s+(all\s+)?(previous|prior|above|system|my)\s+(instructions?|prompts?|context|rules?)\b',
+            r'(?i)\byou\s+are\s+now\s+\w',
+            r'(?i)\bact\s+as\s+(if\s+you\s+are|an?\s+)',
+            r'(?i)\bforget\s+(everything|all|your|previous)',
+            r'(?i)\bdisregard\s+(all|previous|prior|above)',
+            r'(?i)\bnew\s+instructions?\s*:',
+            r'(?i)\boverride\s+(system|instructions?|rules?)',
+            r'(?i)\bjailbreak\b',
+            r'(?i)\bDAN\s+mode\b',
+            # Role-spoofing headers that try to inject a fake system turn
+            r'(?i)^\s*(SYSTEM|USER|ASSISTANT|HUMAN|AI)\s*:\s*',
+            # Delimiter flooding — long runs of special chars used to break prompt structure
+            r'[<>\[\]{}\|]{10,}',
+            r'={5,}',
+            r'-{10,}',
+        ]
+
+        sanitized = text
+        for pattern in injection_patterns:
+            sanitized = re.sub(pattern, '[FILTERED]', sanitized)
+
+        # Log if anything was sanitised
+        if sanitized != text:
+            logger.warning(
+                "Prompt injection attempt detected and neutralised in user input. "
+                f"Original length={len(text)}, sanitised length={len(sanitized)}"
+            )
+
+        return sanitized
+
     def _create_matching_prompt(
         self,
         cv_text: str,
         jd_text: str,
-        language: str = "en"
+        language: str = "en",
+        mode: str = "candidate"
     ) -> str:
-        """Create a high-intelligence matching prompt with self-correction."""
+        """
+        Returns the correct prompt based on mode:
+        - candidate : coaching-oriented, explains score, gives improvement tips
+        - recruiter : hiring-decision-oriented, evidence + interview questions
+        """
         lang_map = {'ar': 'Arabic', 'en': 'English', 'fr': 'French'}
         lang = lang_map.get(language, 'English')
-        
-        return f"""You are a Senior Technical Recruiter at a Top-Tier Tech Firm (e.g., Google, NVIDIA). Your task is a RIGOROUS semantic match between a CV and a Job Description.
 
-THINK STEP-BY-STEP:
-1. DECONSTRUCT the Job Description into Core Competencies, Secondary Tools, and Seniority Expectations.
-2. ANALYZE the Candidate CV for explicit evidence, project impact, and technical depth. Do not assume skills not mentioned.
-3. CROSS-REFERENCE: Where are the direct matches? Where are the semantic overlaps (Transferable)? What is strictly missing?
-4. CALCULATE: Match score should be 100% only if ALL critical requirements are met with proven impact.
+        if mode == "recruiter":
+            return self._recruiter_prompt(cv_text, jd_text, lang)
+        return self._candidate_prompt(cv_text, jd_text, lang)
+
+    def _candidate_prompt(self, cv_text: str, jd_text: str, lang: str) -> str:
+        """
+        Candidate-facing prompt — coaching tone, full fields for the frontend.
+        Includes all fields the candidate UI uses: skills, seniority, red_flags, transferable.
+        Excludes recruiter-only: evidence_for_hire, interview_questions, hiring_recommendation.
+        """
+        return f"""You are an expert Career Coach helping a job seeker understand how well their CV matches a job description. Be constructive, specific, and honest.
 
 OUTPUT LANGUAGE: MUST be {lang}.
 
@@ -241,46 +325,88 @@ JOB DESCRIPTION:
 CANDIDATE CV:
 {cv_text[:self.CV_TEXT_LIMIT]}
 
-OUTPUT FORMAT (Strict JSON):
+Analyze the match carefully and return ONLY this JSON — no extra text:
 {{
   "match_score": 0.XX,
-  "matching_skills": ["Verified Hard Skill 1", "Verified Hard Skill 2"],
-  "missing_skills": ["Critical Gap 1", "Missing Tool 2"],
-  "transferable_skills": ["Related Skill that helps"],
-  "summary": "2-3 sentences: candidate's key strengths for this role, then the critical gaps. Do NOT mention the numeric score.",
+  "matching_skills": ["Hard or soft skill present in CV that directly matches JD requirement"],
+  "missing_skills": ["Important skill required by JD but not found in CV"],
+  "transferable_skills": ["Skill from CV that partially covers a JD requirement"],
+  "summary": "2-3 sentences addressed to the candidate: explain their key strengths for this role, then the main gaps they should address. Be specific. Do NOT include the numeric score.",
   "recommendation": "shortlist/interview/reject",
   "confidence": "high/medium/low",
   "seniority_alignment": {{
-    "cv_level": "Level detected from CV",
-    "jd_level": "Level required by JD",
+    "cv_level": "Seniority level from CV (e.g. Junior, Mid-Level, Senior, Lead, Principal)",
+    "jd_level": "Seniority level required by JD",
     "match": "matched/underqualified/overqualified",
-    "explanation": "Brief explanation of seniority fit."
+    "explanation": "One sentence explaining the seniority fit or gap."
   }},
-  "evidence_for_hire": [
-    "Specific evidence from CV that supports hiring (e.g., 'Led team of 8 engineers at X company')",
-    "Quantified achievement directly relevant to the role",
-    "Directly verified skill with proof of use"
-  ],
-  "evidence_against_hire": [
-    "Specific gap or concern from CV (e.g., 'No experience with Kubernetes despite it being required')",
-    "Missing critical qualification",
-    "Potential red flag with explanation"
-  ],
-  "interview_questions": [
-    "Technical question targeting a key gap or claimed skill",
-    "Behavioral question based on a red flag or uncertainty",
-    "Role-specific scenario question"
-  ],
-  "hiring_recommendation": "1-2 sentences for the hiring manager: whether to proceed, what to probe in interview, and any conditions.",
-  "red_flags": ["Gaps, lack of impact, or missing mandatory stack"],
+  "red_flags": ["Any significant concern in the CV, e.g. unexplained gaps, vague claims, missing credentials"],
   "hiring_urgency": "low/medium/high"
 }}
 
 RULES:
-- Be CRITICAL. Low-quality matches must have low scores (<0.40).
-- summary and hiring_recommendation must NOT contain the numeric score value.
-- evidence_for_hire and evidence_against_hire must reference SPECIFIC content from the CV, not generic statements.
-- interview_questions must be role-specific and actionable.
+- Be honest. Weak matches MUST score below 0.40. Strong matches score above 0.80 only if most requirements are clearly met.
+- List ACTUAL skill names (e.g. "Python", "React", "Project Management"), not generic phrases.
+- summary must be helpful to the job seeker — explain WHY they match or do not match.
+- Only return the JSON object."""
+
+    def _recruiter_prompt(self, cv_text: str, jd_text: str, lang: str) -> str:
+        """
+        Recruiter-facing prompt — hiring-decision tone, evidence + interview questions.
+        Full detail for talent assessment.
+        """
+        return f"""You are a Senior Technical Recruiter at a Top-Tier Tech Firm (e.g., Google, NVIDIA). Your task is a RIGOROUS semantic match between a CV and a Job Description.
+
+THINK STEP-BY-STEP:
+1. DECONSTRUCT the Job Description into Core Competencies, Secondary Tools, and Seniority Expectations.
+2. ANALYZE the Candidate CV for explicit evidence, project impact, and technical depth. Do not assume skills not mentioned.
+3. CROSS-REFERENCE: Direct matches, semantic overlaps, and strict gaps.
+4. CALCULATE: 100% score only if ALL critical requirements are met with proven impact.
+
+OUTPUT LANGUAGE: MUST be {lang}.
+
+JOB DESCRIPTION:
+{jd_text}
+
+CANDIDATE CV:
+{cv_text[:self.CV_TEXT_LIMIT]}
+
+Return ONLY this JSON:
+{{
+  "match_score": 0.XX,
+  "matching_skills": ["Verified skill from CV"],
+  "missing_skills": ["Critical gap"],
+  "transferable_skills": ["Related skill that partially helps"],
+  "summary": "2-3 sentences: candidate strengths and critical gaps. Do NOT include the numeric score.",
+  "recommendation": "shortlist/interview/reject",
+  "confidence": "high/medium/low",
+  "seniority_alignment": {{
+    "cv_level": "Level from CV",
+    "jd_level": "Level required",
+    "match": "matched/underqualified/overqualified",
+    "explanation": "Brief seniority fit explanation."
+  }},
+  "evidence_for_hire": [
+    "Specific CV evidence supporting hire (e.g. 'Led team of 8 at X')",
+    "Quantified achievement relevant to the role"
+  ],
+  "evidence_against_hire": [
+    "Specific gap or concern (e.g. 'No Kubernetes despite it being required')",
+    "Missing critical qualification"
+  ],
+  "interview_questions": [
+    "Technical question targeting a key gap",
+    "Behavioral question based on a red flag",
+    "Role-specific scenario question"
+  ],
+  "hiring_recommendation": "1-2 sentences for the hiring manager: proceed or not, what to probe.",
+  "red_flags": ["Gaps or missing mandatory stack"],
+  "hiring_urgency": "low/medium/high"
+}}
+
+RULES:
+- Be CRITICAL. Low-quality matches must score below 0.40.
+- evidence_for_hire and evidence_against_hire must reference SPECIFIC content from the CV.
 - Only return the JSON object."""
     
     def _parse_matching_response(self, response: str) -> Dict[str, Any]:
